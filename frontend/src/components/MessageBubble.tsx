@@ -42,23 +42,23 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, onCitationClick 
             <button
               key={index}
               onClick={() => handleCitationClick(citation)}
-              className="block w-full text-left p-2 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors group"
+              className="block w-full text-left p-2 bg-gray-700 hover:bg-gray-600 rounded-md border border-gray-600 transition-colors group"
             >
               <div className="flex items-start space-x-2">
-                <div className="flex-shrink-0 w-4 h-4 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center font-medium">
+                <div className="flex-shrink-0 w-4 h-4 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center font-medium">
                   {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-blue-900 line-clamp-2">
+                  <div className="text-sm text-blue-300 line-clamp-2">
                     {citation.contentPreview}
                   </div>
-                  <div className="text-xs text-blue-600 mt-1">
+                  <div className="text-xs text-gray-400 mt-1">
                     Document: {citation.documentId}
                     {citation.chunkIndex !== undefined && ` • Chunk ${citation.chunkIndex}`}
                     {citation.score !== undefined && ` • Score: ${(citation.score * 100).toFixed(1)}%`}
                   </div>
                 </div>
-                <div className="flex-shrink-0 text-blue-400 group-hover:text-blue-600">
+                <div className="flex-shrink-0 text-gray-400 group-hover:text-gray-200">
                   →
                 </div>
               </div>

@@ -1,0 +1,73 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Document Summarization API",
+    "version": "1.0.0",
+    "description": "Endpoint for generating document summaries"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001/api",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/documents/{documentId}/summarize": {
+      "post": {
+        "summary": "Generate document summary",
+        "description": "Generate an AI summary of the specified document",
+        "parameters": [
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Unique document identifier"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Summary generated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string",
+                      "description": "Generated summary text"
+                    },
+                    "summaryId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "description": "Unique summary identifier"
+                    },
+                    "model": {
+                      "type": "string",
+                      "description": "AI model used for generation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid document ID"
+          },
+          "404": {
+            "description": "Document not found"
+          },
+          "422": {
+            "description": "Document not ready for summarization"
+          },
+          "500": {
+            "description": "Summary generation failed"
+          }
+        }
+      }
+    }
+  }
+}

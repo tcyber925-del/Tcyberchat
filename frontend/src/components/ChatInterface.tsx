@@ -110,16 +110,41 @@ const ChatInterface: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-[#343541]">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-6xl mb-6">🤖</div>
-            <h1 className="text-3xl font-semibold text-gray-900 mb-3">Local Chatbot</h1>
-            <p className="text-gray-600 max-w-md">
-              Your personal AI assistant. Start a conversation below.
-            </p>
+          <div className="flex flex-col items-center justify-center h-full text-center text-gray-300">
+            <h1 className="text-4xl font-semibold mb-4">What are you working on?</h1>
+            <div className="relative w-full max-w-md">
+              <textarea
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }
+                }}
+                placeholder="Ask anything"
+                className="w-full px-4 py-3 pr-12 bg-[#40414f] border border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-transparent resize-none min-h-[48px] max-h-40 text-white placeholder-gray-500"
+                rows={1}
+                disabled={isLoading}
+                style={{ height: 'auto', minHeight: '48px' }}
+                onInput={(e) => {
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = Math.min(target.scrollHeight, 160) + 'px';
+                }}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!inputValue.trim() || isLoading}
+                className="absolute right-3 bottom-3 p-1 text-gray-400 hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" className="h-5 w-5" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+              </button>
+            </div>
           </div>
         )}
 
@@ -137,56 +162,46 @@ const ChatInterface: React.FC = () => {
       </div>
 
       {/* Input Area - Fixed at bottom */}
-      <div className="border-t border-gray-200 bg-white px-4 py-4 sticky bottom-0">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-3">
-            <div className="flex-1 relative">
-              <textarea
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                placeholder="Message Local Chatbot..."
-                className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-400 focus:border-transparent resize-none min-h-[44px] max-h-32"
-                rows={1}
-                disabled={isLoading}
-                style={{ height: 'auto', minHeight: '44px' }}
-                onInput={(e) => {
-                  const target = e.target as HTMLTextAreaElement;
-                  target.style.height = 'auto';
-                  target.style.height = Math.min(target.scrollHeight, 128) + 'px';
-                }}
-              />
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
-                className="absolute right-2 bottom-2 p-1 bg-[#10a37f] text-white rounded-md hover:bg-[#0f906e] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+      {messages.length > 0 && (
+        <div className="border-t border-gray-700 bg-[#343541] px-4 py-4 sticky bottom-0">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-end space-x-3">
+              <div className="flex-1 relative">
+                <textarea
+                  value={inputValue}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Message Local Chatbot..."
+                  className="w-full px-4 py-3 pr-12 bg-[#40414f] border border-gray-700 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-600 focus:border-transparent resize-none min-h-[48px] max-h-40 text-white placeholder-gray-500"
+                  rows={1}
+                  disabled={isLoading}
+                  style={{ height: 'auto', minHeight: '48px' }}
+                  onInput={(e) => {
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = Math.min(target.scrollHeight, 160) + 'px';
+                  }}
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputValue.trim() || isLoading}
+                  className="absolute right-3 bottom-3 p-1 text-gray-400 hover:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 12h14M12 5l7 7-7 7"
-                  />
-                </svg>
-              </button>
+                  <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" className="h-5 w-5" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </button>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500 mt-2 text-center">
+              Local Chatbot may produce inaccurate information.
             </div>
           </div>
-          <div className="text-xs text-gray-500 mt-2 text-center">
-            Local Chatbot may produce inaccurate information.
-          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

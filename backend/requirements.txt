@@ -1,0 +1,41 @@
+# Core FastAPI dependencies
+fastapi
+uvicorn[standard]
+pydantic==2.5.0
+pydantic-settings
+
+# Database and ORM
+sqlalchemy
+alembic
+
+# Vector database for embeddings
+chromadb
+
+# AI/ML dependencies
+langchain
+langchain-community
+langchain-core
+langchain-text-splitters
+sentence-transformers
+
+# Multi-modal processing
+transformers
+torch
+Pillow
+openai-whisper
+
+# File processing
+python-multipart
+aiofiles
+
+# Utilities
+python-dotenv
+httpx
+asyncio
+
+# Development dependencies
+pytest
+pytest-asyncio
+black
+ruff
+pre-commit
