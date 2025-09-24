@@ -22474,3 +22474,59 @@ WHERE conversations.id = ?
 2025-09-23 17:11:15,497 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
 2025-09-23 17:11:15,574 - main - INFO - Response: OPTIONS /documents -> 400 (0.078s)
 2025-09-23 17:11:15,574 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.077s)
+2025-09-23 18:02:33,457 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:02:53,129 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:24:26,729 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:31:19,793 - watchfiles.main - INFO - 4 changes detected
+2025-09-23 18:31:20,679 - watchfiles.main - INFO - 3 changes detected
+2025-09-23 18:31:21,544 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:31:22,079 - watchfiles.main - INFO - 3 changes detected
+2025-09-23 18:31:22,443 - watchfiles.main - INFO - 4 changes detected
+2025-09-23 18:31:22,829 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:34:30,641 - main - INFO - Application starting up...
+2025-09-23 18:34:30,645 - main - INFO - Application starting up...
+2025-09-23 18:34:30,662 - main - INFO - Application shutting down...
+2025-09-23 18:34:31,241 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:36:36,170 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:36:36,548 - watchfiles.main - INFO - 5 changes detected
+2025-09-23 18:36:38,177 - watchfiles.main - INFO - 1 change detected
+2025-09-23 18:38:10,569 - main - INFO - Application starting up...
+2025-09-23 19:27:10,848 - main - INFO - Request: OPTIONS /documents from 127.0.0.1
+2025-09-23 19:27:11,168 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:11,176 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:11,176 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:11,185 - main - INFO - Request: OPTIONS /documents from 127.0.0.1
+2025-09-23 19:27:11,193 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:11,371 - main - INFO - Response: OPTIONS /documents -> 400 (0.710s)
+2025-09-23 19:27:11,459 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.300s)
+2025-09-23 19:27:11,460 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.284s)
+2025-09-23 19:27:11,461 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.285s)
+2025-09-23 19:27:11,462 - main - INFO - Response: OPTIONS /documents -> 400 (0.277s)
+2025-09-23 19:27:11,463 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.278s)
+2025-09-23 19:27:18,411 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:18,412 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:18,413 - main - INFO - Request: OPTIONS /documents from 127.0.0.1
+2025-09-23 19:27:18,413 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:18,442 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.031s)
+2025-09-23 19:27:18,451 - main - INFO - Request: OPTIONS /documents from 127.0.0.1
+2025-09-23 19:27:18,503 - main - INFO - Request: OPTIONS /chat/conversations from 127.0.0.1
+2025-09-23 19:27:18,540 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.128s)
+2025-09-23 19:27:18,540 - main - INFO - Response: OPTIONS /documents -> 400 (0.127s)
+2025-09-23 19:27:18,543 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.130s)
+2025-09-23 19:27:18,546 - main - INFO - Response: OPTIONS /documents -> 400 (0.094s)
+2025-09-23 19:27:18,547 - main - INFO - Response: OPTIONS /chat/conversations -> 400 (0.043s)
+2025-09-23 23:44:08,300 - watchfiles.main - INFO - 1 change detected
+2025-09-23 23:44:10,545 - watchfiles.main - INFO - 5 changes detected
+2025-09-23 23:45:19,759 - watchfiles.main - INFO - 5 changes detected
+2025-09-23 23:45:53,750 - watchfiles.main - INFO - 1 change detected
+2025-09-23 23:45:54,395 - watchfiles.main - INFO - 3 changes detected
+2025-09-23 23:45:55,175 - watchfiles.main - INFO - 1 change detected
+2025-09-23 23:45:55,602 - watchfiles.main - INFO - 5 changes detected
+2025-09-23 23:45:55,973 - watchfiles.main - INFO - 7 changes detected
+2025-09-23 23:47:26,367 - watchfiles.main - INFO - 5 changes detected
+2025-09-23 23:48:12,017 - watchfiles.main - INFO - 1 change detected
+2025-09-24 13:19:37,907 - main - INFO - Application starting up...
+2025-09-24 16:47:46,866 - main - INFO - Request: GET /api/health from 127.0.0.1
+2025-09-24 16:47:47,377 - main - INFO - Response: GET /api/health -> 404 (0.935s)
+2025-09-24 16:48:14,167 - main - INFO - Request: GET /api/health from 127.0.0.1
+2025-09-24 16:48:14,192 - main - INFO - Response: GET /api/health -> 404 (0.025s)
