@@ -15,7 +15,7 @@ def test_chat_post_success():
         "message": "Hello, how are you?"
     }
 
-    response = client.post("/api/chat", json=request_data)
+    response = client.post("/chat/", json=request_data)
 
     # This test should fail initially since the endpoint doesn't exist yet
     assert response.status_code == 200
@@ -34,7 +34,7 @@ def test_chat_post_with_document_context():
         "documentId": "550e8400-e29b-41d4-a716-446655440000"
     }
 
-    response = client.post("/api/chat", json=request_data)
+    response = client.post("/chat/", json=request_data)
 
     # Should fail until endpoint is implemented
     assert response.status_code == 200
@@ -50,7 +50,7 @@ def test_chat_post_empty_message():
         "message": ""
     }
 
-    response = client.post("/api/chat", json=request_data)
+    response = client.post("/chat/", json=request_data)
 
     # Should return validation error
     assert response.status_code == 422  # Unprocessable Entity
@@ -62,7 +62,7 @@ def test_chat_post_invalid_document_id():
         "documentId": "invalid-uuid"
     }
 
-    response = client.post("/api/chat", json=request_data)
+    response = client.post("/chat/", json=request_data)
 
     # Should return validation error for invalid UUID
     assert response.status_code == 422
@@ -71,7 +71,7 @@ def test_chat_post_missing_message():
     """Test chat request missing message field"""
     request_data = {}
 
-    response = client.post("/api/chat", json=request_data)
+    response = client.post("/chat/", json=request_data)
 
     # Should return validation error
     assert response.status_code == 422

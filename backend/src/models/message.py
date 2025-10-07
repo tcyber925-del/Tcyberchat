@@ -7,7 +7,6 @@ from typing import List, Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey, JSON
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -18,11 +17,11 @@ class Message(Base):
 
     __tablename__ = "messages"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     content = Column(Text, nullable=False)
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
     type = Column(String(50), nullable=False)  # 'user' or 'bot'
-    conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True)
+    conversation_id = Column(String(36), ForeignKey("conversations.id"), nullable=True)
 
     # Optional citations for RAG responses
     citations = Column(JSON, nullable=True)  # List of {"docId": uuid, "page": int, "snippet": str}
@@ -47,7 +46,7 @@ class Message(Base):
             "content": self.content,
             "timestamp": self.timestamp.isoformat(),
             "type": self.type,
-            "conversationId": str(self.conversation_id) if self.conversation_id else None,
+            "conversationId": str(self.conversation_id) if self.conversation_id is not None else None,
             "citations": self.citations,
             "metadata": self.processing_metadata
         }

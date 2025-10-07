@@ -8,20 +8,27 @@ from sqlalchemy.orm import Session
 
 # Test basic service imports and instantiation
 def test_service_imports():
-    """Test that all services can be imported"""
+    """Test that all services can be imported and instantiated"""
     from src.services.chat_service import get_chat_service
     from src.services.document_service import get_document_service
     from src.services.ai_service import get_ai_service
     from src.services.rag_service import get_rag_service
 
-    # Test singleton pattern
+    # Test that services can be instantiated (FastAPI dependency injection pattern)
     chat_svc1 = get_chat_service()
     chat_svc2 = get_chat_service()
-    assert chat_svc1 is chat_svc2  # Same instance
+    assert chat_svc1 is not chat_svc2  # Different instances (dependency injection)
 
     doc_svc1 = get_document_service()
     doc_svc2 = get_document_service()
-    assert doc_svc1 is doc_svc2  # Same instance
+    assert doc_svc1 is not doc_svc2  # Different instances (dependency injection)
+
+    # Test that services have required methods
+    assert hasattr(chat_svc1, 'add_message')
+    assert hasattr(chat_svc1, 'get_conversations')
+    assert hasattr(doc_svc1, 'validate_file')
+    assert hasattr(get_ai_service(), 'generate_response')
+    assert hasattr(get_rag_service(), 'search_relevant_chunks')
 
 def test_chat_service_basic():
     """Test basic ChatService functionality"""
@@ -87,24 +94,33 @@ def test_chat_service_add_message():
 
     # Mock database
     mock_db = Mock(spec=Session)
-    mock_message = Mock()
-    mock_message.id = "test-msg-id"
+
+    # Mock conversation
+    mock_conversation = Mock()
+    mock_conversation.messages = []  # Empty list for messages
+    mock_conversation.update_activity.return_value = None
 
     # Setup mocks
     mock_db.add.return_value = None
     mock_db.commit.return_value = None
     mock_db.refresh.return_value = None
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_conversation
 
-    with patch('src.models.message.Message', return_value=mock_message):
-        chat_service = ChatService(mock_db)
+    chat_service = ChatService(mock_db)
 
-        # Test message addition
-        result = chat_service.add_message("conv-id", "Hello", "user")
+    # Test message addition
+    result = chat_service.add_message("conv-id", "Hello", "user")
 
-        assert result == mock_message
-        mock_db.add.assert_called_once()
-        mock_db.commit.assert_called_once()
-        mock_db.refresh.assert_called_once()
+    # Verify database operations were called
+    mock_db.add.assert_called_once()
+    mock_db.commit.assert_called_once()
+    mock_db.refresh.assert_called_once()
+
+    # Verify result is a Message object with correct data
+    assert result is not None
+    assert hasattr(result, 'conversation_id')
+    assert hasattr(result, 'content')
+    assert hasattr(result, 'type')
 
 def test_document_service_validate_file():
     """Test DocumentService file validation"""

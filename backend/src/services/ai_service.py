@@ -2,76 +2,237 @@
 AIService for LLM interactions and general AI processing
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, AsyncGenerator, cast, Type
 import asyncio
 import time
+import logging
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 try:
     import ollama
     OLLAMA_AVAILABLE = True
 except ImportError:
+    ollama = None  # type: ignore
     OLLAMA_AVAILABLE = False
+
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    genai = None  # type: ignore
+    GEMINI_AVAILABLE = False
+
+try:
+    from openai import OpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OpenAI = None  # type: ignore
+    OPENAI_AVAILABLE = False
 
 
 class AIService:
-    """Service for AI model interactions and processing"""
+    """Service for AI model interactions and processing with fallback chain"""
 
-    def __init__(self, model_name: str = "llama3.2:latest"):
+    def __init__(self, model_name: str = "llama3.2:latest"): # Changed default model to an Ollama model
         self.model_name = model_name
-        self.client = ollama.Client() if OLLAMA_AVAILABLE else None
+        self.client = ollama.Client() if OLLAMA_AVAILABLE else None  # type: ignore
+        self.gemini_client = None
+        self.openrouter_client = None
+        self._initialize_clients()
+
+    def _initialize_clients(self):
+        """Initialize cloud AI clients if API keys are available"""
+        # Initialize Google Gemini
+        gemini_key = os.getenv('GOOGLE_AI_API_KEY')
+        if GEMINI_AVAILABLE and gemini_key:
+            try:
+                genai.configure(api_key=gemini_key)
+                self.gemini_client = genai.GenerativeModel('gemini-2.5-flash')
+                logger.info("Google Gemini client initialized with gemini-2.5-flash")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gemini client: {e}")
+                self.gemini_client = None
+
+        # Initialize OpenRouter (uses OpenAI client with custom base URL)
+        openrouter_key = os.getenv('OPENROUTER_API_KEY')
+        if OPENAI_AVAILABLE and openrouter_key:
+            try:
+                # Explicitly cast OpenAI to its expected type to satisfy Pylance
+                openai_client_class = cast(Type[OpenAI], OpenAI)
+                self.openrouter_client = openai_client_class(
+                    api_key=openrouter_key,
+                    base_url="https://openrouter.ai/api/v1"
+                )
+                logger.info("OpenRouter client initialized")
+            except Exception as e:
+                logger.warning(f"Failed to initialize OpenRouter client: {e}")
+                self.openrouter_client = None
+
+    def _get_provider_for_model(self, model_name: str) -> str:
+        """Determine which AI provider to use for a given model name."""
+        if self.client and self.check_model_availability(model_name): # Prioritize Ollama
+            return "ollama"
+        if model_name.startswith("gemini") and self.gemini_client:
+            return "google"
+        if self.openrouter_client: # OpenRouter can handle many models, so it's a good general fallback
+            return "openrouter"
+        return "none"
+
+    async def generate_streaming_response(self, prompt: str, context: Optional[List[str]] = None,
+                                        max_tokens: int = 1024) -> AsyncGenerator[str, None]:
+        """
+        Generate streaming AI response with optional context
+        Yields response chunks as they become available
+        """
+        start_time = time.time()
+        full_response_content = ""
+        provider = self._get_provider_for_model(self.model_name)
+        full_prompt = prompt
+        if context:
+            context_str = "\n".join(context)
+            full_prompt = f"Context:\n{context_str}\n\nQuestion: {prompt}"
+
+        try:
+            if provider == "ollama" and self.client:
+                logger.info(f"Attempting streaming response with Ollama using model: {self.model_name}...")
+                stream = self.client.generate(
+                    model=self.model_name,
+                    prompt=full_prompt,
+                    options={
+                        "num_predict": max_tokens,
+                        "temperature": 0.7,
+                        "top_p": 0.9
+                    },
+                    stream=True
+                )
+                for chunk in stream:
+                    if 'response' in chunk:
+                        full_response_content += chunk['response']
+                        yield chunk['response']
+            elif provider == "google" and self.gemini_client:
+                logger.info(f"Attempting streaming response with Google Gemini using model: {self.model_name}...")
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.gemini_client.generate_content(full_prompt, stream=True)
+                )
+                for chunk in response:
+                    if chunk.text:
+                        full_response_content += chunk.text
+                        yield chunk.text
+            elif provider == "openrouter" and self.openrouter_client:
+                logger.info(f"Attempting streaming response with OpenRouter using model: {self.model_name}...")
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.openrouter_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[{"role": "user", "content": full_prompt}],
+                        max_tokens=max_tokens,
+                        stream=True
+                    )
+                )
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        full_response_content += chunk.choices[0].delta.content
+                        yield chunk.choices[0].delta.content
+            else:
+                raise Exception(f"No streaming provider available for model: {self.model_name}")
+
+        except Exception as e:
+            logger.error(f"Streaming response failed for {self.model_name}: {str(e)}")
+            yield f"I apologize, but there was an error generating the response: {str(e)}"
 
     async def generate_response(self, prompt: str, context: Optional[List[str]] = None,
-                              max_tokens: int = 1024) -> Dict[str, Any]:
+                               max_tokens: int = 1024) -> Dict[str, Any]:
         """
         Generate AI response with optional context
         Returns dict with response text and metadata
         """
         start_time = time.time()
+        full_prompt = prompt
+        if context:
+            context_str = "\n".join(context)
+            full_prompt = f"Context:\n{context_str}\n\nQuestion: {prompt}"
+
+        provider = self._get_provider_for_model(self.model_name)
+        response_text = ""
+        model_used = self.model_name
+        tokens_used = 0
+        error_message = None
 
         try:
-            # Build full prompt with context
-            full_prompt = prompt
-            if context:
-                context_str = "\n".join(context)
-                full_prompt = f"Context:\n{context_str}\n\nQuestion: {prompt}"
+            if provider == "ollama" and self.client:
+                logger.info(f"Attempting non-streaming response with Ollama using model: {self.model_name}...")
+                def _generate():
+                    return self.client.generate(
+                        model=self.model_name,
+                        prompt=full_prompt,
+                        options={
+                            "num_predict": max_tokens,
+                            "temperature": 0.7,
+                            "top_p": 0.9
+                        }
+                    )
+                response = await asyncio.wait_for(
+                    asyncio.get_event_loop().run_in_executor(None, _generate),
+                    timeout=60.0
+                )
+                response_text = response["response"]
+                tokens_used = response.get("eval_count", 0)
+            elif provider == "google" and self.gemini_client:
+                logger.info(f"Attempting non-streaming response with Google Gemini using model: {self.model_name}...")
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.gemini_client.generate_content(full_prompt)
+                )
+                response_text = response.text
+                tokens_used = len(full_prompt.split()) # Approximate
+            elif provider == "openrouter" and self.openrouter_client:
+                logger.info(f"Attempting non-streaming response with OpenRouter using model: {self.model_name}...")
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: self.openrouter_client.chat.completions.create(
+                        model=self.model_name,
+                        messages=[{"role": "user", "content": full_prompt}],
+                        max_tokens=max_tokens
+                    )
+                )
+                response_text = response.choices[0].message.content
+                tokens_used = response.usage.total_tokens if hasattr(response, 'usage') else 0
+            else:
+                error_message = f"No suitable AI provider found for model: {self.model_name}"
+                raise Exception(error_message)
 
-            # Generate response using Ollama
-            if not self.client:
-                # Fallback for when Ollama is not available
-                return {
-                    "response": f"[Mock response] {prompt}",
-                    "model": "mock-model",
-                    "processing_time": 0.1,
-                    "tokens_used": len(prompt.split())
-                }
-
-            response = self.client.generate(
-                model=self.model_name,
-                prompt=full_prompt,
-                options={
-                    "num_predict": max_tokens,
-                    "temperature": 0.7,
-                    "top_p": 0.9
-                }
-            )
-
-            processing_time = time.time() - start_time
-
-            return {
-                "response": response["response"],
-                "model": self.model_name,
-                "processing_time": processing_time,
-                "eval_count": response.get("eval_count", 0),
-                "eval_duration": response.get("eval_duration", 0)
-            }
-
+        except asyncio.TimeoutError:
+            logger.error("AI response generation timed out")
+            error_message = "I apologize, but the AI response is taking too long. Please try again."
         except Exception as e:
-            processing_time = time.time() - start_time
+            logger.error(f"Primary AI service failed for {self.model_name}: {str(e)}")
+            error_message = str(e)
+
+        processing_time = time.time() - start_time
+
+        if error_message:
             return {
-                "response": f"Error generating response: {str(e)}",
-                "model": self.model_name,
+                "response": f"I apologize, but there was an error generating the response: {error_message}",
+                "model": model_used,
                 "processing_time": processing_time,
-                "error": str(e)
+                "error": error_message,
+                "tokens_used": tokens_used,
+                "provider": provider
+            }
+        else:
+            return {
+                "response": response_text,
+                "model": model_used,
+                "processing_time": processing_time,
+                "tokens_used": tokens_used,
+                "provider": provider
             }
 
     async def generate_summary(self, content: str, max_length: int = 500) -> Dict[str, Any]:
@@ -129,6 +290,8 @@ class AIService:
 
     def get_available_models(self) -> List[Dict[str, Any]]:
         """Get list of available Ollama models"""
+        # This method should ideally list models from all configured providers
+        # For now, it only lists Ollama models.
         if not self.client:
             return [{"name": "mock-model", "size": "unknown", "modified_at": "unknown"}]
 
@@ -139,9 +302,27 @@ class AIService:
             return []
 
     def check_model_availability(self, model_name: str) -> bool:
-        """Check if a specific model is available"""
-        models = self.get_available_models()
-        return any(model["name"] == model_name for model in models)
+        """Check if a specific model is available from any configured provider"""
+        # Check Ollama models
+        if self.client:
+            try:
+                ollama_models = self.client.list().get("models", [])
+                if any(model["name"] == model_name for model in ollama_models):
+                    return True
+            except Exception:
+                pass
+
+        # Check Gemini models (assuming 'gemini-2.5-flash' is always available if client is initialized)
+        if self.gemini_client and model_name.startswith("gemini"):
+            return True
+
+        # Check OpenRouter models (OpenRouter supports many models, so we assume it's available if client is initialized)
+        if self.openrouter_client:
+            # In a real scenario, you might query OpenRouter for available models
+            # For simplicity, we assume if the client is initialized, it can handle models
+            return True
+
+        return False
 
     async def embed_text(self, texts: List[str]) -> Optional[List[List[float]]]:
         """
@@ -149,18 +330,25 @@ class AIService:
         Returns None if embeddings service is not available
         """
         try:
-            # Placeholder for sentence-transformers integration
-            # In real implementation, this would use:
-            # from sentence_transformers import SentenceTransformer
-            # model = SentenceTransformer('all-MiniLM-L6-v2')
-            # embeddings = model.encode(texts)
+            from sentence_transformers import SentenceTransformer
+            import asyncio
 
-            # For now, return mock embeddings
-            return [[0.1] * 384 for _ in texts]  # Mock 384-dimensional embeddings
+            # Use a thread pool to avoid blocking the event loop
+            def _embed():
+                model = SentenceTransformer('all-MiniLM-L6-v2')
+                return model.encode(texts).tolist()
 
-        except ImportError:
+            # Run embedding generation in a thread pool
+            loop = asyncio.get_event_loop()
+            embeddings = await loop.run_in_executor(None, _embed)
+
+            return embeddings
+
+        except ImportError as e:
+            print(f"SentenceTransformers not available: {e}")
             return None
-        except Exception:
+        except Exception as e:
+            print(f"Embedding generation failed: {e}")
             return None
 
     async def embed_query(self, query: str) -> Optional[List[float]]:
@@ -172,9 +360,29 @@ class AIService:
 # Global instance for dependency injection
 _ai_service_instance = None
 
-def get_ai_service() -> AIService:
-    """Get singleton AIService instance"""
+def get_ai_service(model_name: Optional[str] = None) -> AIService:
+    """Get singleton AIService instance with optional model override"""
     global _ai_service_instance
+    
+    # Determine if OpenRouter is available
+    openrouter_key = os.getenv('OPENROUTER_API_KEY')
+    openrouter_available = OPENAI_AVAILABLE and openrouter_key
+
+    # If a model is explicitly requested, use it.
+    # Otherwise, if OpenRouter is available, use the OpenRouter default.
+    # Otherwise, fallback to Ollama default.
+    if model_name:
+        pass  # Use the explicitly provided model_name
+    elif openrouter_available:
+        model_name = "openai/gpt-oss-20b:free"
+    else:
+        model_name = "llama3.2:latest" # Original default
+
     if _ai_service_instance is None:
-        _ai_service_instance = AIService()
+        _ai_service_instance = AIService(model_name if model_name else "llama3.2:latest")
+    
+    # If a specific model is requested and it's different from current, create new instance
+    if model_name and model_name != _ai_service_instance.model_name:
+        _ai_service_instance = AIService(model_name)
+
     return _ai_service_instance

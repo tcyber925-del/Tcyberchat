@@ -1,7 +1,7 @@
 """
 Document model for uploaded files and processing
 """
-
+from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 from uuid import uuid4
@@ -9,7 +9,8 @@ from uuid import uuid4
 from sqlalchemy import Column, String, DateTime, Text, BigInteger, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
+from pydantic import BaseModel, Field
+from uuid import UUID as PyUUID
 from ..database import Base
 
 
@@ -49,7 +50,8 @@ class Document(Base):
 
     def __init__(self, filename: str, path: str, size: int, mime_type: str,
                  content: Optional[str] = None, chunks: Optional[List[str]] = None,
-                 transcription: Optional[str] = None, image_analysis: Optional[dict] = None):
+                 transcription: Optional[str] = None, image_analysis: Optional[dict] = None,
+                 status: str = "uploading"):
         self.filename = filename
         self.path = path
         self.size = size
@@ -58,21 +60,37 @@ class Document(Base):
         self.chunks = chunks
         self.transcription = transcription
         self.image_analysis = image_analysis
+        self.status = status
 
     @property
     def is_text_document(self) -> bool:
         """Check if this is a text-based document"""
-        return self.mime_type in ['text/plain', 'text/markdown', 'application/pdf']
+        return str(self.mime_type) in ['text/plain', 'text/markdown', 'application/pdf']
 
     @property
     def is_image(self) -> bool:
         """Check if this is an image file"""
-        return self.mime_type.startswith('image/')
+        return str(self.mime_type).startswith('image/')
 
     @property
     def is_audio(self) -> bool:
         """Check if this is an audio file"""
-        return self.mime_type.startswith('audio/')
+        return str(self.mime_type).startswith('audio/')
+
+    @property
+    def has_content(self) -> bool:
+        """Check if content has been extracted"""
+        return self.content is not None
+
+    @property
+    def has_transcription(self) -> bool:
+        """Check if transcription is available"""
+        return self.transcription is not None
+
+    @property
+    def has_image_analysis(self) -> bool:
+        """Check if image analysis is available"""
+        return self.image_analysis is not None
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
@@ -98,3 +116,29 @@ class Document(Base):
 
     def __repr__(self) -> str:
         return f"<Document(id={self.id}, filename='{self.filename}', status='{self.status}')>"
+
+class DocumentCreate(BaseModel):
+    filename: str
+    path: str
+    size: int
+    mime_type: str
+    content: Optional[str] = None
+    chunks: Optional[List[str]] = None
+    transcription: Optional[str] = None
+    image_analysis: Optional[dict] = None
+
+class DocumentRead(BaseModel):
+    id: PyUUID
+    filename: str
+    size: int
+    mimeType: str = Field(alias="mime_type")
+    uploadedAt: datetime = Field(alias="uploaded_at")
+    status: str
+    hasContent: bool = Field(alias="has_content")
+    hasTranscription: bool = Field(alias="has_transcription")
+    hasImageAnalysis: bool = Field(alias="has_image_analysis")
+    previewImage: Optional[str] = Field(alias="preview_image")
+
+    class Config:
+        orm_mode = True
+        allow_population_by_field_name = True

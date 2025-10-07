@@ -13,9 +13,10 @@ def test_path_operations():
     test_dir = Path("test_dir")
     assert not test_dir.exists()
 
-    # Test path joining
+    # Test path joining (handle both Unix and Windows separators)
     full_path = test_dir / "subfolder" / "file.txt"
-    assert str(full_path) == "test_dir/subfolder/file.txt"
+    expected_path = str(full_path).replace("\\", "/")  # Normalize for cross-platform
+    assert expected_path == "test_dir/subfolder/file.txt"
 
 def test_environment_variables():
     """Test environment variable handling"""

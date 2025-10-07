@@ -1,15 +1,9 @@
 # TcyberChatbot Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-09-22
+Auto-generated from all feature plans. Last updated: 2025-09-24
 
 ## Active Technologies
-- Node.js 20, React 18 or NEEDS CLARIFICATION + Express.js, React, local AI library (e.g., Ollama, Transformers.js) (001-build-a-local)
-- Python 3.11, React 18 + FastAPI, React, Ollama Python client (001-build-a-local)
-- Local file system for document storage (001-build-a-local)
-- Python 3.11, React 18 + FastAPI, React, LangChain, sentence-transformers, Ollama Python client, ChromaDB (001-build-a-local)
-- Local file system for documents, SQLite for metadata, ChromaDB for embeddings (001-build-a-local)
-- Python 3.11, React 18 + FastAPI, React, LangChain, sentence-transformers, Ollama Python client, ChromaDB, SQLAlchemy (001-build-a-local)
-- Local file system for documents, SQLAlchemy with SQLite for metadata, ChromaDB for embeddings (001-build-a-local)
+- TypeScript/JavaScript, Next.js 14+ + Next.js 14+, React 18+, shadcn/UI, Tailwind CSS, Lucide React (icons), Vercel AI SDK (for streaming AI responses) (002-design-and-develop)
 
 ## Project Structure
 ```
@@ -19,15 +13,13 @@ tests/
 ```
 
 ## Commands
-# Add commands for Node.js 20, React 18 or NEEDS CLARIFICATION
+npm test; npm run lint
 
 ## Code Style
-Node.js 20, React 18 or NEEDS CLARIFICATION: Follow standard conventions
+TypeScript/JavaScript, Next.js 14+: Follow standard conventions
 
 ## Recent Changes
-- 001-build-a-local: Added Python 3.11, React 18 + FastAPI, React, LangChain, sentence-transformers, Ollama Python client, ChromaDB, SQLAlchemy
-- 001-build-a-local: Added Python 3.11, React 18 + FastAPI, React, LangChain, sentence-transformers, Ollama Python client, ChromaDB, SQLAlchemy
-- 001-build-a-local: Added Python 3.11, React 18 + FastAPI, React, LangChain, sentence-transformers, Ollama Python client, ChromaDB, SQLAlchemy
+- 002-design-and-develop: Added TypeScript/JavaScript, Next.js 14+ + Next.js 14+, React 18+, shadcn/UI, Tailwind CSS, Lucide React (icons), Vercel AI SDK (for streaming AI responses)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
