@@ -146,10 +146,9 @@ async def extract_text_from_image(
         # Initialize multimodal service
         multimodal_service = MultimodalService()
 
-        # Extract text
-        text_result = await multimodal_service.extract_text_from_image(
-            image_data=image_bytes,
-            document_id=request.document_id
+        # Extract text using OCR
+        text_result = await multimodal_service.extract_text_from_image_bytes(
+            image_data=image_bytes
         )
 
         return {

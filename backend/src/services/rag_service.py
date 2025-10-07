@@ -23,7 +23,8 @@ try:
     from langchain.chains.combine_documents import create_stuff_documents_chain
     from langchain.chains.history_aware_retriever import create_history_aware_retriever
     from langchain.chains.retrieval import create_retrieval_chain
-    from langchain.retrievers import BM25Retriever, EnsembleRetriever
+    from langchain_community.retrievers import BM25Retriever
+    from langchain.retrievers import EnsembleRetriever
     from langchain.retrievers.document_compressors import DocumentCompressorPipeline
     from langchain.retrievers.document_compressors.embeddings_filter import EmbeddingsFilter
     from langchain.retrievers.document_compressors.llm_chain_filter import LLMChainFilter

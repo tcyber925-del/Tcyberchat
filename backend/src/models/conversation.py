@@ -7,7 +7,6 @@ from typing import Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, DateTime, Text, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -18,13 +17,13 @@ class Conversation(Base):
 
     __tablename__ = "conversations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     title = Column(String(100), nullable=False)  # Auto-generated or user-set title
     started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_activity = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Optional document association for document-specific chats
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
+    document_id = Column(String(36), ForeignKey("documents.id"), nullable=True)
 
     # Relationships
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")

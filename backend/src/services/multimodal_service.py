@@ -57,7 +57,7 @@ class MultiModalService:
         except Exception as e:
             print(f"Failed to load audio model: {e}")
 
-    async def analyze_image(self, image_path: str, query: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_image(self, image_data: bytes, prompt: Optional[str] = None, document_id: Optional[str] = None) -> Dict[str, Any]:
         """Analyze image using vision-language model"""
         await self._ensure_image_model()
 
@@ -120,7 +120,7 @@ class MultiModalService:
                 "processing_time": 0.0
             }
 
-    async def transcribe_audio(self, audio_path: str, language: Optional[str] = None) -> Dict[str, Any]:
+    async def transcribe_audio(self, audio_data: bytes, language: Optional[str] = None, document_id: Optional[str] = None, include_timestamps: bool = False) -> Dict[str, Any]:
         """Transcribe audio file to text"""
         await self._ensure_audio_model()
 
@@ -232,15 +232,89 @@ class MultiModalService:
                 "metadata": metadata or {}
             }
 
-    async def extract_text_from_image(self, image_path: str) -> str:
-        """Extract text from image using OCR (placeholder)"""
+    async def extract_text_from_image(self, image_path: str) -> Dict[str, Any]:
+        """Extract text from image using OCR with pytesseract"""
         try:
-            # Placeholder for OCR implementation
-            # In production, would use Tesseract or similar
-            return f"Extracted text from {Path(image_path).name}"
+            # Read image using PIL
+            image = Image.open(image_path)
+
+            # Convert PIL to numpy array for OpenCV preprocessing
+            opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+            # Preprocessing for better OCR
+            gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
+            _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # Perform OCR
+            text = pytesseract.image_to_string(threshold)
+
+            # Get confidence data
+            data = pytesseract.image_to_data(threshold, output_type=pytesseract.Output.DICT)
+
+            # Calculate average confidence
+            confidences = [conf for conf in data['conf'] if conf != -1]
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+
+            # Extract text regions
+            regions = []
+            for i, conf in enumerate(data['conf']):
+                if conf > 60:  # Only high confidence regions
+                    regions.append({
+                        "text": data['text'][i],
+                        "confidence": conf,
+                        "bbox": {
+                            "x": data['left'][i],
+                            "y": data['top'][i],
+                            "width": data['width'][i],
+                            "height": data['height'][i]
+                        }
+                    })
+
+            return {
+                "text": text.strip(),
+                "confidence": avg_confidence / 100.0,  # Convert to 0-1 scale
+                "language": "unknown",  # Could be detected
+                "regions": regions
+            }
 
         except Exception as e:
-            return f"OCR failed: {str(e)}"
+            return {
+                "error": f"OCR failed: {str(e)}",
+                "text": "",
+                "confidence": 0.0,
+                "language": "unknown",
+                "regions": []
+            }
+
+    async def extract_text_from_image_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
+        """Extract text from image bytes using OCR"""
+        try:
+            # Create PIL image from bytes
+            image = Image.open(io.BytesIO(image_bytes))
+            opencv_image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+
+            # Preprocessing for better OCR
+            gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
+            _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # Perform OCR
+            text = pytesseract.image_to_string(threshold)
+
+            return {
+                "text": text.strip(),
+                "confidence": 0.8,  # Placeholder confidence
+                "language": "unknown",
+                "regions": []
+            }
+
+        except Exception as e:
+            return {
+                "error": f"OCR failed: {str(e)}",
+                "text": "",
+                "confidence": 0.0,
+                "language": "unknown",
+                "regions": []
+            }
 
     def get_supported_formats(self) -> Dict[str, List[str]]:
         """Get supported formats for each modality"""
@@ -248,6 +322,60 @@ class MultiModalService:
             "images": ["image/jpeg", "image/png", "image/gif", "image/webp"],
             "audio": ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"],
             "text": ["text/plain", "text/markdown", "application/pdf"]
+        }
+
+    async def get_available_models(self) -> List[Dict[str, Any]]:
+        """Get available image analysis models"""
+        return [
+            {
+                "name": "ocr-tesseract",
+                "type": "ocr",
+                "description": "Tesseract OCR for text extraction",
+                "languages": ["eng", "spa", "fra", "deu"]
+            },
+            {
+                "name": "vision-placeholder",
+                "type": "vision",
+                "description": "Placeholder for vision model",
+                "capabilities": ["object_detection", "scene_description"]
+            }
+        ]
+
+    async def get_supported_languages(self) -> List[str]:
+        """Get supported languages for transcription"""
+        return ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"]
+
+    async def get_transcription_models(self) -> List[Dict[str, Any]]:
+        """Get available transcription models"""
+        return [
+            {
+                "name": "whisper-base",
+                "size": "base",
+                "languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"],
+                "description": "Fast Whisper model for general transcription"
+            },
+            {
+                "name": "whisper-large",
+                "size": "large",
+                "languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"],
+                "description": "High accuracy Whisper model"
+            }
+        ]
+
+    async def analyze_audio_content(self, audio_data: bytes, document_id: Optional[str] = None) -> Dict[str, Any]:
+        """Analyze audio content beyond transcription"""
+        # First transcribe
+        transcription_result = await self.transcribe_audio_from_bytes(audio_data)
+
+        # Placeholder for additional analysis (sentiment, speakers, topics)
+        return {
+            "transcription": transcription_result.get("transcription", ""),
+            "sentiment": "neutral",  # Placeholder
+            "speakers": [],  # Placeholder for speaker diarization
+            "topics": [],  # Placeholder for topic detection
+            "language": transcription_result.get("language", "unknown"),
+            "duration": transcription_result.get("processing_time", 0.0),
+            "confidence": 0.8  # Placeholder
         }
 
 

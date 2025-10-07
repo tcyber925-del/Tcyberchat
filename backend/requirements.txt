@@ -17,6 +17,15 @@ langchain-community
 langchain-core
 langchain-text-splitters
 sentence-transformers
+ollama
+google-generativeai
+openai
+
+# Streaming and async
+sse-starlette
+
+# LangChain memory and conversation management
+langchain-experimental
 
 # Multi-modal processing
 transformers
@@ -24,6 +33,13 @@ torch
 Pillow
 openai-whisper
 
+# File processing
+python-multipart
+aiofiles
+PyPDF2
+python-docx
+pytesseract
+opencv-python
 # File processing
 python-multipart
 aiofiles

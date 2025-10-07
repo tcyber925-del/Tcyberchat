@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Data Export/Import API Contract",
+    "version": "1.0.0",
+    "description": "API contract for data export and import functionality"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Development server"
+    }
+  ],
+  "paths": {
+    "/data-management/export": {
+      "post": {
+        "summary": "Export chat data",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "format": {
+                    "type": "string",
+                    "enum": ["json", "pdf", "txt"],
+                    "description": "Export format"
+                  },
+                  "conversationIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "description": "Specific conversation IDs to export"
+                  },
+                  "includeDocuments": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Include referenced documents"
+                  }
+                },
+                "required": ["format"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Export initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exportId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["pending", "processing", "completed", "failed"]
+                    },
+                    "downloadUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/data-management/import": {
+      "post": {
+        "summary": "Import chat data",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Import file (JSON, ZIP)"
+                  },
+                  "mergeStrategy": {
+                    "type": "string",
+                    "enum": ["merge", "replace", "skip"],
+                    "default": "merge",
+                    "description": "How to handle conflicts"
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import completed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "importedConversations": {
+                      "type": "integer"
+                    },
+                    "importedDocuments": {
+                      "type": "integer"
+                    },
+                    "skipped": {
+                      "type": "integer"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

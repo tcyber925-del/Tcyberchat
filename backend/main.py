@@ -41,6 +41,9 @@ except ImportError:
     # Import database utilities
     from src.database import get_database_status
 
+# Ensure logs directory exists
+os.makedirs('logs', exist_ok=True)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -51,9 +54,6 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
 
 # Initialize FastAPI app with enhanced OpenAPI documentation
 app = FastAPI(
@@ -174,8 +174,8 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         raise
 
 # Include API routers
-app.include_router(chat_router)
-app.include_router(documents_router)
+app.include_router(chat_router, prefix="/chat")
+app.include_router(documents_router, prefix="/documents")
 app.include_router(search_router)
 app.include_router(data_management_router)
 app.include_router(analyze_image_router)

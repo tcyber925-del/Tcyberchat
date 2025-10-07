@@ -2,7 +2,7 @@
 ChatService for conversation and message management
 """
 
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 from sqlalchemy.orm import Session
 
@@ -25,7 +25,7 @@ class ChatService:
         self.db.refresh(conversation)
         return conversation
 
-    def get_conversation(self, conversation_id: str) -> Optional[Conversation]:
+    def get_conversation(self, conversation_id: Union[str, UUID]) -> Optional[Conversation]:
         """Get a conversation by ID with messages"""
         return self.db.query(Conversation).filter(
             Conversation.id == conversation_id
@@ -37,9 +37,9 @@ class ChatService:
             Conversation.last_activity.desc()
         ).limit(limit).all()
 
-    def add_message(self, conversation_id: str, content: str, message_type: str,
-                   citations: Optional[List[dict]] = None,
-                   metadata: Optional[dict] = None) -> Message:
+    def add_message(self, conversation_id: Union[str, UUID], content: str, message_type: str,
+                    citations: Optional[List[dict]] = None,
+                    metadata: Optional[dict] = None) -> Message:
         """Add a message to a conversation"""
         message = Message(
             conversation_id=conversation_id,
@@ -65,17 +65,17 @@ class ChatService:
         self.db.refresh(message)
         return message
 
-    def get_messages(self, conversation_id: str, limit: int = 100) -> List[Message]:
+    def get_messages(self, conversation_id: Union[str, UUID], limit: int = 100) -> List[Message]:
         """Get messages for a conversation"""
         return self.db.query(Message).filter(
             Message.conversation_id == conversation_id
         ).order_by(Message.timestamp.asc()).limit(limit).all()
 
-    def get_conversation_messages(self, conversation_id: str, limit: int = 100) -> List[Message]:
+    def get_conversation_messages(self, conversation_id: Union[str, UUID], limit: int = 100) -> List[Message]:
         """Get messages for a conversation (alias for get_messages)"""
         return self.get_messages(conversation_id, limit)
 
-    def update_conversation_title(self, conversation_id: str, title: str) -> Optional[Conversation]:
+    def update_conversation_title(self, conversation_id: Union[str, UUID], title: str) -> Optional[Conversation]:
         """Update conversation title"""
         conversation = self.get_conversation(conversation_id)
         if conversation:
@@ -84,7 +84,7 @@ class ChatService:
             self.db.refresh(conversation)
         return conversation
 
-    def delete_conversation(self, conversation_id: str) -> bool:
+    def delete_conversation(self, conversation_id: Union[str, UUID]) -> bool:
         """Delete a conversation and all its messages"""
         conversation = self.get_conversation(conversation_id)
         if conversation:

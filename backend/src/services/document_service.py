@@ -5,12 +5,19 @@ DocumentService for file upload, processing, and management
 import os
 import shutil
 from pathlib import Path
-from typing import List, Optional, Tuple
-from uuid import uuid4
+from typing import List, Optional, Tuple, Dict, Any
+from uuid import uuid4, UUID
 import asyncio
 
 from sqlalchemy.orm import Session
-from fastapi import UploadFile
+from fastapi import UploadFile, Depends
+import aiofiles
+from PyPDF2 import PdfReader
+from docx import Document as DocxDocument
+import pytesseract
+from PIL import Image
+import cv2
+import numpy as np
 
 from ..database import get_db
 from ..models.document import Document
@@ -77,6 +84,30 @@ class DocumentService:
 
         return str(file_path)
 
+    def create_document(self, file_name: str, file_content: str) -> Document:
+        """Create a new document, save its content, and create a database record."""
+        # For simplicity, let's save the content to a temporary file
+        # In a real application, you might store content in a dedicated storage
+        file_id = str(uuid4())
+        file_path = self.upload_dir / f"{file_id}_{file_name}"
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(file_content)
+
+        document = Document(
+            filename=file_name,
+            path=str(file_path),
+            size=len(file_content.encode('utf-8')),
+            mime_type="text/plain",  # Assuming text content for now
+            content=file_content,
+            status="completed"
+        )
+
+        self.db.add(document)
+        self.db.commit()
+        self.db.refresh(document)
+
+        return document
+
     def create_document_record(self, filename: str, file_path: str, size: int,
                              mime_type: str) -> Document:
         """Create database record for uploaded document"""
@@ -95,7 +126,11 @@ class DocumentService:
 
     def get_document(self, document_id: str) -> Optional[Document]:
         """Get document by ID"""
-        return self.db.query(Document).filter(Document.id == document_id).first()
+        try:
+            doc_uuid = UUID(document_id)
+        except ValueError:
+            return None
+        return self.db.query(Document).filter(Document.id == doc_uuid).first()
 
     def get_documents(self, status: Optional[str] = None, limit: int = 50) -> List[Document]:
         """Get documents with optional status filter"""
@@ -119,8 +154,8 @@ class DocumentService:
         if document:
             # Delete file from disk
             try:
-                if os.path.exists(document.path):
-                    os.remove(document.path)
+                if os.path.exists(str(document.path)):
+                    os.remove(str(document.path))
             except OSError:
                 pass  # File may not exist or can't be deleted
 
@@ -163,9 +198,23 @@ class DocumentService:
 
     async def _extract_text_content(self, document: Document) -> None:
         """Extract text from text-based documents"""
-        # Placeholder for text extraction logic
-        # In real implementation, would use libraries like PyPDF2, python-docx, etc.
-        document.content = f"Extracted content from {document.filename}"
+        try:
+            content = ""
+
+            if document.mime_type == 'application/pdf':
+                content = await self._extract_pdf_content(str(document.path))
+            elif document.mime_type in ['text/plain', 'text/markdown']:
+                content = await self._extract_text_file_content(str(document.path))
+            elif document.mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                content = await self._extract_docx_content(str(document.path))
+            else:
+                content = f"Unsupported text format: {document.mime_type}"
+
+            document.content = content
+
+        except Exception as e:
+            document.content = f"Error extracting content: {str(e)}"
+            raise
 
     async def _process_image(self, document: Document) -> None:
         """Process image files (OCR, analysis)"""
@@ -178,8 +227,98 @@ class DocumentService:
         document.transcription = f"Transcription of {document.filename}"
 
     async def _generate_chunks(self, document: Document) -> None:
-        """Generate text chunks for RAG"""
-        # Placeholder chunking logic
+        """Generate text chunks for RAG and create vector embeddings"""
+        if not document.content:
+            return
+
+        # Import RAG service
+        from .rag_service import get_rag_service
+        rag_service = get_rag_service()
+
+        # Use RAG service to add document with intelligent chunking
+        # This will automatically create chunks and embeddings
+        success = await rag_service.add_document_with_chunking(
+            document_id=str(document.id),
+            full_text=str(document.content),
+            metadata={
+                "filename": str(document.filename),
+                "mime_type": str(document.mime_type),
+                "upload_date": document.uploaded_at.isoformat() if document.uploaded_at else None,
+                "file_size": int(document.size)
+            }
+        )
+
+        if success:
+            # Mark document as having embeddings
+            setattr(document, 'has_embeddings', True)
+            # Store chunk count (approximate)
+            # Note: In a real implementation, you'd get this from the RAG service
+            document.chunks = [str(document.content)]  # Placeholder for compatibility
+        else:
+            # Fallback to simple chunking if RAG service fails
+            await self._fallback_chunking(document)
+
+    async def _extract_pdf_content(self, file_path: str) -> str:
+        """Extract text content from PDF file"""
+        try:
+            reader = PdfReader(file_path)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+            return text.strip()
+        except Exception as e:
+            return f"Error extracting PDF content: {str(e)}"
+
+    async def _extract_text_file_content(self, file_path: str) -> str:
+        """Extract text content from plain text file"""
+        try:
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                return await f.read()
+        except UnicodeDecodeError:
+            # Try with different encoding
+            try:
+                async with aiofiles.open(file_path, 'r', encoding='latin-1') as f:
+                    return await f.read()
+            except Exception as e:
+                return f"Error reading text file: {str(e)}"
+        except Exception as e:
+            return f"Error reading text file: {str(e)}"
+
+    async def _extract_docx_content(self, file_path: str) -> str:
+        """Extract text content from Word document"""
+        try:
+            doc = DocxDocument(file_path)
+            text = ""
+            for paragraph in doc.paragraphs:
+                text += paragraph.text + "\n"
+            return text.strip()
+        except Exception as e:
+            return f"Error extracting DOCX content: {str(e)}"
+
+    async def _extract_image_text(self, file_path: str) -> str:
+        """Extract text from image using OCR"""
+        try:
+            # Read image
+            image = cv2.imread(file_path)
+
+            if image is None:
+                return "Error: Image not found or could not be read"
+
+            # Convert to grayscale for better OCR
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+            # Apply threshold to get better contrast
+            _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+            # OCR the image
+            text = pytesseract.image_to_string(threshold)
+
+            return text.strip()
+        except Exception as e:
+            return f"Error extracting image text: {str(e)}"
+
+    async def _fallback_chunking(self, document: Document) -> None:
+        """Fallback chunking when RAG service is unavailable"""
         if document.content:
             # Simple sentence-based chunking
             sentences = document.content.split('.')
@@ -199,8 +338,218 @@ class DocumentService:
 
             document.chunks = chunks
 
+    async def render_as_html(self, document: Document, include_metadata: bool = True,
+                           highlight_terms: Optional[List[str]] = None,
+                           options: Optional[Dict[str, Any]] = None, page: Optional[int] = None) -> str:
+        """Render document as HTML"""
+        content = document.content or ""
+
+        # Apply highlighting if requested
+        if highlight_terms:
+            for term in highlight_terms:
+                content = content.replace(term, f'<mark class="highlight">{term}</mark>')
+
+        # Pagination (simple implementation)
+        if page is not None:
+            sentences = content.split('.')
+            page_size = 10
+            start_idx = page * page_size
+            end_idx = start_idx + page_size
+            page_sentences = sentences[start_idx:end_idx]
+            content = '. '.join(page_sentences)
+
+        html = f'<div class="document-content">'
+        if include_metadata:
+            html += f'<div class="document-metadata">'
+            html += f'<h3>{document.filename}</h3>'
+            html += f'<p class="document-info">Size: {document.size} bytes | Type: {document.mime_type}</p>'
+            html += f'</div>'
+
+        html += f'<div class="document-body">{content}</div>'
+        html += f'</div>'
+
+        return html
+
+    async def render_as_json(self, document: Document, include_metadata: bool = True,
+                           page: Optional[int] = None) -> str:
+        """Render document as JSON"""
+        import json
+
+        data = {
+            "id": str(document.id),
+            "filename": document.filename,
+            "content": document.content,
+            "mimeType": document.mime_type,
+            "size": document.size,
+            "status": document.status,
+            "uploadedAt": document.uploaded_at.isoformat() if document.uploaded_at else None
+        }
+
+        if include_metadata:
+            data.update({
+                "chunks": document.chunks,
+                "hasEmbeddings": getattr(document, 'has_embeddings', False),
+                "processingTime": getattr(document, 'processing_time', None)
+            })
+
+        return json.dumps(data, indent=2, default=str)
+
+    async def render_as_text(self, document: Document, include_metadata: bool = True,
+                           page: Optional[int] = None) -> str:
+        """Render document as plain text"""
+        content = document.content or ""
+
+        if include_metadata:
+            header = f"Document: {document.filename}\n"
+            header += f"Size: {document.size} bytes\n"
+            header += f"Type: {document.mime_type}\n"
+            header += f"Status: {document.status}\n"
+            header += "-" * 50 + "\n\n"
+            content = header + content
+
+        return content
+
+    async def render_as_markdown(self, document: Document, include_metadata: bool = True,
+                               page: Optional[int] = None) -> str:
+        """Render document as Markdown"""
+        content = document.content or ""
+
+        markdown = ""
+        if include_metadata:
+            markdown += f"# {document.filename}\n\n"
+            markdown += f"**File Information:**\n"
+            markdown += f"- Size: {document.size} bytes\n"
+            markdown += f"- Type: {document.mime_type}\n"
+            markdown += f"- Status: {document.status}\n"
+            markdown += f"- Uploaded: {document.uploaded_at.strftime('%Y-%m-%d %H:%M:%S') if document.uploaded_at else 'Unknown'}\n\n"
+            markdown += "---\n\n"
+
+        markdown += f"## Content\n\n{content}"
+
+        return markdown
+
+    async def generate_preview(self, document: Document, max_length: int = 500,
+                             include_metadata: bool = True) -> Dict[str, Any]:
+        """Generate a preview of the document"""
+        content = document.content or ""
+        preview_text = content[:max_length]
+        if len(content) > max_length:
+            preview_text += "..."
+
+        preview = {
+            "id": str(document.id),
+            "filename": document.filename,
+            "preview": preview_text,
+            "contentLength": len(content),
+            "mimeType": document.mime_type,
+            "size": document.size
+        }
+
+        if include_metadata:
+            preview.update({
+                "status": document.status,
+                "uploadedAt": document.uploaded_at.isoformat() if document.uploaded_at else None,
+                "hasEmbeddings": getattr(document, 'has_embeddings', False)
+            })
+
+        return preview
+
+    async def get_page_info(self, document: Document) -> Dict[str, Any]:
+        """Get pagination information for the document"""
+        content = document.content or ""
+        # Simple word-based estimation
+        words = len(content.split())
+        estimated_pages = max(1, words // 250)  # Assume ~250 words per page
+
+        return {
+            "total_pages": estimated_pages,
+            "estimated_total_length": len(content),
+            "word_count": words,
+            "has_pages": estimated_pages > 1
+        }
+
+    async def extract_sections(self, document: Document, sections: List[str],
+                             format: str = "json") -> Dict[str, Any]:
+        """Extract specific sections from document"""
+        content = document.content or ""
+
+        extracted = {
+            "document_id": str(document.id),
+            "sections": {}
+        }
+
+        for section in sections:
+            if section == "headers":
+                # Simple header extraction (lines that are short and end with colon)
+                headers = [line.strip() for line in content.split('\n')
+                          if len(line.strip()) < 100 and line.strip().endswith(':')]
+                extracted["sections"]["headers"] = headers
+
+            elif section == "paragraphs":
+                # Split by double newlines or long lines
+                paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+                extracted["sections"]["paragraphs"] = paragraphs
+
+            elif section == "tables":
+                # Placeholder for table extraction
+                extracted["sections"]["tables"] = []
+
+            elif section == "images":
+                # Placeholder for image extraction
+                extracted["sections"]["images"] = []
+
+        if format == "json":
+            import json
+            return extracted
+        else:
+            return extracted
+
+    async def search_within_document(self, document: Document, query: str,
+                                   case_sensitive: bool = False,
+                                   whole_words: bool = False) -> Dict[str, Any]:
+        """Search for text within a document"""
+        content = document.content or ""
+
+        if not case_sensitive:
+            content = content.lower()
+            query = query.lower()
+
+        # Simple search implementation
+        matches = []
+        lines = content.split('\n')
+        for i, line in enumerate(lines):
+            if whole_words:
+                # Word boundary search
+                import re
+                pattern = r'\b' + re.escape(query) + r'\b'
+                if re.search(pattern, line):
+                    matches.append({
+                        "line": i + 1,
+                        "text": line,
+                        "start": line.find(query),
+                        "end": line.find(query) + len(query)
+                    })
+            else:
+                # Simple substring search
+                start = line.find(query)
+                if start != -1:
+                    matches.append({
+                        "line": i + 1,
+                        "text": line,
+                        "start": start,
+                        "end": start + len(query)
+                    })
+
+        return {
+            "query": query,
+            "total_matches": len(matches),
+            "matches": matches[:50],  # Limit results
+            "case_sensitive": case_sensitive,
+            "whole_words": whole_words
+        }
+
 
 # Dependency injection function
-def get_document_service(db: Session = next(get_db())) -> DocumentService:
+def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     """Get DocumentService instance with database session"""
     return DocumentService(db)
