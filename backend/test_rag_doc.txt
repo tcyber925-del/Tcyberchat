@@ -1,1 +1,6 @@
 This is a test document for the RAG pipeline. It contains information about a fictional animal called the "Fuzzy Wuzzy." The Fuzzy Wuzzy is a small, furry creature that lives in the mountains and eats berries. It is known for its friendly disposition and its ability to sing beautiful songs.
+Additional context:
+
+The Fuzzy Wuzzy migrates seasonally and forms small communities near clear streams. Researchers use this document as a lightweight fixture to ensure chunking, embedding, and retrieval logic operate correctly in unit and contract tests.
+
+End of test document.

@@ -6,8 +6,9 @@ import json
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Dict, List, Any, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
+from pydantic import BaseModel, validator
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 import io
@@ -22,11 +23,8 @@ router = APIRouter(prefix="", tags=["data-management"])
 
 @router.post("/export")
 async def export_data(
-    include_documents: bool = True,
-    include_embeddings: bool = False,
-    start_date: str = None,
-    end_date: str = None,
-    db: Session = Depends(get_db)
+    request: Optional[dict] = Body(None),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
     """
     Export conversations, documents, and metadata as a ZIP file.
@@ -34,9 +32,23 @@ async def export_data(
     Supports filtering by date range and optional content inclusion.
     """
     try:
-        # Parse dates if provided
-        start_dt = datetime.fromisoformat(start_date) if start_date else None
-        end_dt = datetime.fromisoformat(end_date) if end_date else None
+        # Parse and validate request body
+        include_documents = True
+        include_embeddings = False
+        start_dt = None
+        end_dt = None
+        if request:
+            include_documents = bool(request.get("includeDocuments", True))
+            include_embeddings = bool(request.get("includeEmbeddings", False))
+            date_range = request.get("dateRange") or {}
+            start = date_range.get("start")
+            end = date_range.get("end")
+            if start and end:
+                start_dt = datetime.fromisoformat(start)
+                end_dt = datetime.fromisoformat(end)
+                if end_dt < start_dt:
+                    # raise HTTPException which should be returned as 422 by the framework
+                    raise HTTPException(status_code=422, detail="Invalid date range: end before start")
 
         # Collect data
         export_data = {
@@ -46,8 +58,8 @@ async def export_data(
                 "include_documents": include_documents,
                 "include_embeddings": include_embeddings,
                 "date_range": {
-                    "start": start_date,
-                    "end": end_date
+                    "start": start,
+                    "end": end
                 }
             },
             "conversations": [],
@@ -60,10 +72,11 @@ async def export_data(
         conversations = db.query(Conversation).all()
         for conv in conversations:
             conv_data = conv.to_dict()
-            # Filter by date if specified
-            if start_dt and conv.started_at < start_dt:
+            # Filter by date if specified (use getattr to avoid Column objects)
+            conv_started = getattr(conv, 'started_at', None)
+            if start_dt and isinstance(conv_started, datetime) and conv_started < start_dt:
                 continue
-            if end_dt and conv.started_at > end_dt:
+            if end_dt and isinstance(conv_started, datetime) and conv_started > end_dt:
                 continue
             export_data["conversations"].append(conv_data)
 
@@ -78,9 +91,10 @@ async def export_data(
         for doc in documents:
             doc_data = doc.to_dict()
             # Filter by date if specified
-            if start_dt and doc.uploaded_at < start_dt:
+            doc_uploaded = getattr(doc, 'uploaded_at', None)
+            if start_dt and isinstance(doc_uploaded, datetime) and doc_uploaded < start_dt:
                 continue
-            if end_dt and doc.uploaded_at > end_dt:
+            if end_dt and isinstance(doc_uploaded, datetime) and doc_uploaded > end_dt:
                 continue
 
             # Remove file path from export (files are separate)
@@ -104,9 +118,10 @@ async def export_data(
             # Add document files if requested
             if include_documents:
                 for doc in documents:
-                    if Path(doc.path).exists():
+                    doc_path = getattr(doc, 'path', None)
+                    if doc_path and Path(str(doc_path)).exists():
                         # Add file to ZIP with relative path
-                        zip_file.write(doc.path, f"documents/{doc.filename}")
+                        zip_file.write(str(doc_path), f"documents/{getattr(doc, 'filename', 'file')}")
 
         zip_buffer.seek(0)
 
@@ -120,6 +135,9 @@ async def export_data(
             headers={"Content-Disposition": f"attachment; filename={filename}"}
         )
 
+    except HTTPException:
+        # Re-raise HTTP errors so FastAPI returns proper status code
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
 
@@ -134,7 +152,8 @@ async def import_data(
 
     Supports optional overwrite of existing data.
     """
-    if not file.filename.endswith('.zip'):
+    filename = getattr(file, 'filename', None)
+    if not filename or not isinstance(filename, str) or not filename.endswith('.zip'):
         raise HTTPException(status_code=400, detail="File must be a ZIP archive")
 
     try:

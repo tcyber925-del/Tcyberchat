@@ -39610,3 +39610,1416 @@ WHERE conversations.id = ?
 2025-10-06 21:08:00,743 - main - INFO - Application starting up...
 2025-10-06 21:15:44,747 - main - INFO - Application shutting down...
 2025-10-06 21:27:52,843 - main - INFO - Application starting up...
+2025-10-08 14:46:03,466 - main - INFO - Application starting up...
+2025-10-08 16:06:42,985 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 16:06:43,610 - main - INFO - Response: POST /documents/upload -> 405 (0.733s)
+2025-10-08 16:42:50,786 - main - INFO - Application shutting down...
+2025-10-08 16:52:13,254 - main - INFO - Application starting up...
+2025-10-08 17:10:26,996 - main - INFO - Application starting up...
+2025-10-08 17:20:26,715 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 17:20:33,640 - src.api.documents - INFO - Received file upload request for: prd.txt
+2025-10-08 17:20:42,796 - src.api.documents - INFO - Document 'prd.txt' uploaded and processed with ID: 8af95d91-9fb7-41b2-bf41-9c873132113a
+2025-10-08 17:20:47,741 - main - INFO - Response: POST /documents/upload -> 200 (21.214s)
+2025-10-08 17:36:53,069 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 17:36:53,626 - src.api.documents - INFO - Received file upload request for: langchaindoc.txt
+2025-10-08 17:36:54,452 - src.api.documents - INFO - Document 'langchaindoc.txt' uploaded and processed with ID: 4f8d99ea-e3fe-4328-8e0c-f7f13838eff2
+2025-10-08 17:36:54,455 - main - INFO - Response: POST /documents/upload -> 200 (1.386s)
+2025-10-08 17:51:52,157 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 17:51:52,243 - src.api.documents - INFO - Received file upload request for: prd.txt
+2025-10-08 17:51:52,696 - src.api.documents - INFO - Document 'prd.txt' uploaded and processed with ID: f87bbbf9-f3b9-4784-9b75-e14fe170f957
+2025-10-08 17:51:52,706 - main - INFO - Response: POST /documents/upload -> 200 (0.549s)
+2025-10-08 17:52:47,162 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 17:52:47,321 - src.api.documents - INFO - Received file upload request for: langchaindoc.txt
+2025-10-08 17:52:48,262 - src.api.documents - INFO - Document 'langchaindoc.txt' uploaded and processed with ID: da6b194c-1341-46df-b89f-269002907d34
+2025-10-08 17:52:48,267 - main - INFO - Response: POST /documents/upload -> 200 (1.105s)
+2025-10-08 17:52:48,493 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-08 17:52:48,769 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.386s)
+2025-10-08 17:52:48,910 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-08 17:55:04,889 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-08 17:55:08,413 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-08 17:55:09,869 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-08 17:55:10,716 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-08 17:55:10,813 - src.api.chat - INFO - Streaming chat request: message='what is the document about', conversationId=None, documentId=None, model=Gemini
+2025-10-08 17:55:33,458 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-08 17:55:34,424 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: Gemini...
+2025-10-08 17:55:34,729 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 404 Not Found"
+2025-10-08 17:55:34,811 - src.services.ai_service - ERROR - Streaming response failed for Gemini: model 'Gemini' not found (status code: 404)
+2025-10-08 17:55:34,859 - main - INFO - Response: POST /chat/stream -> 200 (165.949s)
+2025-10-08 19:33:12,425 - main - INFO - Application shutting down...
+2025-10-08 19:53:05,447 - main - INFO - Application starting up...
+2025-10-08 20:27:31,441 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-08 20:27:31,592 - src.api.documents - INFO - Received file upload request for: prd_update (1).md
+2025-10-08 20:27:32,866 - src.api.documents - INFO - Document 'prd_update (1).md' uploaded and processed with ID: ea9bcc2b-8e58-403b-a784-79505c8069dc
+2025-10-08 20:27:33,194 - main - INFO - Response: POST /documents/upload -> 200 (1.754s)
+2025-10-08 20:29:15,598 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-08 20:29:15,766 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.169s)
+2025-10-08 20:29:15,774 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-08 20:29:17,995 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-08 20:29:18,920 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-08 20:29:19,918 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-08 20:29:21,123 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-08 20:29:21,123 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=None, model=Gemini
+2025-10-08 20:29:38,675 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-08 20:29:39,233 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: Gemini...
+2025-10-08 20:29:41,191 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 404 Not Found"
+2025-10-08 20:29:41,193 - src.services.ai_service - ERROR - Streaming response failed for Gemini: model 'Gemini' not found (status code: 404)
+2025-10-08 20:29:41,340 - main - INFO - Response: POST /chat/stream -> 200 (25.565s)
+2025-10-08 20:44:37,200 - main - INFO - Application shutting down...
+2025-10-08 21:13:38,855 - main - INFO - Application starting up...
+2025-10-08 22:41:44,455 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-08 22:41:45,557 - main - INFO - Response: GET /documents/ -> 404 (1.329s)
+2025-10-09 13:55:11,189 - main - INFO - Application starting up...
+2025-10-09 14:30:19,711 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-09 14:30:19,786 - main - INFO - Response: GET /documents/ -> 404 (0.079s)
+2025-10-09 14:51:36,304 - main - INFO - Application shutting down...
+2025-10-09 15:01:07,962 - main - INFO - Application starting up...
+2025-10-09 15:04:45,763 - main - INFO - Application shutting down...
+2025-10-09 15:09:25,355 - main - INFO - Application starting up...
+2025-10-09 16:59:17,407 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-09 16:59:18,621 - main - INFO - Response: GET /documents -> 307 (1.418s)
+2025-10-09 16:59:19,571 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-09 17:00:23,080 - src.api.documents - INFO - Fetching all documents
+2025-10-09 17:00:46,483 - src.api.documents - INFO - Found 5 documents
+2025-10-09 17:01:01,291 - main - INFO - Response: GET /documents/ -> 200 (101.720s)
+2025-10-09 17:08:12,398 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-09 17:08:12,474 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.076s)
+2025-10-09 17:08:12,525 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-09 17:08:18,590 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-09 17:08:19,563 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-09 17:08:19,672 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-09 17:08:25,174 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-09 17:08:25,448 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-09 17:12:03,363 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-09 17:12:04,156 - main - INFO - Response: POST /chat/stream -> 200 (231.657s)
+2025-10-09 17:51:59,460 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-09 17:52:00,921 - main - INFO - Response: GET /documents -> 307 (1.728s)
+2025-10-09 17:52:01,368 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-09 17:52:03,692 - src.api.documents - INFO - Fetching all documents
+2025-10-09 17:52:19,133 - src.api.documents - INFO - Found 5 documents
+2025-10-09 17:52:20,569 - main - INFO - Response: GET /documents/ -> 200 (19.202s)
+2025-10-09 17:58:18,430 - main - INFO - Application shutting down...
+2025-10-09 18:14:43,827 - main - INFO - Application starting up...
+2025-10-09 18:28:36,054 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-09 18:28:36,058 - main - INFO - Response: GET /documents -> 307 (0.004s)
+2025-10-09 18:28:36,070 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-09 18:28:36,077 - src.api.documents - INFO - Fetching all documents
+2025-10-09 18:28:36,666 - src.api.documents - INFO - Found 5 documents
+2025-10-09 18:28:38,751 - main - INFO - Response: GET /documents/ -> 200 (2.681s)
+2025-10-09 19:48:10,345 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-09 19:48:10,373 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.036s)
+2025-10-09 19:48:10,509 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-09 19:48:12,966 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-09 19:48:13,882 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-09 19:48:13,885 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=ea9bcc2b-8e58-403b-a784-79505c8069dc, model=llama3.2:latest
+2025-10-09 19:48:15,133 - src.api.chat - ERROR - Streaming RAG error: 'RAGService' object has no attribute 'generate_rag_streaming_response'
+2025-10-09 19:48:15,150 - main - INFO - Response: POST /chat/stream -> 200 (4.641s)
+2025-10-09 20:09:12,708 - main - INFO - Application shutting down...
+2025-10-09 21:34:21,341 - main - INFO - Application starting up...
+2025-10-09 22:16:06,638 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-09 22:16:06,920 - main - INFO - Response: GET /documents -> 307 (0.749s)
+2025-10-09 22:16:07,448 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-09 22:16:10,300 - src.api.documents - INFO - Fetching all documents
+2025-10-09 22:16:15,867 - src.api.documents - INFO - Found 5 documents
+2025-10-09 22:16:18,933 - main - INFO - Response: GET /documents/ -> 200 (11.485s)
+2025-10-09 22:24:43,781 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-09 22:24:43,846 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.065s)
+2025-10-09 22:24:43,975 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-09 22:24:49,042 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-09 22:24:50,166 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-09 22:24:50,597 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=ea9bcc2b-8e58-403b-a784-79505c8069dc, model=llama3.2:latest
+2025-10-09 22:24:54,912 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-09 22:24:55,162 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-09 22:28:48,253 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-09 22:28:58,729 - main - INFO - Response: POST /chat/stream -> 200 (254.754s)
+2025-10-09 22:58:33,996 - main - INFO - Application shutting down...
+2025-10-09 23:22:27,067 - main - INFO - Application starting up...
+2025-10-10 13:08:11,589 - main - INFO - Application starting up...
+2025-10-10 13:31:48,060 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-10 13:31:48,063 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-10 13:31:48,069 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-10 13:31:48,083 - src.api.documents - INFO - Fetching all documents
+2025-10-10 13:31:48,321 - src.api.documents - INFO - Found 5 documents
+2025-10-10 13:31:48,427 - main - INFO - Response: GET /documents/ -> 200 (0.358s)
+2025-10-10 13:35:31,870 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-10 13:35:31,872 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.002s)
+2025-10-10 13:35:31,876 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-10 13:35:33,262 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-10 13:35:34,430 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-10 13:35:34,433 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=ea9bcc2b-8e58-403b-a784-79505c8069dc, model=llama3.2:latest
+2025-10-10 13:35:41,102 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-10 13:35:41,288 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-10 13:42:08,840 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-10 13:42:11,758 - main - INFO - Response: POST /chat/stream -> 200 (399.808s)
+2025-10-10 14:53:07,870 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-10 14:53:10,403 - main - INFO - Response: GET /documents -> 307 (3.989s)
+2025-10-10 14:53:11,410 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-10 14:53:16,049 - src.api.documents - INFO - Fetching all documents
+2025-10-10 14:53:20,330 - src.api.documents - INFO - Found 5 documents
+2025-10-10 14:53:21,254 - main - INFO - Response: GET /documents/ -> 200 (9.844s)
+2025-10-10 14:53:30,002 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-10 14:53:30,011 - main - INFO - Response: GET /documents -> 307 (0.010s)
+2025-10-10 14:53:30,469 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-10 14:53:30,478 - src.api.documents - INFO - Fetching all documents
+2025-10-10 14:53:30,540 - src.api.documents - INFO - Found 5 documents
+2025-10-10 14:53:30,557 - main - INFO - Response: GET /documents/ -> 200 (0.088s)
+2025-10-10 15:18:24,993 - main - INFO - Application shutting down...
+2025-10-10 15:29:52,911 - main - INFO - Application starting up...
+2025-10-10 15:29:52,940 - main - INFO - Application shutting down...
+2025-10-10 15:34:18,729 - main - INFO - Application starting up...
+2025-10-10 15:48:16,812 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-10 15:48:16,921 - src.api.documents - INFO - Received file upload request for: prd_update.md
+2025-10-10 15:48:17,821 - src.api.documents - INFO - Document 'prd_update.md' uploaded and processed with ID: 534d1e40-c053-492c-83d9-29338942c9d6
+2025-10-10 15:48:18,444 - main - INFO - Response: POST /documents/upload -> 200 (1.632s)
+2025-10-10 15:48:44,007 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-10 15:48:44,012 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.005s)
+2025-10-10 15:48:44,018 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-10 15:48:45,783 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-10 15:48:47,685 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-10 15:48:57,353 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-10 15:48:57,354 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-10 15:50:19,677 - src.api.chat - INFO - Streaming chat request: message='hi', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-10 15:50:20,788 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-10 15:50:20,832 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-10 15:56:25,702 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-10 15:56:34,417 - main - INFO - Response: POST /chat/stream -> 200 (470.278s)
+2025-10-10 17:26:33,834 - main - INFO - Application shutting down...
+2025-10-10 17:46:26,815 - main - INFO - Application starting up...
+2025-10-10 17:46:26,834 - main - INFO - Application shutting down...
+2025-10-10 17:47:56,706 - main - INFO - Application starting up...
+2025-10-10 18:03:52,096 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-10 18:03:52,102 - main - INFO - Response: GET /documents -> 307 (0.006s)
+2025-10-10 18:03:52,850 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-10 18:03:52,920 - src.api.documents - INFO - Fetching all documents
+2025-10-10 18:03:53,303 - src.api.documents - INFO - Found 6 documents
+2025-10-10 18:03:53,977 - main - INFO - Response: GET /documents/ -> 200 (1.127s)
+2025-10-10 18:15:15,332 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-10 18:15:15,335 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.003s)
+2025-10-10 18:15:15,404 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-10 18:15:16,389 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-10 18:15:17,082 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-10 18:15:21,971 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-10 18:15:21,971 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-10 18:15:57,095 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=534d1e40-c053-492c-83d9-29338942c9d6, model=llama3.2:latest
+2025-10-10 18:16:00,045 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-10 18:16:00,140 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-10 18:21:49,730 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-10 18:21:50,186 - main - INFO - Response: POST /chat/stream -> 200 (394.781s)
+2025-10-11 14:01:36,140 - main - INFO - Application starting up...
+2025-10-11 14:07:31,755 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-11 14:07:31,761 - main - INFO - Response: GET /documents -> 307 (0.006s)
+2025-10-11 14:07:35,842 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-11 14:07:35,848 - src.api.documents - INFO - Fetching all documents
+2025-10-11 14:07:37,439 - src.api.documents - INFO - Found 6 documents
+2025-10-11 14:07:39,465 - main - INFO - Response: GET /documents/ -> 200 (3.623s)
+2025-10-11 14:15:00,404 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-11 14:15:00,464 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.060s)
+2025-10-11 14:15:00,499 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-11 14:15:05,721 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-11 14:15:08,120 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-11 14:15:33,417 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-11 14:15:33,419 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-11 14:17:33,368 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=534d1e40-c053-492c-83d9-29338942c9d6, model=llama3.2:latest
+2025-10-11 14:17:42,482 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-11 14:17:43,169 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-11 14:38:01,179 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-11 14:38:33,593 - main - INFO - Response: POST /chat/stream -> 200 (1412.851s)
+2025-10-11 17:16:01,540 - main - INFO - Application shutting down...
+2025-10-12 14:12:51,038 - main - INFO - Application starting up...
+2025-10-12 14:32:22,461 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-12 14:32:22,466 - main - INFO - Response: GET /documents -> 307 (0.006s)
+2025-10-12 14:32:22,724 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-12 14:32:22,738 - src.api.documents - INFO - Fetching all documents
+2025-10-12 14:32:23,520 - src.api.documents - INFO - Found 6 documents
+2025-10-12 14:32:23,758 - main - INFO - Response: GET /documents/ -> 200 (1.033s)
+2025-10-12 15:31:50,649 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-12 15:31:50,664 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.016s)
+2025-10-12 15:31:50,671 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-12 15:31:52,103 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-12 15:31:53,314 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-12 15:32:00,072 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-12 15:32:00,073 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-12 15:32:43,363 - src.api.chat - INFO - Streaming chat request: message='what is the document about?', conversationId=None, documentId=534d1e40-c053-492c-83d9-29338942c9d6, model=llama3.2:latest
+2025-10-12 15:32:44,394 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-12 15:32:44,434 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-12 15:33:44,314 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-12 15:33:44,819 - main - INFO - Response: POST /chat/stream -> 200 (114.149s)
+2025-10-12 16:21:35,215 - main - INFO - Application shutting down...
+2025-10-12 16:27:12,503 - main - INFO - Application starting up...
+2025-10-12 16:39:57,301 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-12 16:39:57,304 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-12 16:39:57,857 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-12 16:39:57,874 - src.api.documents - INFO - Fetching all documents
+2025-10-12 16:39:58,157 - src.api.documents - INFO - Found 6 documents
+2025-10-12 16:39:58,171 - main - INFO - Response: GET /documents/ -> 200 (0.314s)
+2025-10-12 16:40:56,869 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-12 16:40:56,873 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.004s)
+2025-10-12 16:40:56,891 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-12 16:40:58,484 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-12 16:40:59,859 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-12 16:41:06,425 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-12 16:41:06,426 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-12 16:41:39,399 - src.api.chat - INFO - Streaming chat request: message='hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-12 16:41:40,369 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-12 16:41:40,372 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-12 16:45:40,383 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-12 16:45:40,569 - main - INFO - Response: POST /chat/stream -> 200 (283.678s)
+2025-10-12 16:45:44,018 - src.api.chat - INFO - Full AI response: Hello  back !  How  can  I  assist  you  today ?  
+2025-10-12 16:57:22,301 - main - INFO - Application shutting down...
+2025-10-12 17:07:44,772 - main - INFO - Application starting up...
+2025-10-12 17:13:26,601 - main - INFO - Application shutting down...
+2025-10-12 17:37:47,256 - main - INFO - Application starting up...
+2025-10-12 17:43:19,210 - main - INFO - Application shutting down...
+2025-10-12 17:44:05,590 - main - INFO - Application starting up...
+2025-10-12 17:48:05,320 - main - INFO - Request: OPTIONS /chat/stream from 127.0.0.1
+2025-10-12 17:48:05,323 - main - INFO - Response: OPTIONS /chat/stream -> 200 (0.003s)
+2025-10-12 17:48:05,391 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-12 17:48:06,180 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-12 17:48:07,027 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-12 17:48:12,497 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-12 17:48:12,497 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-12 17:48:34,221 - src.api.chat - INFO - Streaming chat request: message='hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-12 17:48:36,613 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-12 17:48:36,701 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-12 17:51:20,431 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-12 17:51:21,817 - main - INFO - Response: POST /chat/stream -> 200 (196.426s)
+2025-10-12 17:51:26,656 - src.api.chat - INFO - Full AI response: Hello! It's nice to meet you. Is there something I can help you with or would you like to chat?
+2025-10-13 14:32:48,680 - main - INFO - Application starting up...
+2025-10-16 15:49:22,204 - main - INFO - Application starting up...
+2025-10-16 17:13:23,515 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 17:13:24,128 - main - INFO - Response: GET /documents -> 307 (0.915s)
+2025-10-16 17:13:24,507 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 17:13:25,660 - src.api.documents - INFO - Fetching all documents
+2025-10-16 17:13:29,336 - src.api.documents - INFO - Found 6 documents
+2025-10-16 17:13:32,188 - main - INFO - Response: GET /documents/ -> 200 (7.682s)
+2025-10-16 17:54:05,397 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-16 17:54:11,067 - src.api.documents - INFO - Received file upload request for: test_rag_doc.txt
+2025-10-16 17:54:17,167 - src.api.documents - INFO - Document 'test_rag_doc.txt' uploaded and processed with ID: 0b9e7913-c06e-40ed-9fdf-1beac7c84029
+2025-10-16 17:54:17,220 - main - INFO - Response: POST /documents/upload -> 200 (11.868s)
+2025-10-16 17:55:15,944 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 17:55:15,961 - src.api.documents - INFO - Fetching all documents
+2025-10-16 17:55:16,103 - src.api.documents - INFO - Found 7 documents
+2025-10-16 17:55:16,150 - main - INFO - Response: GET /documents/ -> 200 (0.205s)
+2025-10-16 17:58:22,639 - main - INFO - Request: POST /chat/ from 127.0.0.1
+2025-10-16 17:58:22,940 - main - WARNING - Validation error: [{'type': 'json_invalid', 'loc': ('body', 1), 'msg': 'JSON decode error', 'input': {}, 'ctx': {'error': 'Expecting property name enclosed in double quotes'}}] - /chat/
+2025-10-16 17:58:22,967 - main - INFO - Response: POST /chat/ -> 422 (0.328s)
+2025-10-16 20:15:17,645 - main - INFO - Application starting up...
+2025-10-16 20:31:41,758 - main - INFO - Request: POST /documents/upload from 127.0.0.1
+2025-10-16 20:31:42,341 - src.api.documents - INFO - Received file upload request for: test_rag_doc.txt
+2025-10-16 20:31:43,369 - src.api.documents - INFO - Document 'test_rag_doc.txt' uploaded and processed with ID: 635efc09-d0f0-476e-b9ad-3594369d597d
+2025-10-16 20:31:43,410 - main - INFO - Response: POST /documents/upload -> 200 (1.698s)
+2025-10-16 20:34:10,381 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 20:34:10,408 - src.api.documents - INFO - Fetching all documents
+2025-10-16 20:34:10,556 - src.api.documents - INFO - Found 8 documents
+2025-10-16 20:34:10,598 - main - INFO - Response: GET /documents/ -> 200 (0.218s)
+2025-10-16 20:35:42,347 - main - INFO - Request: POST /chat/ from 127.0.0.1
+2025-10-16 20:35:42,412 - main - WARNING - Validation error: [{'type': 'json_invalid', 'loc': ('body', 1), 'msg': 'JSON decode error', 'input': {}, 'ctx': {'error': 'Expecting property name enclosed in double quotes'}}] - /chat/
+2025-10-16 20:35:42,432 - main - INFO - Response: POST /chat/ -> 422 (0.085s)
+2025-10-16 21:00:33,463 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:00:35,968 - main - INFO - Response: GET /documents -> 307 (2.546s)
+2025-10-16 21:00:36,149 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:00:36,163 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:00:43,140 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:00:44,204 - main - INFO - Response: GET /documents/ -> 200 (8.055s)
+2025-10-16 21:01:28,780 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:01:28,787 - main - INFO - Response: GET /documents -> 307 (0.006s)
+2025-10-16 21:01:29,030 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:01:29,037 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:01:29,046 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:01:29,467 - main - INFO - Response: GET /documents/ -> 200 (0.438s)
+2025-10-16 21:02:16,226 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:02:16,228 - main - INFO - Response: GET /documents -> 307 (0.002s)
+2025-10-16 21:02:16,322 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:02:16,387 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:02:16,421 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:02:16,502 - main - INFO - Response: GET /documents/ -> 200 (0.180s)
+2025-10-16 21:05:34,512 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:05:34,578 - main - INFO - Response: GET /documents -> 307 (0.066s)
+2025-10-16 21:05:34,725 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:05:34,731 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:05:34,737 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:05:34,775 - main - INFO - Response: GET /documents/ -> 200 (0.050s)
+2025-10-16 21:18:34,150 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:18:34,188 - main - INFO - Response: GET /documents -> 307 (0.038s)
+2025-10-16 21:18:34,279 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:18:34,284 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:18:34,310 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:18:34,314 - main - INFO - Response: GET /documents/ -> 200 (0.035s)
+2025-10-16 21:35:08,730 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:35:08,845 - main - INFO - Response: GET /documents -> 307 (0.115s)
+2025-10-16 21:35:08,854 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:35:09,322 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:35:09,411 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:35:09,414 - main - INFO - Response: GET /documents/ -> 200 (0.559s)
+2025-10-16 21:35:21,993 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:35:22,001 - main - INFO - Response: GET /documents -> 307 (0.009s)
+2025-10-16 21:35:23,463 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:35:23,479 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:35:23,488 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:35:23,504 - main - INFO - Response: GET /documents/ -> 200 (0.041s)
+2025-10-16 21:46:23,914 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 21:46:23,917 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-16 21:46:24,985 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 21:46:25,147 - src.api.documents - INFO - Fetching all documents
+2025-10-16 21:46:25,551 - src.api.documents - INFO - Found 8 documents
+2025-10-16 21:46:25,699 - main - INFO - Response: GET /documents/ -> 200 (0.714s)
+2025-10-16 22:05:06,131 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-16 22:05:06,140 - main - INFO - Response: GET /documents -> 307 (0.009s)
+2025-10-16 22:05:06,169 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-16 22:05:06,313 - src.api.documents - INFO - Fetching all documents
+2025-10-16 22:05:06,519 - src.api.documents - INFO - Found 8 documents
+2025-10-16 22:05:06,538 - main - INFO - Response: GET /documents/ -> 200 (0.369s)
+2025-10-16 23:22:26,986 - watchfiles.main - INFO - 1 change detected
+2025-10-16 23:22:27,601 - watchfiles.main - INFO - 3 changes detected
+2025-10-16 23:22:30,011 - watchfiles.main - INFO - 2 changes detected
+2025-10-16 23:22:30,376 - watchfiles.main - INFO - 2 changes detected
+2025-10-16 23:22:30,729 - watchfiles.main - INFO - 4 changes detected
+2025-10-16 23:22:31,088 - watchfiles.main - INFO - 2 changes detected
+2025-10-16 23:22:31,445 - watchfiles.main - INFO - 2 changes detected
+2025-10-16 23:22:44,398 - watchfiles.main - INFO - 1 change detected
+2025-10-16 23:23:31,829 - watchfiles.main - INFO - 1 change detected
+2025-10-17 16:54:30,078 - main - INFO - Application starting up...
+2025-10-17 17:13:12,769 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 17:13:12,772 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-17 17:13:13,628 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 17:13:13,660 - src.api.documents - INFO - Fetching all documents
+2025-10-17 17:13:16,277 - src.api.documents - INFO - Found 8 documents
+2025-10-17 17:13:18,337 - main - INFO - Response: GET /documents/ -> 200 (4.709s)
+2025-10-17 19:46:10,420 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 19:46:10,885 - main - INFO - Response: GET /documents -> 307 (0.841s)
+2025-10-17 19:46:11,085 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 19:46:11,867 - src.api.documents - INFO - Fetching all documents
+2025-10-17 19:46:13,436 - src.api.documents - INFO - Found 8 documents
+2025-10-17 19:46:13,853 - main - INFO - Response: GET /documents/ -> 200 (2.768s)
+2025-10-17 20:16:32,789 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 20:16:32,791 - main - INFO - Response: GET /documents -> 307 (0.002s)
+2025-10-17 20:16:32,836 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 20:16:32,841 - src.api.documents - INFO - Fetching all documents
+2025-10-17 20:16:32,899 - src.api.documents - INFO - Found 8 documents
+2025-10-17 20:16:32,905 - main - INFO - Response: GET /documents/ -> 200 (0.069s)
+2025-10-17 21:22:43,945 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 21:22:44,172 - main - INFO - Response: GET /documents -> 307 (0.421s)
+2025-10-17 21:22:44,734 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 21:22:45,093 - src.api.documents - INFO - Fetching all documents
+2025-10-17 21:22:46,161 - src.api.documents - INFO - Found 8 documents
+2025-10-17 21:22:47,304 - main - INFO - Response: GET /documents/ -> 200 (2.570s)
+2025-10-17 21:34:28,663 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 21:34:28,666 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-17 21:34:28,933 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 21:34:28,973 - src.api.documents - INFO - Fetching all documents
+2025-10-17 21:34:29,092 - src.api.documents - INFO - Found 8 documents
+2025-10-17 21:34:29,237 - main - INFO - Response: GET /documents/ -> 200 (0.304s)
+2025-10-17 21:34:39,513 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 21:34:39,571 - main - INFO - Response: GET /documents -> 307 (0.058s)
+2025-10-17 21:34:39,712 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 21:34:39,756 - src.api.documents - INFO - Fetching all documents
+2025-10-17 21:34:39,863 - src.api.documents - INFO - Found 8 documents
+2025-10-17 21:34:39,915 - main - INFO - Response: GET /documents/ -> 200 (0.203s)
+2025-10-17 21:44:47,985 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 21:44:47,987 - main - INFO - Response: GET /documents -> 307 (0.002s)
+2025-10-17 21:44:48,047 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 21:44:48,052 - src.api.documents - INFO - Fetching all documents
+2025-10-17 21:44:48,106 - src.api.documents - INFO - Found 8 documents
+2025-10-17 21:44:48,109 - main - INFO - Response: GET /documents/ -> 200 (0.062s)
+2025-10-17 22:21:19,081 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:21:19,131 - main - INFO - Response: GET /documents -> 307 (0.053s)
+2025-10-17 22:21:19,437 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:21:19,486 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:21:20,487 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:21:20,620 - main - INFO - Response: GET /documents/ -> 200 (1.184s)
+2025-10-17 22:32:22,646 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:32:22,824 - main - INFO - Response: GET /documents -> 307 (0.178s)
+2025-10-17 22:32:23,075 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:32:23,692 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:32:24,980 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:32:25,381 - main - INFO - Response: GET /documents/ -> 200 (2.306s)
+2025-10-17 22:35:12,500 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:35:12,503 - main - INFO - Response: GET /documents -> 307 (0.002s)
+2025-10-17 22:35:12,528 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:35:12,553 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:35:12,556 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:35:12,570 - main - INFO - Response: GET /documents/ -> 200 (0.042s)
+2025-10-17 22:47:09,995 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:47:10,033 - main - INFO - Response: GET /documents -> 307 (0.039s)
+2025-10-17 22:47:10,263 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:47:10,283 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:47:10,296 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:47:10,302 - main - INFO - Response: GET /documents/ -> 200 (0.038s)
+2025-10-17 22:53:33,985 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:53:34,001 - main - INFO - Response: GET /documents -> 307 (0.016s)
+2025-10-17 22:53:34,097 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:53:34,103 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:53:34,235 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:53:34,348 - main - INFO - Response: GET /documents/ -> 200 (0.251s)
+2025-10-17 22:53:53,119 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:53:53,122 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-17 22:53:53,208 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:53:53,212 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:53:53,285 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:53:53,379 - main - INFO - Response: GET /documents/ -> 200 (0.171s)
+2025-10-17 22:54:29,176 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:54:29,180 - main - INFO - Response: GET /documents -> 307 (0.004s)
+2025-10-17 22:54:29,315 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:54:29,322 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:54:29,361 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:54:29,405 - main - INFO - Response: GET /documents/ -> 200 (0.090s)
+2025-10-17 22:54:46,659 - main - INFO - Request: POST /chat from 127.0.0.1
+2025-10-17 22:54:46,671 - main - INFO - Response: POST /chat -> 307 (0.077s)
+2025-10-17 22:54:46,692 - main - INFO - Request: POST /chat/ from 127.0.0.1
+2025-10-17 22:54:48,589 - main - WARNING - Validation error: [{'type': 'missing', 'loc': ('body', 'message'), 'msg': 'Field required', 'input': {'messages': 'hi'}}] - /chat/
+2025-10-17 22:54:48,593 - main - INFO - Response: POST /chat/ -> 422 (1.902s)
+2025-10-17 22:58:38,828 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 22:58:38,854 - main - INFO - Response: GET /documents -> 307 (0.026s)
+2025-10-17 22:58:38,864 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 22:58:38,917 - src.api.documents - INFO - Fetching all documents
+2025-10-17 22:58:39,554 - src.api.documents - INFO - Found 8 documents
+2025-10-17 22:58:39,692 - main - INFO - Response: GET /documents/ -> 200 (0.828s)
+2025-10-17 23:12:35,698 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-17 23:12:35,813 - main - INFO - Response: GET /documents -> 307 (0.116s)
+2025-10-17 23:12:36,229 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-17 23:12:36,245 - src.api.documents - INFO - Fetching all documents
+2025-10-17 23:12:36,451 - src.api.documents - INFO - Found 8 documents
+2025-10-17 23:12:36,496 - main - INFO - Response: GET /documents/ -> 200 (0.267s)
+2025-10-17 23:14:01,087 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-17 23:14:12,484 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-17 23:14:14,058 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-17 23:14:58,887 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-17 23:14:58,889 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-17 23:17:57,647 - src.api.chat - INFO - Streaming chat request: message='hi', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-17 23:18:02,599 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-17 23:18:02,894 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-17 23:21:11,882 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-17 23:21:13,082 - main - INFO - Response: POST /chat/stream -> 200 (432.034s)
+2025-10-18 13:42:09,971 - main - INFO - Application starting up...
+2025-10-18 13:44:01,879 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 13:44:01,881 - main - INFO - Response: GET /documents -> 307 (0.003s)
+2025-10-18 13:44:01,966 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 13:44:01,980 - src.api.documents - INFO - Fetching all documents
+2025-10-18 13:44:02,626 - src.api.documents - INFO - Found 8 documents
+2025-10-18 13:44:02,865 - main - INFO - Response: GET /documents/ -> 200 (0.900s)
+2025-10-18 13:47:46,621 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 13:47:47,993 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-18 13:47:49,325 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-18 13:47:55,022 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-18 13:47:55,048 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-18 13:48:36,909 - src.api.chat - INFO - Streaming chat request: message='hi', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 13:48:37,957 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 13:48:37,986 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 13:50:41,035 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 13:50:41,398 - main - INFO - Response: POST /chat/stream -> 200 (174.777s)
+2025-10-18 13:50:45,167 - src.api.chat - INFO - Full AI response: Hi back! Is there something I can help you with or would you like to chat?
+2025-10-18 14:17:25,243 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 14:17:25,255 - main - INFO - Response: GET /documents -> 307 (0.013s)
+2025-10-18 14:17:25,352 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 14:17:25,523 - src.api.documents - INFO - Fetching all documents
+2025-10-18 14:17:26,883 - src.api.documents - INFO - Found 8 documents
+2025-10-18 14:17:26,909 - main - INFO - Response: GET /documents/ -> 200 (1.557s)
+2025-10-18 14:22:35,671 - main - INFO - Application shutting down...
+2025-10-18 14:27:39,109 - main - INFO - Application starting up...
+2025-10-18 14:40:51,311 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 14:40:53,529 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-18 14:40:54,644 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-18 14:41:00,402 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-18 14:41:00,403 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-18 14:41:41,922 - src.api.chat - INFO - Streaming chat request: message='hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 14:41:42,904 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 14:41:43,041 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 14:43:22,207 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 14:43:22,437 - main - INFO - Response: POST /chat/stream -> 200 (151.125s)
+2025-10-18 14:43:25,397 - src.api.chat - INFO - Full AI response: Hello! How can I assist you today?
+2025-10-18 14:51:20,414 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 14:51:20,744 - main - INFO - Response: GET /documents -> 307 (0.331s)
+2025-10-18 14:51:21,315 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 14:51:22,054 - src.api.documents - INFO - Fetching all documents
+2025-10-18 14:51:24,211 - src.api.documents - INFO - Found 8 documents
+2025-10-18 14:51:24,751 - main - INFO - Response: GET /documents/ -> 200 (3.437s)
+2025-10-18 14:57:35,950 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 14:57:36,077 - src.api.chat - INFO - Streaming chat request: message='hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 14:57:38,876 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 14:57:38,897 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 14:59:02,939 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 14:59:02,973 - main - INFO - Response: POST /chat/stream -> 200 (86.991s)
+2025-10-18 14:59:06,770 - src.api.chat - INFO - Full AI response: Hello! How can I assist you today?
+2025-10-18 15:52:37,680 - main - INFO - Application starting up...
+2025-10-18 17:47:02,924 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 17:47:03,490 - main - INFO - Response: GET /documents -> 307 (0.716s)
+2025-10-18 17:47:03,638 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 17:47:03,873 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 17:47:17,113 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-18 17:47:18,850 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-18 17:47:49,742 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-18 17:47:49,744 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-18 17:49:30,819 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 17:49:35,019 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 17:49:35,204 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 18:01:10,535 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 18:02:53,179 - main - INFO - Response: POST /chat/stream -> 200 (942.562s)
+2025-10-18 18:04:39,763 - src.api.documents - INFO - Fetching all documents
+2025-10-18 18:07:29,569 - src.api.documents - INFO - Found 8 documents
+2025-10-18 18:08:08,054 - main - INFO - Response: GET /documents/ -> 200 (1264.180s)
+2025-10-18 18:16:55,164 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 18:16:56,053 - main - INFO - Response: GET /documents -> 307 (0.967s)
+2025-10-18 18:16:57,158 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 18:16:57,487 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 18:17:00,300 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 18:17:08,949 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 18:17:09,396 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 18:19:52,306 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 18:19:53,089 - main - INFO - Response: POST /chat/stream -> 200 (175.932s)
+2025-10-18 18:19:53,813 - src.api.documents - INFO - Fetching all documents
+2025-10-18 18:19:55,010 - src.api.documents - INFO - Found 8 documents
+2025-10-18 18:19:55,545 - src.api.chat - INFO - Full AI response: Hello from the audience!
+2025-10-18 18:19:55,864 - main - INFO - Response: GET /documents/ -> 200 (178.494s)
+2025-10-18 18:28:58,512 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 18:28:58,682 - main - INFO - Response: GET /documents -> 307 (0.171s)
+2025-10-18 18:29:01,745 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 18:29:02,728 - src.api.documents - INFO - Fetching all documents
+2025-10-18 18:29:04,211 - src.api.documents - INFO - Found 8 documents
+2025-10-18 18:29:04,370 - main - INFO - Response: GET /documents/ -> 200 (2.625s)
+2025-10-18 18:29:29,639 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 18:29:29,744 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 18:29:32,340 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 18:29:32,512 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 18:32:31,706 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 18:32:32,301 - main - INFO - Response: POST /chat/stream -> 200 (182.662s)
+2025-10-18 18:32:49,905 - src.api.chat - INFO - Full AI response: Hello again! How can I assist you, Playwright? What's on your mind today?
+2025-10-18 18:47:52,405 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 18:47:52,417 - main - INFO - Response: GET /documents -> 307 (0.013s)
+2025-10-18 18:47:55,296 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 18:47:55,411 - src.api.documents - INFO - Fetching all documents
+2025-10-18 18:48:03,582 - src.api.documents - INFO - Found 8 documents
+2025-10-18 18:48:04,140 - main - INFO - Response: GET /documents/ -> 200 (8.845s)
+2025-10-18 18:48:04,942 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 18:48:04,947 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 18:48:10,071 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 18:48:10,128 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 18:49:21,609 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 18:49:21,689 - main - INFO - Response: POST /chat/stream -> 200 (76.747s)
+2025-10-18 18:49:23,395 - src.api.chat - INFO - Full AI response: Hello from the other side.
+2025-10-18 20:18:30,225 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 20:18:33,056 - main - INFO - Response: GET /documents -> 307 (3.650s)
+2025-10-18 20:18:35,466 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 20:18:39,429 - src.api.documents - INFO - Fetching all documents
+2025-10-18 20:18:43,017 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 20:18:45,402 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 20:18:47,868 - src.api.documents - INFO - Found 8 documents
+2025-10-18 20:18:53,112 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 20:18:53,646 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 20:21:29,687 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 20:21:30,401 - main - INFO - Response: POST /chat/stream -> 200 (167.423s)
+2025-10-18 20:21:31,415 - main - INFO - Response: GET /documents/ -> 200 (176.002s)
+2025-10-18 20:21:32,839 - src.api.chat - INFO - Full AI response: Hello from the stage!
+2025-10-18 20:32:03,686 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 20:32:04,261 - main - INFO - Response: GET /documents -> 307 (0.588s)
+2025-10-18 20:32:05,784 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 20:32:07,153 - src.api.documents - INFO - Fetching all documents
+2025-10-18 20:32:07,700 - src.api.documents - INFO - Found 8 documents
+2025-10-18 20:32:08,256 - main - INFO - Response: GET /documents/ -> 200 (2.555s)
+2025-10-18 20:32:38,101 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 20:32:38,680 - src.api.chat - INFO - Streaming chat request: message='Hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 20:32:43,090 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 20:32:43,378 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 20:34:15,197 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 20:34:16,447 - main - INFO - Response: POST /chat/stream -> 200 (98.346s)
+2025-10-18 20:34:20,951 - src.api.chat - INFO - Full AI response: Hello! How can I assist you today?
+2025-10-18 20:44:41,104 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 20:44:41,140 - main - INFO - Response: GET /documents -> 307 (0.037s)
+2025-10-18 20:44:41,249 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 20:44:41,343 - src.api.documents - INFO - Fetching all documents
+2025-10-18 20:44:42,281 - src.api.documents - INFO - Found 8 documents
+2025-10-18 20:44:42,379 - main - INFO - Response: GET /documents/ -> 200 (1.130s)
+2025-10-18 20:57:49,126 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 20:57:49,133 - main - INFO - Response: GET /documents -> 307 (0.007s)
+2025-10-18 20:57:49,823 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 20:57:49,838 - src.api.documents - INFO - Fetching all documents
+2025-10-18 20:57:49,948 - src.api.documents - INFO - Found 8 documents
+2025-10-18 20:57:50,179 - main - INFO - Response: GET /documents/ -> 200 (0.357s)
+2025-10-18 20:57:52,776 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 20:57:52,780 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 20:57:54,086 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 20:57:54,134 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 21:00:37,634 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 21:00:39,837 - main - INFO - Response: POST /chat/stream -> 200 (167.061s)
+2025-10-18 21:00:44,120 - src.api.chat - INFO - Full AI response: Hello from playwright! It's nice to meet you. How can I help you today?
+2025-10-18 21:33:10,840 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 21:33:13,242 - src.api.chat - INFO - Streaming chat request: message='Hello', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 21:33:22,146 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 21:33:24,343 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 21:36:15,450 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 21:36:19,534 - main - INFO - Response: POST /chat/stream -> 200 (189.203s)
+2025-10-18 21:36:32,656 - src.api.chat - INFO - Full AI response: Hello! How can I assist you today?
+2025-10-18 21:50:09,211 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 21:50:10,062 - main - INFO - Response: GET /documents -> 307 (0.886s)
+2025-10-18 21:50:10,603 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 21:50:13,097 - src.api.documents - INFO - Fetching all documents
+2025-10-18 21:50:14,186 - src.api.documents - INFO - Found 8 documents
+2025-10-18 21:50:14,798 - main - INFO - Response: GET /documents/ -> 200 (4.195s)
+2025-10-18 21:50:14,889 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 21:50:15,433 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 21:50:19,827 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 21:50:20,383 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 21:53:26,905 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 21:53:28,107 - main - INFO - Response: POST /chat/stream -> 200 (193.217s)
+2025-10-18 21:53:35,619 - src.api.chat - INFO - Full AI response: Hello again! It's nice to chat with you. What can I help you with today? Are you working on a new play and want some advice or feedback?
+2025-10-18 22:01:47,369 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 22:01:47,675 - main - INFO - Response: GET /documents -> 307 (0.307s)
+2025-10-18 22:01:48,688 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 22:01:49,041 - src.api.documents - INFO - Fetching all documents
+2025-10-18 22:01:50,016 - src.api.documents - INFO - Found 8 documents
+2025-10-18 22:01:50,590 - main - INFO - Response: GET /documents/ -> 200 (1.902s)
+2025-10-18 22:03:31,227 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 22:03:31,229 - main - INFO - Response: GET /documents -> 307 (0.001s)
+2025-10-18 22:03:31,258 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 22:03:31,261 - src.api.documents - INFO - Fetching all documents
+2025-10-18 22:03:31,335 - src.api.documents - INFO - Found 8 documents
+2025-10-18 22:03:31,366 - main - INFO - Response: GET /documents/ -> 200 (0.107s)
+2025-10-18 22:03:34,983 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 22:03:35,074 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 22:03:36,814 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 22:03:36,837 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 22:06:09,699 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 22:06:10,635 - main - INFO - Response: POST /chat/stream -> 200 (155.652s)
+2025-10-18 22:06:14,116 - src.api.chat - INFO - Full AI response: Hello from playwright! What can I help you with today?
+2025-10-18 22:16:40,705 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 22:16:40,714 - main - INFO - Response: GET /documents -> 307 (0.009s)
+2025-10-18 22:16:41,054 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 22:16:41,073 - src.api.documents - INFO - Fetching all documents
+2025-10-18 22:16:41,511 - src.api.documents - INFO - Found 8 documents
+2025-10-18 22:16:41,516 - main - INFO - Response: GET /documents/ -> 200 (0.462s)
+2025-10-18 22:16:41,896 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 22:16:41,899 - src.api.chat - INFO - Streaming chat request: message='hello from playwright', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 22:16:43,561 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 22:16:43,605 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 22:18:20,770 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 22:18:20,772 - main - INFO - Response: POST /chat/stream -> 200 (98.876s)
+2025-10-18 22:18:23,714 - src.api.chat - INFO - Full AI response: Hello again from playwright. How can I help you?
+2025-10-18 22:39:44,914 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-18 22:39:47,358 - main - INFO - Response: GET /documents -> 307 (3.845s)
+2025-10-18 22:39:49,161 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-18 22:39:55,417 - src.api.documents - INFO - Fetching all documents
+2025-10-18 22:40:01,525 - src.api.documents - INFO - Found 8 documents
+2025-10-18 22:40:05,948 - main - INFO - Response: GET /documents/ -> 200 (16.787s)
+2025-10-18 22:47:02,123 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 22:47:02,725 - src.api.chat - INFO - Streaming chat request: message='hi', conversationId=None, documentId=None, model=llama3.2:latest
+2025-10-18 22:47:08,025 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 22:47:08,533 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 22:51:33,590 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 22:51:34,392 - main - INFO - Response: POST /chat/stream -> 200 (272.269s)
+2025-10-18 22:51:38,344 - src.api.chat - INFO - Full AI response: Hello! How can I assist you today?
+2025-10-18 23:20:04,678 - main - INFO - Application shutting down...
+2025-10-18 23:38:12,827 - main - INFO - Application starting up...
+2025-10-18 23:46:49,222 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-18 23:46:50,769 - src.services.ai_service - INFO - Google Gemini client initialized with gemini-2.5-flash
+2025-10-18 23:46:51,869 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-18 23:47:10,624 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-18 23:47:10,625 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-18 23:49:51,577 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=5
+2025-10-18 23:50:01,211 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-18 23:50:01,490 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-18 23:57:39,647 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-18 23:57:48,546 - main - INFO - Response: POST /chat/stream -> 200 (659.035s)
+2025-10-19 13:47:59,152 - main - INFO - Application starting up...
+2025-10-19 13:51:01,881 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 13:51:01,884 - main - INFO - Response: GET /documents -> 307 (0.004s)
+2025-10-19 13:51:02,174 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-19 13:51:02,183 - src.api.documents - INFO - Fetching all documents
+2025-10-19 13:51:04,259 - src.api.documents - INFO - Found 8 documents
+2025-10-19 13:51:04,618 - main - INFO - Response: GET /documents/ -> 200 (2.445s)
+2025-10-19 13:52:54,923 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 13:52:57,248 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-19 13:53:10,072 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-19 13:53:10,083 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-19 13:54:07,639 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=5
+2025-10-19 13:54:10,462 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 13:54:10,563 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 13:59:44,219 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 13:59:49,473 - main - INFO - Response: POST /chat/stream -> 200 (414.009s)
+2025-10-19 14:20:32,367 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 14:20:39,762 - main - WARNING - Validation error: [{'type': 'json_invalid', 'loc': ('body', 1), 'msg': 'JSON decode error', 'input': {}, 'ctx': {'error': 'Expecting property name enclosed in double quotes'}}] - /chat/stream
+2025-10-19 14:20:39,901 - main - INFO - Response: POST /chat/stream -> 422 (7.631s)
+2025-10-19 14:21:24,487 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 14:21:27,738 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=None, message_length=5
+2025-10-19 14:21:33,307 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 14:21:33,609 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 14:25:15,619 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 14:25:18,228 - main - INFO - Response: POST /chat/stream -> 200 (233.758s)
+2025-10-19 14:28:31,738 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 14:28:33,782 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=None, message_length=5
+2025-10-19 14:28:40,356 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 14:28:40,782 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 14:28:46,501 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 14:28:46,505 - main - INFO - Response: POST /chat/stream -> 200 (14.769s)
+2025-10-19 14:38:48,011 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 14:38:51,185 - main - INFO - Response: GET /documents -> 307 (3.289s)
+2025-10-19 14:38:51,916 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-19 14:38:55,812 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 14:38:56,742 - src.api.documents - INFO - Fetching all documents
+2025-10-19 14:39:07,299 - src.api.documents - INFO - Found 8 documents
+2025-10-19 14:39:22,911 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-19 14:39:28,533 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 14:39:28,558 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 14:47:12,892 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 14:47:23,808 - main - INFO - Response: POST /chat/stream -> 200 (507.711s)
+2025-10-19 14:47:34,840 - main - INFO - Response: GET /documents/ -> 200 (522.925s)
+2025-10-19 15:07:35,341 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 15:07:41,833 - main - INFO - Response: GET /documents -> 307 (7.926s)
+2025-10-19 15:08:27,887 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 15:08:27,937 - main - INFO - Response: GET /documents -> 307 (0.050s)
+2025-10-19 15:08:29,915 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-19 15:08:33,816 - src.api.documents - INFO - Fetching all documents
+2025-10-19 15:08:37,378 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 15:08:38,837 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-19 15:08:38,859 - src.api.documents - INFO - Found 8 documents
+2025-10-19 15:08:47,695 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 15:08:48,068 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 15:13:00,670 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 15:13:04,101 - main - INFO - Response: POST /chat/stream -> 200 (266.610s)
+2025-10-19 15:13:07,528 - main - INFO - Response: GET /documents/ -> 200 (277.613s)
+2025-10-19 15:45:21,598 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 15:45:22,474 - main - INFO - Response: GET /documents -> 307 (0.982s)
+2025-10-19 15:45:22,921 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-19 15:45:23,504 - src.api.documents - INFO - Fetching all documents
+2025-10-19 15:45:24,553 - src.api.documents - INFO - Found 8 documents
+2025-10-19 15:45:24,761 - main - INFO - Response: GET /documents/ -> 200 (1.840s)
+2025-10-19 15:52:23,355 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 15:52:23,811 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=12
+2025-10-19 15:52:28,715 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 15:52:28,876 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 15:54:55,180 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 15:54:57,977 - main - INFO - Response: POST /chat/stream -> 200 (154.623s)
+2025-10-19 16:11:23,740 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 16:11:23,978 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=71
+2025-10-19 16:11:27,429 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 16:11:27,680 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 16:23:52,826 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 16:25:01,748 - main - INFO - Response: POST /chat/stream -> 200 (815.046s)
+2025-10-19 16:36:39,049 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 16:36:59,436 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=71
+2025-10-19 16:37:33,896 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 16:37:39,440 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 16:41:18,128 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 16:41:42,504 - main - INFO - Response: POST /chat/stream -> 200 (303.234s)
+2025-10-19 16:58:34,415 - main - INFO - Application shutting down...
+2025-10-19 17:25:21,401 - main - INFO - Application starting up...
+2025-10-19 17:29:10,227 - main - INFO - Application shutting down...
+2025-10-19 17:36:05,176 - main - INFO - Application starting up...
+2025-10-19 17:37:24,797 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 17:37:26,318 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-19 17:38:02,200 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-19 17:38:02,201 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-19 17:39:59,969 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=None, message_length=8
+2025-10-19 17:40:01,762 - main - INFO - Response: POST /chat/stream -> 200 (156.967s)
+2025-10-19 17:40:05,272 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 17:40:05,335 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 17:46:37,469 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 17:58:50,618 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 17:58:51,762 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=None, message_length=8
+2025-10-19 17:58:53,453 - main - INFO - Response: POST /chat/stream -> 200 (2.995s)
+2025-10-19 17:59:00,448 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 17:59:01,109 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 18:05:22,978 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 18:11:59,579 - main - INFO - Application shutting down...
+2025-10-19 18:25:51,765 - main - INFO - Application starting up...
+2025-10-19 18:25:52,045 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-19 18:25:52,047 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-19 18:25:52,172 - main - INFO - Response: GET /documents -> 307 (0.126s)
+2025-10-19 18:25:54,875 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-19 18:26:05,910 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-19 18:26:05,911 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-19 18:27:23,109 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=74
+2025-10-19 18:27:25,613 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-19 18:27:25,619 - main - INFO - Response: POST /chat/stream -> 200 (93.574s)
+2025-10-19 18:27:35,443 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-19 18:27:35,961 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-19 19:03:59,274 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-19 19:05:50,416 - src.api.documents - INFO - Fetching all documents
+2025-10-19 19:07:16,116 - src.api.documents - INFO - Found 8 documents
+2025-10-19 19:08:08,537 - main - INFO - Response: GET /documents/ -> 200 (2442.070s)
+2025-10-20 13:33:51,265 - main - INFO - Application starting up...
+2025-10-20 13:36:07,754 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 13:36:07,896 - main - INFO - Response: GET /documents -> 307 (0.142s)
+2025-10-20 13:36:07,995 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 13:36:08,009 - src.api.documents - INFO - Fetching all documents
+2025-10-20 13:36:10,060 - src.api.documents - INFO - Found 8 documents
+2025-10-20 13:36:10,793 - main - INFO - Response: GET /documents/ -> 200 (2.798s)
+2025-10-20 13:41:26,174 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 13:41:31,130 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-20 13:41:45,507 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-20 13:41:45,518 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-20 13:42:45,046 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=5
+2025-10-20 13:42:45,898 - main - INFO - Response: POST /chat/stream -> 200 (79.725s)
+2025-10-20 13:42:46,925 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 13:42:46,957 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 13:47:47,013 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 14:05:04,937 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 14:05:06,077 - main - INFO - Response: GET /documents -> 307 (1.568s)
+2025-10-20 14:05:06,490 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 14:05:09,254 - src.api.documents - INFO - Fetching all documents
+2025-10-20 14:05:10,757 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 14:05:14,056 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 14:05:14,400 - src.api.documents - INFO - Found 8 documents
+2025-10-20 14:05:16,306 - main - INFO - Response: POST /chat/stream -> 200 (5.599s)
+2025-10-20 14:05:19,559 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 14:05:19,921 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 14:09:19,918 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 14:09:31,259 - main - INFO - Response: GET /documents/ -> 200 (264.571s)
+2025-10-20 14:22:32,331 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 14:22:33,660 - main - INFO - Response: GET /documents -> 307 (1.377s)
+2025-10-20 14:22:35,424 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 14:22:37,097 - src.api.documents - INFO - Fetching all documents
+2025-10-20 14:22:38,330 - src.api.documents - INFO - Found 8 documents
+2025-10-20 14:22:39,768 - main - INFO - Response: GET /documents/ -> 200 (4.344s)
+2025-10-20 14:22:44,434 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 14:22:45,179 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 14:22:47,282 - main - INFO - Response: POST /chat/stream -> 200 (2.848s)
+2025-10-20 14:22:54,054 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 14:22:54,957 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 14:28:47,330 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 14:43:07,165 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 14:43:08,418 - main - INFO - Response: GET /documents -> 307 (2.309s)
+2025-10-20 14:43:09,931 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 14:43:12,209 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 14:43:12,937 - src.api.documents - INFO - Fetching all documents
+2025-10-20 14:43:35,801 - src.api.documents - INFO - Found 8 documents
+2025-10-20 14:43:43,484 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 14:44:08,944 - main - INFO - Response: POST /chat/stream -> 200 (56.779s)
+2025-10-20 14:44:32,569 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 14:44:35,287 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 14:51:25,358 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 14:51:34,561 - main - INFO - Response: GET /documents/ -> 200 (504.664s)
+2025-10-20 15:08:26,719 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 15:08:28,108 - main - INFO - Response: GET /documents -> 307 (1.891s)
+2025-10-20 15:08:29,000 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 15:08:29,723 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 15:08:31,358 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 15:08:39,485 - src.api.documents - INFO - Fetching all documents
+2025-10-20 15:08:39,655 - main - INFO - Response: POST /chat/stream -> 200 (9.931s)
+2025-10-20 15:08:41,004 - src.api.documents - INFO - Found 8 documents
+2025-10-20 15:08:44,997 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 15:08:45,406 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 15:13:37,688 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 15:14:24,913 - main - INFO - Response: GET /documents/ -> 200 (352.749s)
+2025-10-20 20:10:37,927 - main - INFO - Application starting up...
+2025-10-20 20:25:59,719 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 20:25:59,721 - main - INFO - Response: GET /documents -> 307 (0.002s)
+2025-10-20 20:26:00,730 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 20:26:00,930 - src.api.documents - INFO - Fetching all documents
+2025-10-20 20:26:02,617 - src.api.documents - INFO - Found 8 documents
+2025-10-20 20:26:04,112 - main - INFO - Response: GET /documents/ -> 200 (3.382s)
+2025-10-20 20:37:41,052 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 20:37:41,062 - main - INFO - Response: GET /documents -> 307 (0.011s)
+2025-10-20 20:37:41,846 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 20:37:41,964 - src.api.documents - INFO - Fetching all documents
+2025-10-20 20:37:42,106 - src.api.documents - INFO - Found 8 documents
+2025-10-20 20:37:42,109 - main - INFO - Response: GET /documents/ -> 200 (0.263s)
+2025-10-20 20:37:46,997 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 20:37:51,398 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-20 20:38:12,942 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-20 20:38:12,942 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-20 20:39:30,845 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 20:39:31,585 - main - INFO - Response: POST /chat/stream -> 200 (104.588s)
+2025-10-20 20:39:35,580 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 20:39:35,873 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 20:46:53,093 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 20:58:22,997 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 20:58:25,167 - main - INFO - Response: GET /documents -> 307 (3.219s)
+2025-10-20 20:58:25,548 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 20:58:35,387 - src.api.documents - INFO - Fetching all documents
+2025-10-20 20:58:37,943 - src.api.documents - INFO - Found 8 documents
+2025-10-20 20:58:38,782 - main - INFO - Response: GET /documents/ -> 200 (13.235s)
+2025-10-20 21:00:04,498 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 21:00:04,502 - main - INFO - Response: GET /documents -> 307 (0.004s)
+2025-10-20 21:00:04,936 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 21:00:05,315 - src.api.documents - INFO - Fetching all documents
+2025-10-20 21:00:05,448 - src.api.documents - INFO - Found 8 documents
+2025-10-20 21:00:05,451 - main - INFO - Response: GET /documents/ -> 200 (0.515s)
+2025-10-20 21:06:41,118 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 21:06:41,258 - main - INFO - Response: GET /documents -> 307 (0.143s)
+2025-10-20 21:06:42,523 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 21:06:42,572 - src.api.documents - INFO - Fetching all documents
+2025-10-20 21:06:42,775 - src.api.documents - INFO - Found 8 documents
+2025-10-20 21:06:42,910 - main - INFO - Response: GET /documents/ -> 200 (0.388s)
+2025-10-20 21:06:46,319 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 21:06:47,226 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 21:06:51,781 - main - INFO - Response: POST /chat/stream -> 200 (5.461s)
+2025-10-20 21:06:54,287 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 21:06:54,866 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 21:14:25,064 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 21:29:32,377 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 21:29:33,126 - main - INFO - Response: GET /documents -> 307 (0.733s)
+2025-10-20 21:29:34,100 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 21:29:38,124 - src.api.documents - INFO - Fetching all documents
+2025-10-20 21:29:47,990 - src.api.documents - INFO - Found 8 documents
+2025-10-20 21:29:49,808 - main - INFO - Response: GET /documents/ -> 200 (15.707s)
+2025-10-20 21:33:12,106 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 21:33:12,616 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=5
+2025-10-20 21:33:16,356 - main - INFO - Response: POST /chat/stream -> 200 (4.250s)
+2025-10-20 21:33:25,009 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 21:33:25,437 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 21:37:20,739 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 21:59:14,548 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-20 21:59:18,512 - main - INFO - Response: GET /documents -> 307 (5.064s)
+2025-10-20 21:59:20,891 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-20 21:59:21,679 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 21:59:39,808 - src.api.documents - INFO - Fetching all documents
+2025-10-20 21:59:40,685 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=21
+2025-10-20 21:59:44,239 - src.api.documents - INFO - Found 8 documents
+2025-10-20 21:59:45,921 - main - INFO - Response: POST /chat/stream -> 200 (24.485s)
+2025-10-20 21:59:49,399 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 21:59:49,580 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 22:06:54,615 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 22:07:14,185 - main - INFO - Response: GET /documents/ -> 200 (473.292s)
+2025-10-20 22:19:17,865 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-20 22:19:18,260 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-20 22:19:19,861 - main - INFO - Response: POST /chat/stream -> 200 (2.001s)
+2025-10-20 22:19:22,747 - httpx - INFO - HTTP Request: GET http://127.0.0.1:11434/api/tags "HTTP/1.1 200 OK"
+2025-10-20 22:19:23,018 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: llama3.2:latest...
+2025-10-20 22:21:20,791 - httpx - INFO - HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+2025-10-20 22:38:41,913 - main - INFO - Application shutting down...
+2025-10-20 23:07:56,397 - main - INFO - Application starting up...
+2025-10-20 23:07:56,409 - main - INFO - Application shutting down...
+2025-10-20 23:40:26,919 - main - INFO - Application starting up...
+2025-10-20 23:40:27,001 - main - INFO - Application shutting down...
+2025-10-20 23:44:27,285 - main - INFO - Application starting up...
+2025-10-21 19:07:41,440 - main - INFO - Application starting up...
+2025-10-21 19:17:51,146 - main - INFO - Request: GET /documents from 127.0.0.1
+2025-10-21 19:17:51,151 - main - INFO - Response: GET /documents -> 307 (0.005s)
+2025-10-21 19:17:52,446 - main - INFO - Request: GET /documents/ from 127.0.0.1
+2025-10-21 19:17:52,599 - src.api.documents - INFO - Fetching all documents
+2025-10-21 19:17:56,166 - src.api.documents - INFO - Found 8 documents
+2025-10-21 19:17:59,446 - main - INFO - Response: GET /documents/ -> 200 (7.000s)
+2025-10-21 19:22:17,395 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 19:22:19,952 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-21 19:23:05,489 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-21 19:23:05,490 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-21 19:25:33,890 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-21 19:25:34,030 - src.api.chat - ERROR - Streaming chat processing failed
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: table conversations has no column named is_pinned
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\chat.py", line 118, in chat_stream
+    conversation = chat_service.create_conversation()
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\chat_service.py", line 26, in create_conversation
+    self.db.commit()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1313, in commit
+    self._prepare_impl()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "<string>", line 2, in _prepare_impl
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 139, in _go
+    ret_value = fn(self, *arg, **kw)
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 1288, in _prepare_impl
+    self.session.flush()
+    ~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4345, in flush
+    self._flush(objects)
+    ~~~~~~~~~~~^^^^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4480, in _flush
+    with util.safe_reraise():
+         ~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 224, in __exit__
+    raise exc_value.with_traceback(exc_tb)
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 4441, in _flush
+    flush_context.execute()
+    ~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 466, in execute
+    rec.execute(self)
+    ~~~~~~~~~~~^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\unitofwork.py", line 642, in execute
+    util.preloaded.orm_persistence.save_obj(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self.mapper,
+        ^^^^^^^^^^^^
+        uow.states_for_mapper_hierarchy(self.mapper, False, False),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        uow,
+        ^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 93, in save_obj
+    _emit_insert_statements(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        base_mapper,
+        ^^^^^^^^^^^^
+    ...<3 lines>...
+        insert,
+        ^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\persistence.py", line 1233, in _emit_insert_statements
+    result = connection.execute(
+        statement,
+        params,
+        execution_options=execution_options,
+    )
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1415, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\sql\elements.py", line 523, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1637, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1842, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1982, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 2351, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\base.py", line 1963, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\engine\default.py", line 943, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+2025-10-21 19:25:42,694 - main - WARNING - HTTP 500: Streaming chat processing failed: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) - /chat/stream
+2025-10-21 19:25:42,697 - main - INFO - Response: POST /chat/stream -> 500 (205.302s)
+2025-10-21 19:27:34,631 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 19:27:34,634 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-21 19:27:34,635 - src.api.chat - ERROR - Streaming chat processing failed
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\chat.py", line 118, in chat_stream
+    conversation = chat_service.create_conversation()
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\chat_service.py", line 26, in create_conversation
+    self.db.commit()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    raise sa_exc.PendingRollbackError(
+    ...<6 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a)
+2025-10-21 19:27:34,645 - main - WARNING - HTTP 500: Streaming chat processing failed: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a) - /chat/stream
+2025-10-21 19:27:34,647 - main - INFO - Response: POST /chat/stream -> 500 (0.016s)
+2025-10-21 19:27:54,408 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 19:27:54,410 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-21 19:27:54,411 - src.api.chat - ERROR - Streaming chat processing failed
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\chat.py", line 118, in chat_stream
+    conversation = chat_service.create_conversation()
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\chat_service.py", line 26, in create_conversation
+    self.db.commit()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    raise sa_exc.PendingRollbackError(
+    ...<6 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a)
+2025-10-21 19:27:54,417 - main - WARNING - HTTP 500: Streaming chat processing failed: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a) - /chat/stream
+2025-10-21 19:27:54,425 - main - INFO - Response: POST /chat/stream -> 500 (0.017s)
+2025-10-21 19:32:02,048 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 19:32:02,052 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-21 19:32:02,053 - src.api.chat - ERROR - Streaming chat processing failed
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\chat.py", line 118, in chat_stream
+    conversation = chat_service.create_conversation()
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\chat_service.py", line 26, in create_conversation
+    self.db.commit()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    raise sa_exc.PendingRollbackError(
+    ...<6 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a)
+2025-10-21 19:32:02,063 - main - WARNING - HTTP 500: Streaming chat processing failed: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a) - /chat/stream
+2025-10-21 19:32:02,065 - main - INFO - Response: POST /chat/stream -> 500 (0.017s)
+2025-10-21 19:32:31,062 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 19:32:31,066 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=2
+2025-10-21 19:32:31,068 - src.api.chat - ERROR - Streaming chat processing failed
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\chat.py", line 118, in chat_stream
+    conversation = chat_service.create_conversation()
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\chat_service.py", line 26, in create_conversation
+    self.db.commit()
+    ~~~~~~~~~~~~~~^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 2032, in commit
+    trans.commit(_to_root=True)
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "<string>", line 2, in commit
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\state_changes.py", line 103, in _go
+    self._raise_for_prerequisite_state(fn.__name__, current_state)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\AppData\Local\Programs\Python\Python313\Lib\site-packages\sqlalchemy\orm\session.py", line 973, in _raise_for_prerequisite_state
+    raise sa_exc.PendingRollbackError(
+    ...<6 lines>...
+    )
+sqlalchemy.exc.PendingRollbackError: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a)
+2025-10-21 19:32:31,111 - main - WARNING - HTTP 500: Streaming chat processing failed: This Session's transaction has been rolled back due to a previous exception during flush. To begin a new transaction with this Session, first issue Session.rollback(). Original exception was: (sqlite3.OperationalError) table conversations has no column named is_pinned
+[SQL: INSERT INTO conversations (id, title, started_at, last_activity, is_pinned, is_archived, retention_policy, document_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)]
+[parameters: ('c2f4041a-e4b7-4097-a425-fddbf017be2d', 'Chat 2025-10-21 16:25', '2025-10-21 16:25:33.978306', '2025-10-21 16:25:33.978319', 0, 0, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8) (Background on this error at: https://sqlalche.me/e/20/7s2a) - /chat/stream
+2025-10-21 19:32:31,113 - main - INFO - Response: POST /chat/stream -> 500 (0.052s)
+2025-10-21 19:36:58,806 - main - INFO - Application shutting down...
+2025-10-21 19:43:54,770 - main - INFO - Application starting up...
+2025-10-21 19:43:54,862 - main - INFO - Application shutting down...
+2025-10-21 19:44:30,808 - main - INFO - Application starting up...
+2025-10-21 20:10:08,217 - main - INFO - Application shutting down...
+2025-10-21 20:13:40,231 - main - INFO - Application starting up...
+2025-10-21 20:13:40,361 - main - INFO - Request: POST /chat/ from testclient
+2025-10-21 20:13:42,026 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-21 20:14:01,491 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-21 20:14:01,491 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-21 20:17:24,736 - src.api.chat - INFO - Chat request: conversationId=None, documentId=None, model=llama3.2:latest, message_length=15
+2025-10-21 20:17:31,648 - src.services.ai_service - INFO - Attempting non-streaming response with Ollama using model: llama3.2:latest...
+2025-10-21 20:17:34,476 - src.services.ai_service - ERROR - Primary AI service failed for llama3.2:latest: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+2025-10-21 20:17:35,952 - main - INFO - Response: POST /chat/ -> 200 (235.591s)
+2025-10-21 20:17:36,180 - httpx - INFO - HTTP Request: POST http://testserver/chat/ "HTTP/1.1 200 OK"
+2025-10-21 20:41:12,034 - main - INFO - Application shutting down...
+2025-10-21 20:55:40,073 - main - INFO - Application starting up...
+2025-10-21 20:55:40,089 - main - INFO - Application shutting down...
+2025-10-21 21:09:40,767 - main - INFO - Application starting up...
+2025-10-21 21:15:19,656 - main - INFO - Request: POST /chat/ from testclient
+2025-10-21 21:15:21,405 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-21 21:15:48,834 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-21 21:15:48,835 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-21 21:16:55,688 - main - INFO - Application shutting down...
+2025-10-21 21:17:10,026 - src.api.chat - INFO - Chat request: conversationId=None, documentId=None, model=dummy, message_length=10
+2025-10-21 21:17:14,716 - main - INFO - Response: POST /chat/ -> 200 (115.060s)
+2025-10-21 21:17:14,960 - httpx - INFO - HTTP Request: POST http://testserver/chat/ "HTTP/1.1 200 OK"
+2025-10-21 21:25:45,893 - main - INFO - Application starting up...
+2025-10-21 21:53:05,199 - main - INFO - Application shutting down...
+2025-10-21 21:56:37,952 - main - INFO - Application starting up...
+2025-10-21 22:06:12,373 - main - INFO - Application shutting down...
+2025-10-21 22:06:54,739 - main - INFO - Application starting up...
+2025-10-21 22:07:51,637 - main - INFO - Application shutting down...
+2025-10-21 22:08:34,140 - main - INFO - Application starting up...
+2025-10-21 22:08:34,141 - main - INFO - Application shutting down...
+2025-10-21 22:09:03,864 - main - INFO - Application starting up...
+2025-10-21 22:14:27,595 - main - INFO - Application starting up...
+2025-10-21 22:14:27,609 - main - INFO - Application shutting down...
+2025-10-21 22:24:47,404 - main - INFO - Request: GET /health from 127.0.0.1
+2025-10-21 22:24:47,452 - main - INFO - Response: GET /health -> 200 (0.049s)
+2025-10-21 22:24:47,469 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 22:24:48,806 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-21 22:24:50,108 - src.services.ai_service - INFO - OpenRouter client initialized
+2025-10-21 22:24:57,332 - sentence_transformers.SentenceTransformer - INFO - Use pytorch device_name: cpu
+2025-10-21 22:24:57,332 - sentence_transformers.SentenceTransformer - INFO - Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2025-10-21 22:26:59,597 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=dummy, message_length=21
+2025-10-21 22:27:05,163 - main - INFO - Response: POST /chat/stream -> 200 (137.694s)
+2025-10-21 22:27:07,297 - src.services.ai_service - INFO - Attempting streaming response with Ollama using model: dummy...
+2025-10-21 22:27:09,942 - src.services.ai_service - ERROR - Streaming response failed for dummy: [WinError 10061] No connection could be made because the target machine actively refused it
+2025-10-21 22:28:11,558 - main - INFO - Application shutting down...
+2025-10-21 22:43:39,704 - main - INFO - Application starting up...
+2025-10-21 22:49:49,946 - main - INFO - Application starting up...
+2025-10-21 22:49:49,949 - main - INFO - Application shutting down...
+2025-10-21 22:52:56,099 - main - INFO - Application starting up...
+2025-10-21 22:52:56,103 - main - INFO - Application shutting down...
+2025-10-21 22:53:39,339 - main - INFO - Request: GET /health from 127.0.0.1
+2025-10-21 22:53:39,388 - main - INFO - Response: GET /health -> 200 (0.050s)
+2025-10-21 22:53:39,422 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 22:53:39,476 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=dummy, message_length=21
+2025-10-21 22:53:40,952 - main - INFO - Response: POST /chat/stream -> 200 (1.530s)
+2025-10-21 23:17:17,830 - main - INFO - Request: GET /health from 127.0.0.1
+2025-10-21 23:17:17,910 - main - INFO - Response: GET /health -> 200 (0.081s)
+2025-10-21 23:17:17,955 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 23:17:17,965 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=dummy, message_length=21
+2025-10-21 23:17:18,672 - main - INFO - Response: POST /chat/stream -> 200 (0.717s)
+2025-10-21 23:31:46,400 - main - INFO - Request: GET /health from 127.0.0.1
+2025-10-21 23:31:46,406 - main - INFO - Response: GET /health -> 200 (0.006s)
+2025-10-21 23:31:46,417 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-21 23:31:46,420 - src.api.chat - INFO - Streaming chat request: conversationId=None, documentId=None, model=dummy, message_length=21
+2025-10-21 23:31:47,067 - main - INFO - Response: POST /chat/stream -> 200 (0.650s)
+2025-10-22 13:43:15,231 - main - INFO - Application starting up...
+2025-10-22 13:55:41,401 - main - INFO - Application shutting down...
+2025-10-22 14:00:14,873 - main - INFO - Application starting up...
+2025-10-22 14:00:14,876 - main - INFO - Application shutting down...
+2025-10-22 14:01:59,245 - main - INFO - Application starting up...
+2025-10-22 14:22:41,150 - main - INFO - Application starting up...
+2025-10-22 14:36:28,522 - main - INFO - Request: GET /health from 127.0.0.1
+2025-10-22 14:36:28,604 - main - INFO - Response: GET /health -> 200 (0.083s)
+2025-10-22 14:36:28,644 - main - INFO - Request: POST /chat/stream from 127.0.0.1
+2025-10-22 14:36:28,651 - main - INFO - Response: POST /chat/stream -> 404 (0.007s)
+2025-10-22 14:46:09,842 - main - INFO - Application shutting down...
+2025-10-22 14:47:29,861 - main - INFO - Application starting up...
+2025-10-22 14:47:52,453 - main - INFO - Application shutting down...
+2025-10-22 14:48:54,323 - main - INFO - Application starting up...
+2025-10-22 14:49:22,185 - main - INFO - Application shutting down...
+2025-10-22 14:50:37,014 - main - INFO - Application starting up...
+2025-10-22 14:54:09,480 - main - INFO - Application shutting down...
+2025-10-22 14:56:15,937 - main - INFO - Application starting up...
+2025-10-22 14:56:45,255 - main - INFO - Application shutting down...
+2025-10-22 14:58:04,784 - main - INFO - Application starting up...
+2025-10-22 14:58:29,572 - main - INFO - Application shutting down...
+2025-10-22 15:00:04,546 - main - INFO - Application starting up...
+2025-10-22 15:15:29,236 - main - INFO - Application shutting down...
+2025-10-22 15:17:04,318 - main - INFO - Application starting up...
+2025-10-22 15:22:24,511 - main - INFO - Application shutting down...
+2025-10-22 15:23:23,972 - main - INFO - Application starting up...
+2025-10-22 15:23:23,974 - main - INFO - Application shutting down...
+2025-10-22 15:24:00,039 - main - INFO - Application starting up...
+2025-10-22 15:28:23,499 - main - INFO - Application shutting down...
+2025-10-22 15:30:43,888 - main - INFO - Application starting up...
+2025-10-22 15:49:20,202 - main - INFO - Application shutting down...
+2025-10-22 15:56:11,664 - main - INFO - Application starting up...
+2025-10-22 16:23:56,914 - main - INFO - Application shutting down...
+2025-10-22 16:25:44,419 - main - INFO - Application starting up...
+2025-10-22 16:43:43,917 - main - INFO - Application shutting down...
+2025-10-22 16:45:28,373 - main - INFO - Application starting up...
+2025-10-22 16:45:50,644 - main - INFO - Application shutting down...
+2025-10-22 16:48:09,250 - main - INFO - Application starting up...
+2025-10-22 16:48:54,028 - main - INFO - Application shutting down...
+2025-10-22 16:50:34,344 - main - INFO - Application starting up...
+2025-10-22 16:56:16,414 - main - INFO - Application shutting down...
+2025-10-22 17:01:12,417 - main - INFO - Application starting up...
+2025-10-22 17:01:12,448 - main - INFO - Application shutting down...
+2025-10-22 17:03:26,208 - main - INFO - Application starting up...
+2025-10-22 17:06:47,999 - main - INFO - Application shutting down...
+2025-10-22 17:07:26,615 - main - INFO - Application starting up...
+2025-10-22 17:07:27,600 - main - INFO - Application shutting down...
+2025-10-22 17:08:02,259 - main - INFO - Application starting up...
+2025-10-22 17:11:29,686 - main - INFO - Application shutting down...
+2025-10-22 17:11:58,277 - main - INFO - Application starting up...
+2025-10-22 17:19:50,958 - main - INFO - Application shutting down...
+2025-10-22 17:30:04,025 - main - INFO - Application starting up...
+2025-10-22 17:39:40,009 - main - INFO - Application shutting down...
+2025-10-22 17:45:55,713 - main - INFO - Application starting up...
+2025-10-22 17:52:12,812 - main - INFO - Application shutting down...
+2025-10-22 18:01:38,876 - main - INFO - Application starting up...
+2025-10-22 18:11:02,481 - main - INFO - Application shutting down...
+2025-10-22 18:21:39,562 - main - INFO - Application starting up...
+2025-10-22 18:31:45,275 - main - INFO - Application shutting down...
+2025-10-22 18:35:58,282 - main - INFO - Application starting up...
+2025-10-22 18:44:25,877 - main - INFO - Application shutting down...
+2025-10-22 18:47:50,099 - main - INFO - Application starting up...
+2025-10-22 18:47:50,132 - main - INFO - Application shutting down...
+2025-10-22 18:48:53,582 - main - INFO - Application starting up...
+2025-10-22 18:50:04,590 - main - INFO - Application shutting down...
+2025-10-22 18:51:05,272 - main - INFO - Application starting up...
+2025-10-22 18:51:05,276 - main - INFO - Application shutting down...
+2025-10-22 18:52:12,778 - main - INFO - Application starting up...
+2025-10-22 19:01:05,502 - main - INFO - Application shutting down...
+2025-10-22 19:02:20,323 - main - INFO - Application starting up...
+2025-10-22 19:02:20,326 - main - INFO - Application shutting down...
+2025-10-22 19:03:21,060 - main - INFO - Application starting up...
+2025-10-22 19:12:36,780 - main - INFO - Application shutting down...
+2025-10-22 19:22:08,681 - main - INFO - Application starting up...
+2025-10-22 19:22:08,684 - main - INFO - Application shutting down...
+2025-10-22 19:22:54,224 - main - INFO - Application starting up...
+2025-10-22 20:08:14,626 - main - INFO - Application shutting down...
+2025-10-22 20:12:22,483 - main - INFO - Application starting up...
+2025-10-22 20:12:22,485 - main - INFO - Application shutting down...
+2025-10-22 20:12:45,066 - main - INFO - Application starting up...
+2025-10-22 20:23:05,913 - main - INFO - Application shutting down...
+2025-10-22 20:28:25,018 - main - INFO - Application starting up...
+2025-10-22 20:55:23,004 - main - INFO - Application shutting down...
+2025-10-22 21:11:31,275 - main - INFO - Application starting up...
+2025-10-22 22:12:26,854 - main - INFO - Application shutting down...
+2025-10-22 22:34:02,459 - main - INFO - Application starting up...
+2025-10-22 23:24:46,032 - main - INFO - Application shutting down...
+2025-10-23 00:11:38,224 - main - INFO - Application starting up...
+2025-10-23 00:11:38,296 - main - INFO - Application shutting down...
+2025-10-23 00:13:58,684 - main - INFO - Application starting up...
+2025-10-23 17:39:06,240 - main - INFO - Application starting up...
+2025-10-23 17:49:17,429 - main - INFO - Application shutting down...
+2025-10-23 17:49:34,251 - main - INFO - Application starting up...
+2025-10-23 18:23:41,137 - main - INFO - Application shutting down...
+2025-10-23 18:29:45,656 - main - INFO - Application starting up...
+2025-10-23 18:31:39,689 - main - INFO - Application shutting down...
+2025-10-23 18:33:05,933 - main - INFO - Application starting up...
+2025-10-23 18:34:06,889 - main - INFO - Application shutting down...
+2025-10-23 18:35:02,694 - main - INFO - Application starting up...
+2025-10-23 18:41:48,944 - main - INFO - Application shutting down...
+2025-10-23 18:43:21,476 - main - INFO - Application starting up...
+2025-10-23 18:44:29,047 - main - INFO - Application shutting down...
+2025-10-23 18:46:57,370 - main - INFO - Application starting up...
+2025-10-23 18:56:48,949 - main - INFO - Application shutting down...
+2025-10-23 18:59:25,841 - main - INFO - Application starting up...
+2025-10-23 19:12:48,745 - main - INFO - Application shutting down...
+2025-10-23 19:18:47,010 - main - INFO - Application starting up...
+2025-10-23 20:28:56,052 - main - INFO - Application shutting down...
+2025-10-23 20:40:25,337 - main - INFO - Application starting up...
+2025-10-23 21:19:23,146 - main - INFO - Application shutting down...
+2025-10-23 21:23:30,197 - main - INFO - Application starting up...
+2025-10-23 21:43:05,112 - main - INFO - Application shutting down...
+2025-10-23 21:50:12,195 - main - INFO - Application starting up...

@@ -2,7 +2,7 @@
 Image analysis API endpoints for multi-modal processing
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -28,8 +28,8 @@ class ImageAnalysisResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     document_id: Optional[str] = None
 
-@router.post("/analyze-image", response_model=ImageAnalysisResponse)
-async def analyze_image(
+@router.post("/analyze-image/json", response_model=ImageAnalysisResponse)
+async def analyze_image_json(
     request: ImageAnalysisRequest,
     db: Session = Depends(get_db)
 ) -> ImageAnalysisResponse:
@@ -108,6 +108,62 @@ async def analyze_uploaded_image(
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
+
+
+@router.post("/analyze-image")
+async def analyze_image(
+    image: UploadFile = File(...),
+    query: Optional[str] = Form(None),
+    document_id: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Multipart endpoint for image analysis expected by contract tests.
+
+    Accepts form multipart with field name 'image' and optional form field 'query'.
+    Enforces content-type and size limits and returns a simple analysis shape.
+    """
+    # Validate content type
+    if not image.content_type or not image.content_type.startswith("image/"):
+        # Unsupported media type
+        raise HTTPException(status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="File must be an image")
+
+    # Read bytes and enforce size limit (10MB)
+    image_bytes = await image.read()
+    max_bytes = 10 * 1024 * 1024
+    if len(image_bytes) > max_bytes:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image payload too large")
+
+    try:
+        multimodal_service = MultiModalService()
+        # Use 'query' as prompt if provided
+        result = await multimodal_service.analyze_image(image_data=image_bytes, prompt=query, document_id=document_id)
+
+        # If the multimodal service indicates an error, surface as HTTP 400
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(result.get("error"))
+
+        # Normalize result to contract expected keys
+        response: Dict[str, Any] = {
+            "description": result.get("description") or result.get("analysis") or "",
+            "objects": result.get("objects", []),
+            "confidence": float(result.get("confidence", 0.0)),
+        }
+
+        # If test sent a query, include an 'answer' field
+        if query:
+            response["answer"] = result.get("answer") or result.get("analysis") or ""
+
+        return response
+
+    except ValueError as e:
+        # Corrupted image / invalid image bytes
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Generic processing error
         raise HTTPException(status_code=500, detail=f"Image analysis failed: {str(e)}")
 
 @router.get("/analyze-image/models")
