@@ -1,7 +1,7 @@
 # Core FastAPI dependencies
 fastapi
 uvicorn[standard]
-pydantic==2.5.0
+pydantic
 pydantic-settings
 
 # Database and ORM

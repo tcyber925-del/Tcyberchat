@@ -44,21 +44,26 @@ class DocumentService:
         """Validate uploaded file type and size"""
         # Check file size
         if hasattr(file, 'size') and file.size:
-            max_size = self._get_max_size_for_mime_type(file.content_type)
+            mime = file.content_type or 'application/octet-stream'
+            max_size = self._get_max_size_for_mime_type(mime)
             if file.size > max_size:
                 return False, f"File too large. Maximum size: {max_size // (1024*1024)}MB"
 
         # Check MIME type
-        if file.content_type not in self._get_supported_types():
-            return False, f"Unsupported file type: {file.content_type}"
+        mime_type = file.content_type or ''
+        if mime_type not in self._get_supported_types():
+            return False, f"Unsupported file type: {mime_type}"
 
         return True, None
 
     def _get_max_size_for_mime_type(self, mime_type: str) -> int:
         """Get maximum file size for MIME type"""
-        if mime_type.startswith('image/'):
+        if not mime_type:
+            return self.MAX_FILE_SIZE
+
+        if isinstance(mime_type, str) and mime_type.startswith('image/'):
             return self.MAX_IMAGE_SIZE
-        elif mime_type.startswith('audio/'):
+        elif isinstance(mime_type, str) and mime_type.startswith('audio/'):
             return self.MAX_AUDIO_SIZE
         else:
             return self.MAX_FILE_SIZE
@@ -84,7 +89,7 @@ class DocumentService:
 
         return str(file_path)
 
-    def create_document(self, file_name: str, file_content: str) -> Document:
+    def create_document(self, file_name: str, file_content: str, status: str = "processing") -> Document:
         """Create a new document, save its content, and create a database record."""
         # For simplicity, let's save the content to a temporary file
         # In a real application, you might store content in a dedicated storage
@@ -99,7 +104,7 @@ class DocumentService:
             size=len(file_content.encode('utf-8')),
             mime_type="text/plain",  # Assuming text content for now
             content=file_content,
-            status="completed"
+            status=status
         )
 
         self.db.add(document)
@@ -115,7 +120,8 @@ class DocumentService:
             filename=filename,
             path=file_path,
             size=size,
-            mime_type=mime_type
+            mime_type=mime_type,
+            status="processing"
         )
 
         self.db.add(document)
@@ -130,7 +136,12 @@ class DocumentService:
             doc_uuid = UUID(document_id)
         except ValueError:
             return None
+        # Ensure we return ORM instance (avoid returning Column proxies)
         return self.db.query(Document).filter(Document.id == doc_uuid).first()
+
+    def get_all_documents(self) -> List[Document]:
+        """Get all documents"""
+        return self.db.query(Document).order_by(Document.uploaded_at.desc()).all()
 
     def get_documents(self, status: Optional[str] = None, limit: int = 50) -> List[Document]:
         """Get documents with optional status filter"""
@@ -176,19 +187,27 @@ class DocumentService:
             document.update_status("processing")
 
             # Extract text content based on file type
-            if document.is_text_document:
+            # Coerce ORM attributes into local Python values for safe checks
+            is_text = bool(getattr(document, 'is_text_document', False))
+            is_image = bool(getattr(document, 'is_image', False))
+            is_audio = bool(getattr(document, 'is_audio', False))
+
+            if is_text:
                 await self._extract_text_content(document)
-            elif document.is_image:
+            elif is_image:
                 await self._process_image(document)
-            elif document.is_audio:
+            elif is_audio:
                 await self._transcribe_audio(document)
 
             # Generate chunks for RAG
-            if document.content:
+            content_val = getattr(document, 'content', None)
+            if content_val:
                 await self._generate_chunks(document)
 
-            # Update status to ready
+            # Update status to ready and then completed
             document.update_status("ready")
+            # Some consumers expect a final 'completed' state
+            document.update_status("completed")
 
         except Exception as e:
             document.update_status("error")
@@ -200,17 +219,18 @@ class DocumentService:
         """Extract text from text-based documents"""
         try:
             content = ""
+            mime = getattr(document, 'mime_type', '') or ''
 
-            if document.mime_type == 'application/pdf':
-                content = await self._extract_pdf_content(str(document.path))
-            elif document.mime_type in ['text/plain', 'text/markdown']:
-                content = await self._extract_text_file_content(str(document.path))
-            elif document.mime_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-                content = await self._extract_docx_content(str(document.path))
+            if mime == 'application/pdf':
+                content = await self._extract_pdf_content(str(getattr(document, 'path', '')))
+            elif mime in ['text/plain', 'text/markdown']:
+                content = await self._extract_text_file_content(str(getattr(document, 'path', '')))
+            elif mime == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+                content = await self._extract_docx_content(str(getattr(document, 'path', '')))
             else:
-                content = f"Unsupported text format: {document.mime_type}"
+                content = f"Unsupported text format: {mime}"
 
-            document.content = content
+            setattr(document, 'content', content)
 
         except Exception as e:
             document.content = f"Error extracting content: {str(e)}"
@@ -228,7 +248,8 @@ class DocumentService:
 
     async def _generate_chunks(self, document: Document) -> None:
         """Generate text chunks for RAG and create vector embeddings"""
-        if not document.content:
+        content_val = getattr(document, 'content', None)
+        if not content_val:
             return
 
         # Import RAG service
@@ -237,14 +258,26 @@ class DocumentService:
 
         # Use RAG service to add document with intelligent chunking
         # This will automatically create chunks and embeddings
+        # Prepare safe metadata values
+        doc_id = str(getattr(document, 'id'))
+        full_text = str(getattr(document, 'content', ''))
+        filename = str(getattr(document, 'filename', ''))
+        mime = str(getattr(document, 'mime_type', ''))
+        uploaded_at = getattr(document, 'uploaded_at', None)
+        size_val = getattr(document, 'size', None)
+        try:
+            file_size = int(size_val) if size_val is not None else 0
+        except Exception:
+            file_size = 0
+
         success = await rag_service.add_document_with_chunking(
-            document_id=str(document.id),
-            full_text=str(document.content),
+            document_id=doc_id,
+            full_text=full_text,
             metadata={
-                "filename": str(document.filename),
-                "mime_type": str(document.mime_type),
-                "upload_date": document.uploaded_at.isoformat() if document.uploaded_at else None,
-                "file_size": int(document.size)
+                "filename": filename,
+                "mime_type": mime,
+                "upload_date": uploaded_at.isoformat() if uploaded_at else None,
+                "file_size": file_size,
             }
         )
 
@@ -253,7 +286,7 @@ class DocumentService:
             setattr(document, 'has_embeddings', True)
             # Store chunk count (approximate)
             # Note: In a real implementation, you'd get this from the RAG service
-            document.chunks = [str(document.content)]  # Placeholder for compatibility
+            setattr(document, 'chunks', [str(getattr(document, 'content', ''))])  # Placeholder
         else:
             # Fallback to simple chunking if RAG service fails
             await self._fallback_chunking(document)
@@ -319,9 +352,10 @@ class DocumentService:
 
     async def _fallback_chunking(self, document: Document) -> None:
         """Fallback chunking when RAG service is unavailable"""
-        if document.content:
+        content_val = getattr(document, 'content', '') or ''
+        if content_val:
             # Simple sentence-based chunking
-            sentences = document.content.split('.')
+            sentences = content_val.split('.')
             chunks = []
             current_chunk = ""
 
@@ -342,7 +376,7 @@ class DocumentService:
                            highlight_terms: Optional[List[str]] = None,
                            options: Optional[Dict[str, Any]] = None, page: Optional[int] = None) -> str:
         """Render document as HTML"""
-        content = document.content or ""
+        content = getattr(document, 'content', '') or ""
 
         # Apply highlighting if requested
         if highlight_terms:
@@ -360,9 +394,12 @@ class DocumentService:
 
         html = f'<div class="document-content">'
         if include_metadata:
+            filename = getattr(document, 'filename', '')
+            size_val = getattr(document, 'size', 0)
+            mime = getattr(document, 'mime_type', '')
             html += f'<div class="document-metadata">'
-            html += f'<h3>{document.filename}</h3>'
-            html += f'<p class="document-info">Size: {document.size} bytes | Type: {document.mime_type}</p>'
+            html += f'<h3>{filename}</h3>'
+            html += f'<p class="document-info">Size: {size_val} bytes | Type: {mime}</p>'
             html += f'</div>'
 
         html += f'<div class="document-body">{content}</div>'
@@ -376,13 +413,13 @@ class DocumentService:
         import json
 
         data = {
-            "id": str(document.id),
-            "filename": document.filename,
-            "content": document.content,
-            "mimeType": document.mime_type,
-            "size": document.size,
-            "status": document.status,
-            "uploadedAt": document.uploaded_at.isoformat() if document.uploaded_at else None
+            "id": str(getattr(document, 'id', '')),
+            "filename": getattr(document, 'filename', ''),
+            "content": getattr(document, 'content', ''),
+            "mimeType": getattr(document, 'mime_type', ''),
+            "size": getattr(document, 'size', 0),
+            "status": getattr(document, 'status', ''),
+            "uploadedAt": getattr(document, 'uploaded_at', None).isoformat() if getattr(document, 'uploaded_at', None) else None
         }
 
         if include_metadata:
@@ -397,13 +434,13 @@ class DocumentService:
     async def render_as_text(self, document: Document, include_metadata: bool = True,
                            page: Optional[int] = None) -> str:
         """Render document as plain text"""
-        content = document.content or ""
+        content = getattr(document, 'content', '') or ""
 
         if include_metadata:
-            header = f"Document: {document.filename}\n"
-            header += f"Size: {document.size} bytes\n"
-            header += f"Type: {document.mime_type}\n"
-            header += f"Status: {document.status}\n"
+            header = f"Document: {getattr(document, 'filename', '')}\n"
+            header += f"Size: {getattr(document, 'size', 0)} bytes\n"
+            header += f"Type: {getattr(document, 'mime_type', '')}\n"
+            header += f"Status: {getattr(document, 'status', '')}\n"
             header += "-" * 50 + "\n\n"
             content = header + content
 
@@ -412,16 +449,17 @@ class DocumentService:
     async def render_as_markdown(self, document: Document, include_metadata: bool = True,
                                page: Optional[int] = None) -> str:
         """Render document as Markdown"""
-        content = document.content or ""
+        content = getattr(document, 'content', '') or ""
 
         markdown = ""
         if include_metadata:
-            markdown += f"# {document.filename}\n\n"
+            markdown += f"# {getattr(document, 'filename', '')}\n\n"
             markdown += f"**File Information:**\n"
-            markdown += f"- Size: {document.size} bytes\n"
-            markdown += f"- Type: {document.mime_type}\n"
-            markdown += f"- Status: {document.status}\n"
-            markdown += f"- Uploaded: {document.uploaded_at.strftime('%Y-%m-%d %H:%M:%S') if document.uploaded_at else 'Unknown'}\n\n"
+            markdown += f"- Size: {getattr(document, 'size', 0)} bytes\n"
+            markdown += f"- Type: {getattr(document, 'mime_type', '')}\n"
+            markdown += f"- Status: {getattr(document, 'status', '')}\n"
+            uploaded_at_val = getattr(document, 'uploaded_at', None)
+            markdown += f"- Uploaded: {uploaded_at_val.strftime('%Y-%m-%d %H:%M:%S') if uploaded_at_val else 'Unknown'}\n\n"
             markdown += "---\n\n"
 
         markdown += f"## Content\n\n{content}"
@@ -431,24 +469,25 @@ class DocumentService:
     async def generate_preview(self, document: Document, max_length: int = 500,
                              include_metadata: bool = True) -> Dict[str, Any]:
         """Generate a preview of the document"""
-        content = document.content or ""
+        content = getattr(document, 'content', '') or ""
         preview_text = content[:max_length]
         if len(content) > max_length:
             preview_text += "..."
 
         preview = {
-            "id": str(document.id),
-            "filename": document.filename,
+            "id": str(getattr(document, 'id', '')),
+            "filename": getattr(document, 'filename', ''),
             "preview": preview_text,
             "contentLength": len(content),
-            "mimeType": document.mime_type,
-            "size": document.size
+            "mimeType": getattr(document, 'mime_type', ''),
+            "size": getattr(document, 'size', 0)
         }
 
         if include_metadata:
+            uploaded_at_val = getattr(document, 'uploaded_at', None)
             preview.update({
-                "status": document.status,
-                "uploadedAt": document.uploaded_at.isoformat() if document.uploaded_at else None,
+                "status": getattr(document, 'status', ''),
+                "uploadedAt": uploaded_at_val.isoformat() if uploaded_at_val else None,
                 "hasEmbeddings": getattr(document, 'has_embeddings', False)
             })
 
@@ -456,7 +495,7 @@ class DocumentService:
 
     async def get_page_info(self, document: Document) -> Dict[str, Any]:
         """Get pagination information for the document"""
-        content = document.content or ""
+        content = getattr(document, 'content', '') or ""
         # Simple word-based estimation
         words = len(content.split())
         estimated_pages = max(1, words // 250)  # Assume ~250 words per page

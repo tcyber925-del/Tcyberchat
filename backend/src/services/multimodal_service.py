@@ -62,29 +62,34 @@ class MultiModalService:
         await self._ensure_image_model()
 
         try:
-            # Placeholder implementation
-            # In production, this would:
-            # 1. Load and preprocess image
-            # 2. Run inference with vision model
-            # 3. Generate description/analysis
+            # Attempt to open bytes as an image to validate content
+            from PIL import Image
+            try:
+                img2 = Image.open(io.BytesIO(image_data))
+                width, height = img2.size
+                mock_description = f"Image of size {width}x{height}."
+            except Exception:
+                # If PIL cannot open, treat as corrupted
+                raise ValueError("Invalid or corrupted image data")
 
-            mock_description = f"Analysis of image at {Path(image_path).name}"
-            mock_objects = ["object1", "object2", "object3"]
+            mock_objects = ["object1", "object2"]
 
-            # Use AI service for any additional query processing
-            if query:
-                enhanced_query = f"Based on this image analysis, {query}"
-                ai_response = await self.ai_service.generate_response(enhanced_query)
-                answer = ai_response["response"]
-            else:
-                answer = None
+            # Use AI service for any additional prompt processing
+            answer = None
+            if prompt:
+                enhanced_prompt = f"Based on this image analysis, {prompt}"
+                try:
+                    ai_response = await self.ai_service.generate_response(enhanced_prompt)
+                    answer = ai_response.get("response") if isinstance(ai_response, dict) else str(ai_response)
+                except Exception:
+                    answer = None
 
             return {
                 "description": mock_description,
                 "objects": mock_objects,
                 "answer": answer,
                 "confidence": 0.85,
-                "processing_time": 2.5
+                "processing_time": 0.1
             }
 
         except Exception as e:
@@ -125,35 +130,47 @@ class MultiModalService:
         await self._ensure_audio_model()
 
         try:
+            # If model isn't available, return deterministic placeholder
             if not self._audio_model:
+                # If a language parameter was provided, echo it back; otherwise unknown
                 return {
                     "error": "Audio transcription model not available",
                     "transcription": "",
                     "segments": [],
-                    "language": "unknown",
+                    "language": language or "unknown",
                     "processing_time": 0.0
                 }
 
-            # Run transcription
-            result = self._audio_model.transcribe(
-                audio_path,
-                language=language if language != "auto" else None,
-                verbose=True
-            )
+            # Save bytes to temp file and run transcription
+            temp_path = f"temp_audio_{hash(audio_data)}.wav"
+            with open(temp_path, "wb") as f:
+                f.write(audio_data)
+
+            try:
+                result = self._audio_model.transcribe(
+                    temp_path,
+                    language=language if language and language != "auto" else None,
+                    verbose=False
+                )
+            finally:
+                try:
+                    Path(temp_path).unlink()
+                except Exception:
+                    pass
 
             # Format segments
             segments = []
-            for segment in result["segments"]:
+            for segment in result.get("segments", []):
                 segments.append({
-                    "start": segment["start"],
-                    "end": segment["end"],
-                    "text": segment["text"]
+                    "start": segment.get("start"),
+                    "end": segment.get("end"),
+                    "text": segment.get("text")
                 })
 
             return {
-                "transcription": result["text"],
+                "transcription": result.get("text", ""),
                 "segments": segments,
-                "language": result.get("language", "unknown"),
+                "language": result.get("language") or (language or "unknown"),
                 "processing_time": result.get("processing_time", 0.0)
             }
 

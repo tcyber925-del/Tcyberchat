@@ -173,14 +173,21 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         )
         raise
 
-# Include API routers
+# Include API routers under a consistent /api base path to match contract tests
+# Keep health and root endpoints at the top-level
+app.include_router(chat_router, prefix="/api/chat")
+# Also include chat router at top-level /chat for older tests that call /chat/
 app.include_router(chat_router, prefix="/chat")
+app.include_router(documents_router, prefix="/api/documents")
+# Also include documents router at top-level /documents for tests that use that path
 app.include_router(documents_router, prefix="/documents")
-app.include_router(search_router)
-app.include_router(data_management_router)
-app.include_router(analyze_image_router)
-app.include_router(transcribe_audio_router)
-app.include_router(render_content_router)
+app.include_router(search_router, prefix="/api")
+app.include_router(data_management_router, prefix="/api/data-management")
+# Also provide legacy /api/export path expected by contract tests
+app.include_router(data_management_router, prefix="/api")
+app.include_router(analyze_image_router, prefix="/api")
+app.include_router(transcribe_audio_router, prefix="/api")
+app.include_router(render_content_router, prefix="/api")
 
 # Global exception handlers for graceful error handling
 @app.exception_handler(HTTPException)
@@ -191,6 +198,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
+            "detail": exc.detail,
             "error": {
                 "type": "http_exception",
                 "message": exc.detail,
@@ -206,7 +214,29 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Handle request validation errors"""
-    logger.warning(f"Validation error: {exc.errors()} - {request.url.path}")
+    # Sanitize Pydantic errors to avoid non-serializable inputs (e.g., bytes from multipart files)
+    raw_errors = exc.errors()
+    safe_errors = []
+    for err in raw_errors:
+        safe_err = dict(err)
+        # Replace 'input' field if present and non-serializable
+        inp = safe_err.get("input")
+        try:
+            # attempt a quick JSON-serializable check
+            import json as _json
+            _json.dumps(inp)
+            safe_input = inp
+        except Exception:
+            # Replace bytes / large objects with a short description
+            if isinstance(inp, (bytes, bytearray)):
+                safe_input = f"<bytes length={len(inp)}>"
+            else:
+                safe_input = f"<{type(inp).__name__}>"
+        if "input" in safe_err:
+            safe_err["input"] = safe_input
+        safe_errors.append(safe_err)
+
+    logger.warning(f"Validation error: {safe_errors} - {request.url.path}")
 
     return JSONResponse(
         status_code=422,
@@ -214,7 +244,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "type": "validation_error",
                 "message": "Request validation failed",
-                "details": exc.errors()
+                "details": safe_errors
             },
             "request": {
                 "method": request.method,

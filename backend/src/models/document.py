@@ -109,7 +109,7 @@ class Document(Base):
 
     def update_status(self, new_status: str):
         """Update processing status with validation"""
-        valid_statuses = ["uploading", "processing", "analyzing", "transcribing", "embedding", "ready", "error"]
+        valid_statuses = ["uploading", "processing", "analyzing", "transcribing", "embedding", "ready", "completed", "error"]
         if new_status not in valid_statuses:
             raise ValueError(f"Invalid status: {new_status}")
         self.status = new_status

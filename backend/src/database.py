@@ -3,8 +3,7 @@ Database configuration and session management for SQLAlchemy and ChromaDB
 """
 
 from sqlalchemy import create_engine, text
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 import os
 import asyncio
 from typing import Optional
@@ -28,7 +27,11 @@ engine = create_engine(
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+
+
+class Base(DeclarativeBase):
+    """SQLAlchemy 2.0-style base class for declarative models."""
+    pass
 
 # ChromaDB setup
 chroma_client = None
@@ -104,6 +107,41 @@ def initialize_database():
     # Initialize SQLAlchemy
     sql_success = create_tables()
 
+    # Run lightweight migrations for SQLite to add new columns when models evolved
+    def run_sqlite_migrations():
+        if not DATABASE_URL.startswith("sqlite"):
+            return
+        print("Running lightweight SQLite migrations...")
+        try:
+            with engine.connect() as conn:
+                # Get existing columns for conversations
+                result = conn.execute(text("PRAGMA table_info('conversations')"))
+                rows = result.fetchall()
+                existing = {r[1] for r in rows}
+
+                # Define migrations: column name -> SQL fragment to add
+                migrations = {
+                    'is_pinned': "ALTER TABLE conversations ADD COLUMN is_pinned BOOLEAN DEFAULT 0",
+                    'is_archived': "ALTER TABLE conversations ADD COLUMN is_archived BOOLEAN DEFAULT 0",
+                    'metrics': "ALTER TABLE conversations ADD COLUMN metrics JSON",
+                    'participants': "ALTER TABLE conversations ADD COLUMN participants JSON",
+                    'retention_policy': "ALTER TABLE conversations ADD COLUMN retention_policy VARCHAR(100)",
+                }
+
+                for col, stmt in migrations.items():
+                    if col not in existing:
+                        try:
+                            conn.execute(text(stmt))
+                            print(f"Added missing column '{col}' to conversations table")
+                        except Exception as e:
+                            # Non-fatal: log and continue
+                            print(f"Failed to add column {col}: {e}")
+        except Exception as e:
+            print(f"SQLite migration step failed: {e}")
+
+    # Run migrations after creating tables
+    run_sqlite_migrations()
+
     # Initialize ChromaDB
     chroma_success = initialize_chroma()
 
@@ -146,7 +184,10 @@ def get_database_status():
         "overall_status": "healthy" if sql_status == "connected" and "ready" in chroma_status else "degraded"
     }
 
-# Auto-initialize on import (in development)
+# Auto-initialize on import (in development) unless explicitly skipped. This
+# environment variable is set by Alembic env.py to avoid side-effects during
+# autogenerate and migration runs.
 if __name__ != "__main__":
-    # Only auto-initialize if not running as script
-    initialize_database()
+    if os.getenv("SKIP_DB_AUTO_INIT", "0") != "1":
+        # Only auto-initialize if not running as script and not skipped
+        initialize_database()
