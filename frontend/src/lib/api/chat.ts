@@ -1,111 +1,152 @@
-import { ChatSession } from '@/types/chat';
-import { Message } from '@/types/message';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-
-export async function getConversations(): Promise<ChatSession[]> {
-  const response = await fetch(`${API_BASE_URL}/chat/conversations`);
-  if (!response.ok) {
-    throw new Error(`Error fetching conversations: ${response.statusText}`);
-  }
-  const data = await response.json();
-  return data.map((item: any) => ({
-    ...item,
-    timestamp: new Date(item.timestamp),
-    lastActivity: new Date(item.lastActivity),
-  }));
-}
-
-export async function sendMessage(messageContent: string, conversationId?: string, model?: string): Promise<Message> {
-  const response = await fetch(`${API_BASE_URL}/chat/`, {
+// sendMessageStreaming - posts a single message to the server and streams SSE
+export async function sendMessageStreaming(
+  message: string,
+  conversationId?: string,
+  model?: string,
+  documentId?: string,
+  onChunk?: (chunk: string) => void,
+  onComplete?: (finalMessage: { content: string; messageId?: string; citations?: any[] }) => void,
+  onError?: (err: Error) => void
+) {
+  const response = await fetch('/api/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ message: messageContent, conversationId, ...(model && { model }) }),
+    body: JSON.stringify({ message, conversationId, documentId, model }),
   });
 
   if (!response.ok) {
-    throw new Error(`Error sending message: ${response.statusText}`);
+    const text = await response.text().catch(() => response.statusText);
+    throw new Error(text || response.statusText);
   }
-  const data = await response.json();
-  return {
-    id: data.messageId,
-    content: data.response,
-    timestamp: new Date(),
-    type: 'ai',
-    conversationId: conversationId || 'default',
-    citations: data.citations || [],
-  };
-}
 
-export async function sendMessageStreaming(
-  messageContent: string,
-  conversationId?: string,
-  model?: string,
-  onChunk?: (chunk: string) => void,
-  onComplete?: (fullMessage: Message) => void,
-  onError?: (error: Error) => void
-): Promise<void> {
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let sawSSE = false;
+
+  // Debug start
+  // eslint-disable-next-line no-console
+  console.debug('[client] started reading response stream');
+
   try {
-    const response = await fetch(`${API_BASE_URL}/chat/stream`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ message: messageContent, conversationId, ...(model && { model }) }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Error streaming message: ${response.statusText}`);
-    }
-
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let messageId = '';
-
-    if (!reader) {
-      throw new Error('Response body is not readable');
-    }
-
     while (true) {
       const { done, value } = await reader.read();
-
       if (done) break;
+      const chunkText = decoder.decode(value, { stream: true });
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      // Debug chunk
+      // eslint-disable-next-line no-console
+      console.debug('[client] chunk read length=', chunkText.length);
 
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6));
+      buffer += chunkText;
 
-            if (data.content && !data.done) {
-              fullContent += data.content;
-              onChunk?.(data.content);
-            } else if (data.done) {
-              messageId = data.messageId || '';
-              const finalMessage: Message = {
-                id: messageId,
-                content: fullContent,
-                timestamp: new Date(),
-                type: 'ai',
-                conversationId: conversationId || 'default',
-                citations: data.citations || [],
-              };
-              onComplete?.(finalMessage);
-              break;
+      // Heuristic: if we encounter 'event:' or 'data:' it's SSE
+      if (!sawSSE && /(^|\n)(event:|data:)/.test(buffer)) {
+        sawSSE = true;
+      }
+
+      if (sawSSE) {
+        // Line-oriented SSE parser: handle cases where events arrive without a double-newline separator
+        // We process complete lines and keep the last partial line in buffer.
+        const lines = buffer.split(/\r?\n/);
+        // If the buffer does not end with a newline, the last element is a partial line — keep it in buffer
+        const endsWithNewline = /\r?\n$/.test(buffer);
+        const partial = endsWithNewline ? '' : lines.pop() ?? '';
+
+        // State for accumulating an event block across lines
+        let currentEvent = 'message';
+        const currentDataLines: string[] = [];
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed === '') {
+            // blank line -> flush accumulated event
+            const data = currentDataLines.join('\n').trim();
+            if (currentEvent === 'chunk') {
+              if (data.length <= 3) {
+                for (const ch of data) onChunk?.(ch);
+              } else if (/\s/.test(data)) {
+                const tokens = data.split(/(\s+)/).filter(Boolean);
+                for (const t of tokens) onChunk?.(t);
+              } else {
+                onChunk?.(data);
+              }
+            } else if (currentEvent === 'message') {
+              if (data) {
+                try {
+                  const parsed = JSON.parse(data);
+                  onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+                } catch (e) {
+                  onComplete?.({ content: data });
+                }
+              }
+            } else if (currentEvent === 'error') {
+              try {
+                const parsed = JSON.parse(currentDataLines.join('\n'));
+                onError?.(new Error(parsed.error || parsed));
+              } catch (e) {
+                onError?.(new Error(currentDataLines.join('\n')));
+              }
             }
-          } catch (e) {
-            // Skip malformed JSON lines
+            // reset state
+            currentEvent = 'message';
+            currentDataLines.length = 0;
             continue;
           }
+
+          // Parse event: and data: lines
+          const eventMatch = /^event:\s*(\S+)/i.exec(line);
+          if (eventMatch) {
+            currentEvent = eventMatch[1].trim();
+            continue;
+          }
+          const dataMatch = /^data:\s*(.*)$/i.exec(line);
+          if (dataMatch) {
+            currentDataLines.push(dataMatch[1]);
+            continue;
+          }
+          // If line doesn't match, ignore
+        }
+
+        // Restore buffer to contain the unfinished partial line
+        buffer = partial;
+      } else {
+        // Not SSE: treat each read chunk as partial data
+        // Split on line breaks to try to extract readable pieces
+        const lines = buffer.split(/\r?\n/);
+        // Keep last partial line in buffer
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line) continue;
+          onChunk?.(line);
         }
       }
     }
-  } catch (error) {
-    onError?.(error as Error);
+
+    // Flush any remaining buffer
+    if (buffer.trim()) {
+      const remaining = buffer.trim();
+      if (sawSSE) {
+        try {
+          const parsed = JSON.parse(remaining);
+          onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+        } catch (e) {
+          // If not JSON, call onChunk with remaining
+          onChunk?.(remaining);
+        }
+      } else {
+        onChunk?.(remaining);
+      }
+    }
+  } catch (err) {
+    onError?.(err instanceof Error ? err : new Error(String(err)));
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {}
   }
 }

@@ -4,13 +4,13 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { exportData, importData } from '@/lib/api/data';
 import { useChat } from '@/lib/context/chat-context';
 import { useTheme } from '@/lib/context/theme-context';
-import SettingsPanel from './settings-panel';
 
 interface TopBarProps {
   onToggleChatHistory: () => void;
   onToggleDocumentManager: () => void;
   isChatHistoryOpen: boolean;
   isDocumentManagerOpen: boolean;
+  onNewChat: () => void; // Add onNewChat prop
 }
 
 const TopBar: React.FC<TopBarProps> = ({
@@ -18,6 +18,7 @@ const TopBar: React.FC<TopBarProps> = ({
   onToggleDocumentManager,
   isChatHistoryOpen,
   isDocumentManagerOpen,
+  onNewChat, // Destructure onNewChat
 }) => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { theme, setTheme, resolvedTheme } = useTheme();
@@ -132,6 +133,13 @@ const TopBar: React.FC<TopBarProps> = ({
         </div>
         <div className="flex items-center gap-3">
           <button
+            onClick={onNewChat}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all duration-200 shadow-sm hover:shadow-md"
+            aria-label="Start a new chat"
+          >
+            ✨ New Chat
+          </button>
+          <button
             onClick={handleExport}
             className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all duration-200 shadow-sm hover:shadow-md"
             aria-label="Export chat data"
@@ -182,39 +190,6 @@ const TopBar: React.FC<TopBarProps> = ({
         </div>
       </header>
 
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-title"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              handleSettingsClose();
-            }
-          }}
-        >
-          <div
-            className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center p-4 border-b border-border">
-              <h2 id="settings-title" className="text-xl font-bold text-card-foreground">Settings</h2>
-              <button
-                onClick={handleSettingsClose}
-                className="text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
-                aria-label="Close settings"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="p-4">
-              <SettingsPanel onClose={handleSettingsClose} />
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 };
