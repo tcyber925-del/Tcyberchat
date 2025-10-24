@@ -10,7 +10,7 @@ export interface Message {
   id: string;
   content: string;
   timestamp: Date;
-  type: 'user' | 'ai';
+  role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
   conversationId: string;
   citations?: Citation[];
   metadata?: object;

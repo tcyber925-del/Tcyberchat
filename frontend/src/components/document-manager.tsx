@@ -8,9 +8,10 @@ interface DocumentManagerProps {
   documents: Document[];
   onSelectDocument: (documentId: string) => void;
   onUploadDocument: (file: File) => void;
+  onDeleteDocument: (documentId: string) => void; // Add onDeleteDocument
 }
 
-const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDocument, onUploadDocument }) => {
+const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDocument, onUploadDocument, onDeleteDocument }) => {
   const { isLoading } = useChat(); // Use isLoading from context
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,15 +62,33 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
             </li>
           ))
         ) : documents.length > 0 ? (
-          documents.map((doc) => (
+          documents.map((doc, index) => (
             <li
-              key={doc.id}
-              onClick={() => onSelectDocument(doc.id)}
-              className="p-2 cursor-pointer hover:bg-gray-200 rounded"
+              key={`${doc.id}-${index}`}
+              className="p-2 flex justify-between items-center hover:bg-gray-200 rounded"
               role="option"
               aria-selected="false"
             >
-              {doc.filename}
+              <span
+                onClick={() => onSelectDocument(doc.id)}
+                className="cursor-pointer flex-grow"
+              >
+                {doc.filename}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onSelectDocument(doc.id)}
+                  className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
+                >
+                  Select
+                </button>
+                <button
+                  onClick={() => onDeleteDocument(doc.id)}
+                  className="p-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           ))
         ) : (

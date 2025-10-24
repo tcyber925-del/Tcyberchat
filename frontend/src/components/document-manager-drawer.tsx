@@ -10,7 +10,7 @@ interface DocumentManagerDrawerProps {
 }
 
 const DocumentManagerDrawer: React.FC<DocumentManagerDrawerProps> = ({ isOpen, onClose }) => {
-  const { documents, selectDocument, uploadDocument } = useChat();
+  const { documents, selectDocument, uploadDocument, deleteDocument } = useChat();
 
   const handleSelectDocument = useCallback((documentId: string) => {
     selectDocument(documentId);
@@ -21,6 +21,10 @@ const DocumentManagerDrawer: React.FC<DocumentManagerDrawerProps> = ({ isOpen, o
     await uploadDocument(file);
     // Optionally, keep the drawer open or close it after upload
   }, [uploadDocument]);
+
+  const handleDeleteDocument = useCallback(async (documentId: string) => {
+    await deleteDocument(documentId);
+  }, [deleteDocument]);
 
   return (
     <aside
@@ -45,6 +49,7 @@ const DocumentManagerDrawer: React.FC<DocumentManagerDrawerProps> = ({ isOpen, o
           documents={documents}
           onSelectDocument={handleSelectDocument}
           onUploadDocument={handleUploadDocument}
+          onDeleteDocument={handleDeleteDocument}
         />
       </div>
     </aside>

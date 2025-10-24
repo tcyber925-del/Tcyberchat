@@ -30,7 +30,7 @@ export async function uploadDocument(file: File): Promise<Document> {
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  const response = await fetch(`${API_BASE_URL}/documents/`);
+  const response = await fetch(`${API_BASE_URL}/documents`);
   if (!response.ok) {
     throw new Error(`Error fetching documents: ${response.statusText}`);
   }
@@ -39,4 +39,14 @@ export async function getDocuments(): Promise<Document[]> {
     ...item,
     uploadedAt: new Date(item.uploadedAt),
   }));
+}
+
+export async function deleteDocument(documentId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Error deleting document: ${response.statusText}`);
+  }
 }

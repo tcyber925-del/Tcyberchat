@@ -6,7 +6,7 @@ import { Message } from '@/types/message';
 import { Document } from '@/types/document';
 import { UserSettings } from '@/types/settings';
 import { sendMessageStreaming } from '@/lib/api/chat';
-import { uploadDocument as apiUploadDocument } from '@/lib/api/documents';
+import { uploadDocument as apiUploadDocument, getDocuments as apiGetDocuments, deleteDocument as apiDeleteDocument } from '@/lib/api/documents';
 import { useToast } from './toast-context'; // Import useToast
 
 interface ChatContextType {
@@ -20,12 +20,15 @@ interface ChatContextType {
   setMessages: (messages: Message[]) => void;
   documents: Document[];
   setDocuments: (documents: Document[]) => void;
+  selectedDocumentId: string | null; // Add selectedDocumentId
+  setSelectedDocumentId: (documentId: string | null) => void; // Add setSelectedDocumentId
   userSettings: UserSettings;
   setUserSettings: (settings: UserSettings) => void;
   addMessage: (message: Message) => void;
-  selectSession: (sessionId: string) => void;
+  selectSession: (sessionId: string | null) => void;
   selectDocument: (documentId: string) => void;
   uploadDocument: (file: File) => Promise<void>;
+  deleteDocument: (documentId: string) => Promise<void>; // Add deleteDocument
   isLoading: boolean;
   error: string | null;
   setLoading: (loading: boolean) => void;
@@ -48,9 +51,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null); // Initialize selectedDocumentId
   const [userSettings, setUserSettings] = useState<UserSettings>({
     theme: 'system',
-    selectedModel: 'Gemini',
+    selectedModel: 'llama3.2:latest', // Changed default model to Ollama
     notifications: true,
     language: 'en',
   });
@@ -89,11 +93,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, [showToast]);
 
+  // Fetch documents on mount
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        const fetchedDocuments = await apiGetDocuments();
+        setDocuments(fetchedDocuments);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch documents';
+        setError(errorMessage);
+        showToast(errorMessage, 'error');
+      }
+    };
+    fetchDocuments();
+  }, [showToast]);
+
   // Save sessions to localStorage whenever they change
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-    } catch (error) {
+    }  catch (error) {
       console.warn('Failed to save sessions to localStorage:', error);
       showToast('Failed to save chat sessions.', 'error');
     }
@@ -103,7 +122,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setMessages((prev) => [...prev, message]);
   };
 
-  const selectSession = (sessionId: string) => {
+  const selectSession = (sessionId: string | null) => {
+    if (sessionId === null) {
+      setCurrentSession(null);
+      setMessages([]);
+      showToast('Started a new chat.', 'info');
+      return;
+    }
     // TODO: Implement fetching session details from API
     const newSession: ChatSession = {
       id: sessionId,
@@ -118,8 +143,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const selectDocument = (documentId: string) => {
-    // TODO: Implement opening document viewer
-    console.log('Selected document:', documentId);
+    setSelectedDocumentId(documentId);
     showToast(`Selected document: ${documentId}`, 'info');
   };
 
@@ -132,6 +156,25 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       showToast(`Document "${newDocument.filename}" uploaded successfully!`, 'success');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload document';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const deleteDocument = async (documentId: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await apiDeleteDocument(documentId); // Call the API delete function
+      setDocuments((prev) => prev.filter((doc) => doc.id !== documentId));
+      if (selectedDocumentId === documentId) {
+        setSelectedDocumentId(null); // Deselect if the deleted document was selected
+      }
+      showToast(`Document deleted successfully!`, 'success');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete document';
       setError(errorMessage);
       showToast(errorMessage, 'error');
     } finally {
@@ -153,17 +196,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       id: `user-${Date.now()}`,
       content,
       timestamp: new Date(),
-      type: 'user',
+      role: 'user',
       conversationId: conversationId || currentSession?.id || 'default',
     };
     addMessage(userMessage);
 
-    // Create placeholder streaming message
+    // Create placeholder streaming message (visible immediately while model warms)
     const streamingMsg: Message = {
       id: `ai-${Date.now()}`,
-      content: '',
+      content: 'Assistant is typing...',
       timestamp: new Date(),
-      type: 'ai',
+      role: 'assistant',
       conversationId: conversationId || currentSession?.id || 'default',
       citations: [],
     };
@@ -174,17 +217,65 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content,
         conversationId || currentSession?.id,
         selectedModel, // Pass the selected model
+    selectedDocumentId ?? undefined, // Pass the selected document ID or undefined
         // onChunk callback - update streaming message content
         (chunk: string) => {
-          setStreamingMessage(prev => prev ? {
-            ...prev,
-            content: prev.content + chunk
-          } : null);
+          // eslint-disable-next-line no-console
+          console.debug('[chat-context] onChunk received length=', chunk?.length, 'preview=', chunk?.slice(0,50));
+          setStreamingMessage(prev => {
+            if (!prev) return null;
+            // If placeholder is present, replace it with the first real chunk
+            const placeholder = 'Assistant is typing...';
+            const newContent = prev.content === placeholder ? chunk : prev.content + chunk;
+            return {
+              ...prev,
+              content: newContent
+            };
+          });
         },
         // onComplete callback - finalize the message
-        (finalMessage: Message) => {
+        (finalMessage) => {
+          // finalMessage is expected to be { content, messageId?, citations? }
+          // eslint-disable-next-line no-console
+          console.debug('[chat-context] onComplete finalMessage preview=', finalMessage?.content?.slice(0,80));
           setStreamingMessage(null);
-          addMessage(finalMessage);
+
+          // Format the backend content and citations into a clear, human-readable Markdown string
+          const formatFinal = (msg: { content?: string; citations?: any[] | undefined }) => {
+            const parts: string[] = [];
+            const main = msg?.content?.trim() ?? '';
+            if (main) parts.push(main);
+
+            const cit = msg?.citations ?? [];
+            if (Array.isArray(cit) && cit.length > 0) {
+              parts.push('\n---\n');
+              parts.push('Citations:');
+              cit.forEach((c: any, idx: number) => {
+                const id = c.docId ?? c.id ?? 'unknown-doc';
+                const page = c.page !== undefined && c.page !== null ? `, page ${c.page}` : '';
+                parts.push(`\n${idx + 1}. ${id}${page}`);
+                if (c.snippet) {
+                  // indent snippet as blockquote
+                  const snippet = String(c.snippet).trim();
+                  parts.push(`\n> ${snippet.replace(/\r?\n/g, '\n> ')}`);
+                }
+              });
+            }
+
+            return parts.join('\n');
+          };
+
+          const formattedContent = formatFinal(finalMessage as any);
+
+          const aiMessage: Message = {
+            id: (finalMessage as any)?.messageId ?? `ai-${Date.now()}`,
+            content: formattedContent,
+            timestamp: new Date(),
+            role: 'assistant',
+            conversationId: conversationId || currentSession?.id || 'default',
+            citations: (finalMessage as any)?.citations ?? [],
+          };
+          addMessage(aiMessage);
           showToast('AI response received!', 'success');
 
           // Update session last activity
@@ -198,6 +289,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         },
         // onError callback
         (error: Error) => {
+          // eslint-disable-next-line no-console
+          console.error('[chat-context] onError', error);
           setError(error.message);
           setStreamingMessage(null);
           showToast(`Error: ${error.message}`, 'error');
@@ -261,12 +354,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages,
         documents,
         setDocuments,
+        selectedDocumentId,
+        setSelectedDocumentId,
         userSettings,
         setUserSettings,
         addMessage,
         selectSession,
         selectDocument,
         uploadDocument,
+        deleteDocument, // Add deleteDocument
         isLoading,
         error,
         setLoading: setIsLoading,
