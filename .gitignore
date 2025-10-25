@@ -104,3 +104,4 @@ frontend/.venv/
 
 # Editor temp files
 *~
+.venv/
