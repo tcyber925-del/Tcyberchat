@@ -2,7 +2,7 @@
 Message model for chat conversations
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
@@ -19,7 +19,7 @@ class Message(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     content = Column(Text, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     type = Column(String(50), nullable=False)  # 'user' or 'bot'
     conversation_id = Column(String(36), ForeignKey("conversations.id"), nullable=True)
 

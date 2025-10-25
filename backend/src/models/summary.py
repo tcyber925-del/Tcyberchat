@@ -2,7 +2,7 @@
 Summary model for AI-generated document summaries
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -21,7 +21,7 @@ class Summary(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     content = Column(Text, nullable=False)  # The summary text
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
     model = Column(String(100), nullable=False)  # AI model used (e.g., "llama3.1:8b")
 
     # Relationships

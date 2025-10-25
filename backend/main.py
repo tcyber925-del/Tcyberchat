@@ -4,6 +4,7 @@ FastAPI application with multi-modal support, RAG, and local AI processing
 """
 
 from fastapi import FastAPI, Request, Response, HTTPException
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -54,6 +55,16 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Application starting up...")
+    try:
+        yield
+    finally:
+        # Shutdown
+        logger.info("Application shutting down...")
 
 # Initialize FastAPI app with enhanced OpenAPI documentation
 app = FastAPI(
@@ -126,6 +137,8 @@ app = FastAPI(
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc documentation
     openapi_url="/openapi.json"  # OpenAPI JSON schema
+    ,
+    lifespan=lifespan
 )
 
 # Configure CORS for frontend communication
@@ -282,19 +295,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         }
     )
 
-# Graceful shutdown handler
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Handle application shutdown gracefully"""
-    logger.info("Application shutting down...")
-    # Add any cleanup logic here (close connections, save state, etc.)
-
-# Startup handler
-@app.on_event("startup")
-async def startup_event():
-    """Handle application startup"""
-    logger.info("Application starting up...")
-    # Add any initialization logic here
+# Note: FastAPI lifespan handler is used above for startup/shutdown logging.
 
 @app.get("/")
 async def root():

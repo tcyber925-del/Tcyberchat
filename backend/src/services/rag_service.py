@@ -6,80 +6,62 @@ from typing import List, Dict, Optional, Any, Tuple, AsyncGenerator
 import asyncio
 from uuid import uuid4
 
-try:
-    # Core LangChain imports
-    from langchain_community.vectorstores import Chroma
-    from langchain_community.embeddings import SentenceTransformerEmbeddings
-    from langchain_core.documents import Document as LangChainDocument
-    from langchain_core.retrievers import BaseRetriever
-    from langchain_core.callbacks import BaseCallbackHandler
-    from langchain_core.output_parsers import StrOutputParser
-    from langchain_core.runnables import RunnablePassthrough
-    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
-    from langchain_core.messages import HumanMessage, AIMessage
-    from langchain_core.language_models import BaseChatModel, BaseLLM # For custom LLM wrapper
-    from langchain_core.outputs import Generation, LLMResult
+# Use the adapter to centralize LangChain usage and provide stable fallbacks
+from .rag_adapter import (
+    create_memory,
+    create_splitter,
+    create_embeddings,
+    create_vectorstore,
+    AIServiceLLMAdapter,
+    LANGCHAIN_PRESENT,
+)
 
-    # Chains and retrievers
-    from langchain.chains.combine_documents import create_stuff_documents_chain
-    from langchain.chains.history_aware_retriever import create_history_aware_retriever
-    from langchain.chains.retrieval import create_retrieval_chain
-    from langchain_community.retrievers import BM25Retriever
-    from langchain.retrievers import EnsembleRetriever
-    from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
+LANGCHAIN_AVAILABLE = LANGCHAIN_PRESENT
 
-    # Text processing
-    from langchain_text_splitters import RecursiveCharacterTextSplitter
+# Minimal stub used when LangChain pieces are not present.
+class _Stub:
+    def __init__(self, *args, **kwargs):
+        pass
 
-    # Memory and conversation
-    from langchain.memory import ConversationBufferWindowMemory
+    @classmethod
+    def from_template(cls, *a, **k):
+        return cls()
 
-    LANGCHAIN_AVAILABLE = True
-except Exception as e:
-    # LangChain is optional for local dev. Provide lightweight stubs to keep runtime stable
-    LANGCHAIN_AVAILABLE = False
+    @classmethod
+    def from_messages(cls, *a, **k):
+        return cls()
 
-    class _Stub:
-        def __init__(self, *args, **kwargs):
-            pass
+    @classmethod
+    def from_documents(cls, docs, **k):
+        return cls()
 
-        @classmethod
-        def from_template(cls, *a, **k):
-            return cls()
+    def split_text(self, text: str):
+        return [text]
 
-        @classmethod
-        def from_messages(cls, *a, **k):
-            return cls()
+    def add_documents(self, docs):
+        return
 
-        @classmethod
-        def from_documents(cls, docs, **k):
-            return cls()
+    def add_texts(self, texts, metadatas=None, ids=None):
+        return
 
-        def split_text(self, text: str):
-            return [text]
+    def persist(self):
+        return
 
-        def add_documents(self, docs):
-            return
+    def get(self):
+        return {'documents': [], 'metadatas': [], 'ids': []}
 
-        def add_texts(self, texts, metadatas=None, ids=None):
-            return
+    def as_retriever(self, **k):
+        return self
 
-        def persist(self):
-            return
+    def get_relevant_documents(self, query, k=5):
+        return []
 
-        def get(self):
-            return {'documents': [], 'metadatas': [], 'ids': []}
+    def count(self):
+        return 0
 
-        def as_retriever(self, **k):
-            return self
-
-        def get_relevant_documents(self, query, k=5):
-            return []
-
-        def count(self):
-            return 0
-
-    # Map required names to stubs or simple types
+# Map minimal names to stubs for the non-LangChain path. More detailed behavior
+# is provided by the adapter when LangChain is present.
+if not LANGCHAIN_AVAILABLE:
     Chroma = _Stub
     SentenceTransformerEmbeddings = _Stub
     LangChainDocument = _Stub
@@ -172,41 +154,25 @@ class RAGService:
     def _initialize_langchain_components(self):
         """Initialize comprehensive LangChain components for RAG"""
         try:
-            # Initialize embeddings using sentence-transformers
-            self.embeddings = SentenceTransformerEmbeddings(
-                model_name="all-MiniLM-L6-v2"  # Local embeddings
-            )
+            # Initialize embeddings, vectorstore, splitter and memory through the adapter
+            # Adapter will try to use LangChain components when available, otherwise
+            # return safe None/stubs so tests and CI remain stable.
+            self.embeddings = create_embeddings(model_name="all-MiniLM-L6-v2")
 
             # Use shared ChromaDB client from database module
-            from ..database import chroma_client
-            self.vectorstore = Chroma(
-                client=chroma_client,
-                collection_name="documents",
-                embedding_function=self.embeddings
-            )
+            self.vectorstore = create_vectorstore(client=chroma_client, collection_name="documents", embedding=self.embeddings)
 
             # Initialize text splitter for document chunking
-            self.text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000,
-                chunk_overlap=200,
-                length_function=len,
-                separators=["\n\n", "\n", " ", ""]
-            )
+            self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
 
             # Initialize conversation memory
-            self.conversation_memory = ConversationBufferWindowMemory(
-                k=5,  # Keep last 5 interactions
-                memory_key="chat_history",
-                return_messages=True
-            )
+            self.conversation_memory = create_memory(k=5)
 
             # Initialize callback handler for observability
             self.callback_handler = RAGCallbackHandler()
 
-            # Create advanced retrievers
+            # Create advanced retrievers and chains if LangChain pieces are available
             self._setup_advanced_retrievers()
-
-            # Create chains
             self._setup_chains()
 
         except Exception as e:
@@ -216,6 +182,10 @@ class RAGService:
 
     def _setup_advanced_retrievers(self):
         """Set up advanced retrieval strategies"""
+        # If LangChain isn't available or vectorstore wasn't initialized, skip advanced retrievers
+        if not LANGCHAIN_AVAILABLE or not self.vectorstore:
+            return
+
         try:
             # Base retrievers
             similarity_retriever = self.vectorstore.as_retriever(
@@ -250,6 +220,10 @@ class RAGService:
 
     def _setup_chains(self):
         """Set up comprehensive LangChain chains"""
+        # If LangChain pieces aren't available, skip chain setup
+        if not LANGCHAIN_AVAILABLE:
+            return
+
         try:
             # Create custom LLM wrapper for our AI service
             # Wrap AI service in a minimal LLM-like adapter only if BaseLLM is available
@@ -954,7 +928,11 @@ Conversation History: {chat_history}
                 "rag_enabled": bool(citations),
                 "chain_type": "conversational_rag",
                 "conversation_turns": len(formatted_history),
-                "memory_buffer_size": self.conversation_memory.k
+                "memory_buffer_size": (
+                    getattr(self.conversation_memory, 'k', None)
+                    if getattr(self.conversation_memory, 'k', None) is not None
+                    else getattr(getattr(self.conversation_memory, 'memory', None), 'k', None)
+                )
             }
 
         except Exception as e:
@@ -1219,7 +1197,11 @@ Conversation History: {chat_history}
             },
             "memory": {
                 "type": "ConversationBufferWindowMemory",
-                "buffer_size": self.conversation_memory.k if self.conversation_memory else None
+                "buffer_size": (
+                    getattr(self.conversation_memory, 'k', None)
+                    if getattr(self.conversation_memory, 'k', None) is not None
+                    else getattr(getattr(self.conversation_memory, 'memory', None), 'k', None)
+                ) if self.conversation_memory else None
             },
             "chains": {
                 "rag_chain": self.rag_chain is not None,

@@ -2,14 +2,20 @@
 Document model for uploaded files and processing
 """
 from __future__ import annotations
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import uuid4
 
 from sqlalchemy import Column, String, DateTime, Text, BigInteger, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from pydantic import BaseModel, Field
+try:
+    # Prefer Pydantic v2 ConfigDict when available
+    from pydantic import BaseModel, Field, ConfigDict
+    _PydanticV2 = True
+except Exception:
+    from pydantic import BaseModel, Field
+    _PydanticV2 = False
 from uuid import UUID as PyUUID
 from ..database import Base
 
@@ -24,7 +30,7 @@ class Document(Base):
     path = Column(String(500), nullable=False)  # Local file system path
     size = Column(BigInteger, nullable=False)  # File size in bytes
     mime_type = Column(String(100), nullable=False)
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Extracted content from various processing stages
     content = Column(Text, nullable=True)  # Text extracted from document
@@ -139,6 +145,11 @@ class DocumentRead(BaseModel):
     hasImageAnalysis: bool = Field(alias="has_image_analysis")
     previewImage: Optional[str] = Field(alias="preview_image")
 
-    class Config:
+# Pydantic V2 uses `model_config = ConfigDict(...)`. Fall back to v1 `Config` when needed.
+if _PydanticV2:
+    DocumentRead.model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+else:
+    class DocumentReadConfig:
         orm_mode = True
         allow_population_by_field_name = True
+    DocumentRead.Config = DocumentReadConfig

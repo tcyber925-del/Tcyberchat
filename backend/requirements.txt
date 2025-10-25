@@ -36,13 +36,15 @@ openai-whisper
 # File processing
 python-multipart
 aiofiles
-PyPDF2
+pypdf
+pymupdf
 python-docx
 pytesseract
 opencv-python
 # File processing
 python-multipart
 aiofiles
+pymupdf
 
 # Utilities
 python-dotenv
