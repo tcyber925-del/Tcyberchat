@@ -73,9 +73,11 @@ secrets.json
 
 # Node
 node_modules/
+.next/
+out/
 
 # Editor specific
 *.sublime-workspace
 
 # Python compiled C extensions
-*.sonode_modules
+*.so
