@@ -4,7 +4,7 @@ Data management API endpoints for export and import operations
 
 import json
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Body
@@ -53,7 +53,7 @@ async def export_data(
         # Collect data
         export_data = {
             "metadata": {
-                "export_date": datetime.utcnow().isoformat(),
+                "export_date": datetime.now(timezone.utc).isoformat(),
                 "version": "1.0.0",
                 "include_documents": include_documents,
                 "include_embeddings": include_embeddings,
@@ -126,7 +126,7 @@ async def export_data(
         zip_buffer.seek(0)
 
         # Generate filename
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         filename = f"chatbot_export_{timestamp}.zip"
 
         return StreamingResponse(

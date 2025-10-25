@@ -12,7 +12,29 @@ import asyncio
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, Depends
 import aiofiles
-from PyPDF2 import PdfReader
+try:
+    # pypdf is the maintained successor to PyPDF2
+    from pypdf import PdfReader
+except Exception:
+    # Fallback to PyPDF2 if pypdf isn't installed (backwards compatibility)
+    try:
+        # Prefer PyMuPDF for robust, fast PDF text extraction
+        import fitz  # PyMuPDF
+        _HAS_PYMUPDF = True
+    except Exception:
+        _HAS_PYMUPDF = False
+
+    if not _HAS_PYMUPDF:
+        try:
+            # pypdf is the maintained successor to PyPDF2
+            from pypdf import PdfReader
+            _HAS_PYPDF = True
+        except Exception:
+            # Fallback to PyPDF2 if neither pypdf nor pymupdf is installed
+            from PyPDF2 import PdfReader
+            _HAS_PYPDF = True
+    else:
+        PdfReader = None
 from docx import Document as DocxDocument
 import pytesseract
 from PIL import Image
@@ -294,11 +316,56 @@ class DocumentService:
     async def _extract_pdf_content(self, file_path: str) -> str:
         """Extract text content from PDF file"""
         try:
-            reader = PdfReader(file_path)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-            return text.strip()
+            # Use PyMuPDF if available for more reliable extraction
+            if _HAS_PYMUPDF:
+                try:
+                    doc = fitz.open(file_path)
+                    text_parts = []
+                    for page in doc:
+                        try:
+                            text_parts.append(page.get_text("text") or "")
+                        except Exception:
+                            # best-effort per-page
+                            try:
+                                text_parts.append(page.get_text() or "")
+                            except Exception:
+                                continue
+                    return "\n".join(text_parts).strip()
+                except Exception as e:
+                    # Fall through to pypdf fallback if something unexpected happens
+                    pass
+
+            # Fallback to pypdf / PyPDF2 reader
+            if PdfReader is not None:
+                reader = PdfReader(file_path)
+                text = ""
+                # pypdf/PyPDF2 expose pages differently across versions
+                try:
+                    for page in getattr(reader, 'pages', []):
+                        txt = None
+                        try:
+                            txt = page.extract_text()
+                        except Exception:
+                            try:
+                                txt = page.get_text()
+                            except Exception:
+                                txt = None
+                        if txt:
+                            text += txt + "\n"
+                except Exception:
+                    # Older PyPDF2 may require iterating differently
+                    try:
+                        for i in range(len(reader.pages)):
+                            p = reader.pages[i]
+                            txt = p.extract_text() if hasattr(p, 'extract_text') else None
+                            if txt:
+                                text += txt + "\n"
+                    except Exception:
+                        return f"Error extracting PDF content: unsupported pdf reader format"
+
+                return text.strip()
+
+            return ""
         except Exception as e:
             return f"Error extracting PDF content: {str(e)}"
 

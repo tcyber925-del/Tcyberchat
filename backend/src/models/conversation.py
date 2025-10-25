@@ -2,7 +2,7 @@
 Conversation model for organizing chat message threads
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -19,8 +19,8 @@ class Conversation(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid4()))
     title = Column(String(100), nullable=False)  # Auto-generated or user-set title
-    started_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_activity = Column(DateTime, default=datetime.utcnow, nullable=False)
+    started_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    last_activity = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Conversation state flags
     is_pinned = Column(Boolean, default=False, nullable=False)
@@ -47,12 +47,12 @@ class Conversation(Base):
     @staticmethod
     def _generate_default_title() -> str:
         """Generate a default conversation title"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         return f"Chat {now.strftime('%Y-%m-%d %H:%M')}"
 
     def update_activity(self):
         """Update the last activity timestamp"""
-        self.last_activity = datetime.utcnow()
+        self.last_activity = datetime.now(timezone.utc)
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
