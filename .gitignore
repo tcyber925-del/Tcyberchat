@@ -70,6 +70,19 @@ backend/uploads/
 .env
 .env.*
 secrets.json
+.env
+.env.*
+# Environment and secret files
+*.pem
+*.key
+secrets.json
+.secrets
+.DS_Store
+/.env
+backend/.env
+frontend/.env
+.env.local
+.env.*.local
 
 # Node
 node_modules/
