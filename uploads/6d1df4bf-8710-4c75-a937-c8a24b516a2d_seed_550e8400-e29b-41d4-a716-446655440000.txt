@@ -1,1 +1,0 @@
-This is a sample document used for summarize tests. It contains multiple sentences. The summary should pick first two sentences.
