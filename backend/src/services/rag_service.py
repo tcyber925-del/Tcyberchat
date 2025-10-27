@@ -87,6 +87,8 @@ if not LANGCHAIN_AVAILABLE:
     EmbeddingsFilter = _Stub
     RecursiveCharacterTextSplitter = _Stub
     ConversationBufferWindowMemory = _Stub
+else:
+    from langchain_core.callbacks import BaseCallbackHandler
 
 from .ai_service import get_ai_service
 from ..database import chroma_client
