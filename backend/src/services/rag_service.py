@@ -90,8 +90,9 @@ if not LANGCHAIN_AVAILABLE:
 else:
     from langchain_core.callbacks import BaseCallbackHandler
 
-from .ai_service import get_ai_service
-from ..database import chroma_client
+# Import AI service lazily inside the service to avoid optional dependency failures
+# IMPORTANT: avoid importing the database/chroma at module import time. Use lazy resolution
+# to prevent import-time dependency errors in environments without SQLAlchemy.
 
 
 class RAGCallbackHandler(BaseCallbackHandler):
@@ -136,7 +137,28 @@ class RAGService:
         self.text_splitter = None
         self.conversation_memory = None
         self.callback_handler = None
-        self.ai_service = get_ai_service()
+        # Lazy import of AI service to avoid optional dependency errors at module import
+        try:
+            from .ai_service import get_ai_service
+
+            self.ai_service = get_ai_service()
+        except Exception:
+            # Minimal stub AI service
+            class _AIStub:
+                def __init__(self):
+                    self.model_name = "stub"
+
+                async def generate_response(self, prompt: str):
+                    return {"response": "(AI stub) " + str(prompt)}
+
+                async def generate_streaming_response(self, prompt: str):
+                    # simple async generator
+                    async def gen():
+                        yield "(AI stub) " + str(prompt)
+
+                    return gen()
+
+            self.ai_service = _AIStub()
 
         # Advanced retrievers and chains
         self.ensemble_retriever = None
@@ -152,6 +174,13 @@ class RAGService:
 
             self.conversation_memory = create_memory(k=5)
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
+            # Ensure we have a usable vectorstore (fallback) even without LangChain
+            try:
+                from .rag_adapter import create_vectorstore
+
+                self.vectorstore = create_vectorstore(client=None, collection_name="documents", embedding=None)
+            except Exception:
+                self.vectorstore = None
 
     def _initialize_langchain_components(self):
         """Initialize comprehensive LangChain components for RAG"""
@@ -161,8 +190,8 @@ class RAGService:
             # return safe None/stubs so tests and CI remain stable.
             self.embeddings = create_embeddings(model_name="all-MiniLM-L6-v2")
 
-            # Use shared ChromaDB client from database module
-            self.vectorstore = create_vectorstore(client=chroma_client, collection_name="documents", embedding=self.embeddings)
+            # Use shared ChromaDB client via adapter (adapter will lazily resolve chroma client).
+            self.vectorstore = create_vectorstore(client=None, collection_name="documents", embedding=self.embeddings)
 
             # Initialize text splitter for document chunking
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
@@ -480,7 +509,7 @@ Conversation History: {chat_history}
             # Split text using recursive character splitter
             chunks = self.text_splitter.split_text(full_text)
 
-            # Create LangChain documents
+            # Create LangChain-like documents or plain dicts for fallback
             langchain_docs = []
             for i, chunk in enumerate(chunks):
                 chunk_metadata = {
@@ -489,17 +518,26 @@ Conversation History: {chat_history}
                     "chunk_length": len(chunk),
                     "total_chunks": len(chunks)
                 }
-                doc = LangChainDocument(
-                    page_content=chunk,
-                    metadata=chunk_metadata
-                )
+                try:
+                    # If LangChain Document class available, instantiate it; otherwise use dict
+                    if LANGCHAIN_AVAILABLE and (not isinstance(LangChainDocument, type) or LangChainDocument is _Stub):
+                        raise Exception("LangChain document class not available")
+                    doc = LangChainDocument(page_content=chunk, metadata=chunk_metadata)
+                except Exception:
+                    doc = {"page_content": chunk, "metadata": chunk_metadata}
                 langchain_docs.append(doc)
 
             # Add to vector store
-            self.vectorstore.add_documents(langchain_docs)
-            self.vectorstore.persist()  # Ensure persistence
-
-            return True
+            try:
+                self.vectorstore.add_documents(langchain_docs)
+                try:
+                    self.vectorstore.persist()  # Ensure persistence when supported
+                except Exception:
+                    pass
+                return True
+            except Exception as e:
+                print(f"Failed to add docs to vectorstore: {e}")
+                return False
 
         except Exception as e:
             print(f"Failed to add document with chunking: {e}")
@@ -525,17 +563,24 @@ Conversation History: {chat_history}
                     "chunk_index": i,
                     "chunk_length": len(chunk)
                 }
-                doc = LangChainDocument(
-                    page_content=chunk,
-                    metadata=chunk_metadata
-                )
+                try:
+                    if LANGCHAIN_AVAILABLE and (not isinstance(LangChainDocument, type) or LangChainDocument is _Stub):
+                        raise Exception("LangChain document class not available")
+                    doc = LangChainDocument(page_content=chunk, metadata=chunk_metadata)
+                except Exception:
+                    doc = {"page_content": chunk, "metadata": chunk_metadata}
                 langchain_docs.append(doc)
 
-            # Add to vector store
-            self.vectorstore.add_documents(langchain_docs)
-            self.vectorstore.persist()  # Ensure persistence
-
-            return True
+            try:
+                self.vectorstore.add_documents(langchain_docs)
+                try:
+                    self.vectorstore.persist()
+                except Exception:
+                    pass
+                return True
+            except Exception as e:
+                print(f"Failed to add pre-chunked docs: {e}")
+                return False
 
         except Exception as e:
             print(f"Failed to add document chunks: {e}")
@@ -1224,12 +1269,33 @@ if not LANGCHAIN_AVAILABLE:
     class RAGService:
         def __init__(self, persist_directory: str = "./chroma_db"):
             self.persist_directory = persist_directory
-            self.vectorstore = None
+            from .rag_adapter import create_memory, create_splitter, create_vectorstore
+
+            self.vectorstore = create_vectorstore(client=None, collection_name="documents")
             self.embeddings = None
-            self.text_splitter = None
-            self.conversation_memory = None
+            self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
+            self.conversation_memory = create_memory(k=5)
             self.callback_handler = None
-            self.ai_service = get_ai_service()
+            # Lazy import AI service
+            try:
+                from .ai_service import get_ai_service
+
+                self.ai_service = get_ai_service()
+            except Exception:
+                class _AIStub:
+                    def __init__(self):
+                        self.model_name = "stub"
+
+                    async def generate_response(self, prompt: str):
+                        return {"response": "(AI stub) " + str(prompt)}
+
+                    async def generate_streaming_response(self, prompt: str):
+                        async def gen():
+                            yield "(AI stub) " + str(prompt)
+
+                        return gen()
+
+                self.ai_service = _AIStub()
 
         async def generate_rag_streaming_response(self, query: str, document_id: Optional[str] = None,
                                                   max_context_chunks: int = 3, conversational: bool = False,

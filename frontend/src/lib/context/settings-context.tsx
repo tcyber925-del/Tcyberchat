@@ -23,6 +23,8 @@ export interface SettingsContextType {
   updateSettings: (updates: Partial<UserSettings>) => void;
   resetSettings: () => void;
   isLoading: boolean;
+  isSettingsOpen: boolean;
+  toggleSettingsPanel: () => void;
 }
 
 // Default settings
@@ -59,6 +61,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -98,11 +101,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSettings(DEFAULT_SETTINGS);
   };
 
+  const toggleSettingsPanel = () => {
+    setSettingsOpen(prev => !prev);
+  };
+
   const value: SettingsContextType = {
     settings,
     updateSettings,
     resetSettings,
     isLoading,
+    isSettingsOpen,
+    toggleSettingsPanel,
   };
 
   return (

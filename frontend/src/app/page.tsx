@@ -2,6 +2,8 @@
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { useSettings } from '@/lib/context/settings-context';
+import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
 import { Message as ChatMessageType } from '@/types/message';
 import '@/lib/styles/markdown.css';
@@ -12,6 +14,7 @@ import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
 const TopBar = lazy(() => import('@/components/top-bar'));
 const ChatHistoryDrawer = lazy(() => import('@/components/chat-history-drawer'));
 const DocumentManagerDrawer = lazy(() => import('@/components/document-manager-drawer'));
+const SettingsDrawer = lazy(() => import('@/components/settings-drawer'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -22,6 +25,7 @@ const LoadingFallback = () => (
 
 export default function Home() {
   const { messages, setMessages, isLoading, isStreaming, streamingMessage, sendStreamingMessage, stopStreaming } = useChat();
+  const { isSettingsOpen, toggleSettingsPanel } = useSettings();
   const [input, setInput] = useState('');
   const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
   const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
@@ -86,6 +90,10 @@ export default function Home() {
     <div data-testid="main-layout" className="flex h-screen bg-background">
       <Suspense fallback={<LoadingFallback />}>
         <ChatHistoryDrawer isOpen={isChatHistoryOpen} onClose={() => setIsChatHistoryOpen(false)} />
+      </Suspense>
+
+      <Suspense fallback={<LoadingFallback />}>
+        <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
       <div className="flex flex-col flex-grow">

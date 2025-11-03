@@ -6,11 +6,11 @@ export async function POST(req: Request) {
   // 1. BACKEND_CHAT_URL (explicit full URL, may include path)
   // 2. NEXT_PUBLIC_API_URL (frontend env commonly used for backend base URL)
   // 3. default to local backend used by this repo
-  let backend = process.env.BACKEND_CHAT_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  let backend = process.env.BACKEND_CHAT_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
   // If the provided backend does not include a /chat path, append the streaming path.
-  // Allow callers to provide either the base URL (e.g. http://localhost:3001) or
-  // the full streaming URL (e.g. http://localhost:3001/chat/stream).
+  // Allow callers to provide either the base URL (e.g. http://localhost:8000) or
+  // the full streaming URL (e.g. http://localhost:8000/chat/stream).
   if (!backend.includes('/chat')) {
     backend = backend.replace(/\/$/, '');
     backend = `${backend}/chat/stream`;
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     const msg = {
       error: 'backend_unreachable',
       message: `Unable to reach backend at ${backend}. Is the backend running?`,
-      suggestion: 'Start the backend (default: port 3001) or set BACKEND_CHAT_URL / NEXT_PUBLIC_API_URL in frontend/.env to the correct URL.'
+      suggestion: 'Start the backend (default: port 8000) or set BACKEND_CHAT_URL / NEXT_PUBLIC_API_URL in frontend/.env to the correct URL.'
     };
 
     return new Response(JSON.stringify(msg), {
