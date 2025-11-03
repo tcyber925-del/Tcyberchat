@@ -9,6 +9,9 @@ import logging
 import os
 from dotenv import load_dotenv
 
+from backend.src.clients.gemini_client import GeminiClient
+from backend.src.clients.openrouter_client import OpenRouterClient
+
 # Load environment variables
 load_dotenv()
 
@@ -21,66 +24,53 @@ except ImportError:
     ollama = None  # type: ignore
     OLLAMA_AVAILABLE = False
 
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    genai = None  # type: ignore
-    GEMINI_AVAILABLE = False
-
-try:
-    from openai import OpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OpenAI = None  # type: ignore
-    OPENAI_AVAILABLE = False
-
 
 class AIService:
     """Service for AI model interactions and processing with fallback chain"""
 
-    def __init__(self, model_name: str = "llama3.2:latest"): # Changed default model to an Ollama model
+    def __init__(self, model_name: str = "llama3.2:1b"): # Changed default model to an Ollama model
         self.model_name = model_name
         self.client = ollama.Client() if OLLAMA_AVAILABLE else None  # type: ignore
-        self.gemini_client = None
-        self.openrouter_client = None
+        self.gemini_client: Optional[GeminiClient] = None
+        self.openrouter_client: Optional[OpenRouterClient] = None
         self._initialize_clients()
 
     def _initialize_clients(self):
         """Initialize cloud AI clients if API keys are available"""
         # Initialize Google Gemini
-        gemini_key = os.getenv('GOOGLE_AI_API_KEY')
-        if GEMINI_AVAILABLE and gemini_key:
+        gemini_key = os.getenv('GEMINI_API_KEY')
+        if gemini_key:
             try:
-                genai.configure(api_key=gemini_key)
-                self.gemini_client = genai.GenerativeModel('gemini-2.5-flash')
-                logger.info("Google Gemini client initialized with gemini-2.5-flash")
+                # Initialize client with its own default, not the service's model
+                self.gemini_client = GeminiClient(api_key=gemini_key)
+                logger.info(f"Google Gemini client initialized with model: {self.gemini_client.model_name}")
             except Exception as e:
-                logger.warning(f"Failed to initialize Gemini client: {e}")
+                logger.error(f"Failed to initialize Gemini client: {e}", exc_info=True)
                 self.gemini_client = None
 
-        # Initialize OpenRouter (uses OpenAI client with custom base URL)
+        # Initialize OpenRouter
         openrouter_key = os.getenv('OPENROUTER_API_KEY')
-        if OPENAI_AVAILABLE and openrouter_key:
+        if openrouter_key:
             try:
-                # Explicitly cast OpenAI to its expected type to satisfy Pylance
-                openai_client_class = cast(Type[OpenAI], OpenAI)
-                self.openrouter_client = openai_client_class(
-                    api_key=openrouter_key,
-                    base_url="https://openrouter.ai/api/v1"
-                )
-                logger.info("OpenRouter client initialized")
+                # Initialize client with its own default, not the service's model
+                self.openrouter_client = OpenRouterClient(api_key=openrouter_key)
+                logger.info(f"OpenRouter client initialized with model: {self.openrouter_client.model}")
             except Exception as e:
                 logger.warning(f"Failed to initialize OpenRouter client: {e}")
                 self.openrouter_client = None
 
+
     def _get_provider_for_model(self, model_name: str) -> str:
         """Determine which AI provider to use for a given model name."""
-        if self.client and self.check_model_availability(model_name): # Prioritize Ollama
-            return "ollama"
-        if model_name.startswith("gemini") and self.gemini_client:
+        # Prioritize cloud models
+        if self.openrouter_client and model_name == self.openrouter_client.model:
+            return "openrouter"
+        if self.gemini_client and model_name == self.gemini_client.model_name:
             return "google"
-        if self.openrouter_client: # OpenRouter can handle many models, so it's a good general fallback
+        if self.client and self.check_model_availability(model_name): # Fallback to Ollama
+            return "ollama"
+        # Default to OpenRouter if no other provider is found
+        if self.openrouter_client:
             return "openrouter"
         return "none"
 
@@ -117,29 +107,14 @@ class AIService:
                         yield chunk['response']
             elif provider == "google" and self.gemini_client:
                 logger.info(f"Attempting streaming response with Google Gemini using model: {self.model_name}...")
-                response = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self.gemini_client.generate_content(full_prompt, stream=True)
-                )
-                for chunk in response:
-                    if chunk.text:
-                        full_response_content += chunk.text
-                        yield chunk.text
+                async for chunk in self.gemini_client.generate_stream(full_prompt):
+                    full_response_content += chunk
+                    yield chunk
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(f"Attempting streaming response with OpenRouter using model: {self.model_name}...")
-                response = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: self.openrouter_client.chat.completions.create(
-                        model=self.model_name,
-                        messages=[{"role": "user", "content": full_prompt}],
-                        max_tokens=max_tokens,
-                        stream=True
-                    )
-                )
-                for chunk in response:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        full_response_content += chunk.choices[0].delta.content
-                        yield chunk.choices[0].delta.content
+                async for chunk in self.openrouter_client.chat_stream(full_prompt):
+                    full_response_content += chunk
+                    yield chunk
             else:
                 # No external provider available - try a lightweight rule-based fallback
                 # Useful for tests in environments without heavy models.
@@ -199,24 +174,19 @@ class AIService:
                 tokens_used = response.get("eval_count", 0)
             elif provider == "google" and self.gemini_client:
                 logger.info(f"Attempting non-streaming response with Google Gemini using model: {self.model_name}...")
-                response = await asyncio.get_event_loop().run_in_executor(
+                response_text = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: self.gemini_client.generate_content(full_prompt)
+                    lambda: self.gemini_client.generate(full_prompt)
                 )
-                response_text = response.text
                 tokens_used = len(full_prompt.split()) # Approximate
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(f"Attempting non-streaming response with OpenRouter using model: {self.model_name}...")
-                response = await asyncio.get_event_loop().run_in_executor(
+                response_text = await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: self.openrouter_client.chat.completions.create(
-                        model=self.model_name,
-                        messages=[{"role": "user", "content": full_prompt}],
-                        max_tokens=max_tokens
-                    )
+                    lambda: self.openrouter_client.chat(full_prompt)
                 )
-                response_text = response.choices[0].message.content
-                tokens_used = response.usage.total_tokens if hasattr(response, 'usage') else 0
+                # OpenRouter's chat method doesn't directly return usage, so we'll approximate or leave as 0
+                tokens_used = len(full_prompt.split()) # Approximate
             else:
                 # No external provider available. Use small deterministic fallback
                 error_message = f"No suitable AI provider found for model: {self.model_name}"
@@ -320,17 +290,53 @@ class AIService:
         }
 
     def get_available_models(self) -> List[Dict[str, Any]]:
-        """Get list of available Ollama models"""
-        # This method should ideally list models from all configured providers
-        # For now, it only lists Ollama models.
-        if not self.client:
-            return [{"name": "mock-model", "size": "unknown", "modified_at": "unknown"}]
+        """Get a list of available models from all configured providers."""
+        available_models = []
 
-        try:
-            models = self.client.list()
-            return models.get("models", [])
-        except Exception:
-            return []
+        # Add OpenRouter model if configured
+        if self.openrouter_client and self.openrouter_client.model:
+            available_models.append({
+                "name": self.openrouter_client.model,
+                "provider": "openrouter",
+                "size": 0, # Size is not available from OpenRouter
+                "modified_at": "unknown"
+            })
+
+        # Add Gemini model if configured
+        if self.gemini_client and self.gemini_client.model_name:
+            available_models.append({
+                "name": self.gemini_client.model_name,
+                "provider": "google",
+                "size": 0, # Size is not available from Gemini
+                "modified_at": "unknown"
+            })
+
+        # Add Ollama models if available
+        if self.client:
+            try:
+                ollama_models = self.client.list().get("models", [])
+                for model_info in ollama_models:
+                    # The ollama library returns a list of dicts. The name is in the 'model' key.
+                    model_dict = {
+                        "name": model_info.get('model'), 
+                        "provider": "ollama",
+                        "size": model_info.get("size"),
+                        "modified_at": model_info.get("modified_at")
+                    }
+                    available_models.append(model_dict)
+            except Exception as e:
+                logger.warning(f"Could not retrieve Ollama models: {e}")
+
+        # Provide a fallback mock model if no providers are available
+        if not available_models:
+            return [{
+                "name": "mock-model",
+                "provider": "none",
+                "size": 0,
+                "modified_at": "unknown"
+            }]
+
+        return available_models
 
     def check_model_availability(self, model_name: str) -> bool:
         """Check if a specific model is available from any configured provider"""
@@ -395,28 +401,26 @@ def get_ai_service(model_name: Optional[str] = None) -> AIService:
     """Get singleton AIService instance with optional model override"""
     global _ai_service_instance
     
-    # Determine if OpenRouter is available
+    # Determine if OpenRouter and Gemini are available
     openrouter_key = os.getenv('OPENROUTER_API_KEY')
-    openrouter_available = OPENAI_AVAILABLE and openrouter_key
+    gemini_key = os.getenv('GEMINI_API_KEY')
 
     # If a model is explicitly requested, use it.
-    # Otherwise, if OpenRouter is available, use the OpenRouter default.
-    # Otherwise, fallback to Ollama default.
     if model_name:
         pass  # Use the explicitly provided model_name
-    elif not OLLAMA_AVAILABLE: # If Ollama is not available, try OpenRouter
-        if openrouter_available:
-            model_name = "openai/gpt-oss-20b:free"
-        else:
-            model_name = "mock-model" # Fallback if no AI is available
+    # Prioritize OpenRouter if available
+    elif openrouter_key:
+        model_name = "openai/gpt-oss-20b:free" # Default free OpenRouter model
+    # Then Gemini if available
+    elif gemini_key:
+        model_name = "models/gemini-2.5-flash" # Default free Gemini model
+    # Fallback to Ollama if available
+    elif OLLAMA_AVAILABLE:
+        model_name = "llama3.2:1b" # Default Ollama model
     else:
-        model_name = "llama3.2:latest" # Default to Ollama
+        model_name = "mock-model" # Fallback if no AI is available
 
-    if _ai_service_instance is None:
-        _ai_service_instance = AIService(model_name)
-    
-    # If a specific model is requested and it's different from current, create new instance
-    if model_name and model_name != _ai_service_instance.model_name:
+    if _ai_service_instance is None or _ai_service_instance.model_name != model_name:
         _ai_service_instance = AIService(model_name)
 
     return _ai_service_instance
