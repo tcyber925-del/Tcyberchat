@@ -1,0 +1,20 @@
+# Recommended (non-pinned) packages to test a LangChain upgrade in an isolated venv.
+# Do NOT copy these directly into `requirements.txt` until tests pass in CI/branch.
+
+# Core LangChain packages
+langchain
+langchain-core
+langchain-huggingface
+langchain-text-splitters
+langchain-community
+
+# Vector DB & embeddings
+chromadb
+sentence-transformers
+transformers
+torch
+
+# Optional helpers
+sse-starlette
+ollama
+openai

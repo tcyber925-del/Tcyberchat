@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { exportData, importData } from '@/lib/api/data';
 import { useChat } from '@/lib/context/chat-context';
+import { useSettings } from '@/lib/context/settings-context';
 import { useTheme } from '@/lib/context/theme-context';
 
 interface TopBarProps {
@@ -20,7 +21,7 @@ const TopBar: React.FC<TopBarProps> = ({
   isDocumentManagerOpen,
   onNewChat, // Destructure onNewChat
 }) => {
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { toggleSettingsPanel, isSettingsOpen } = useSettings();
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   const handleExport = useCallback(async () => {
@@ -60,19 +61,15 @@ const TopBar: React.FC<TopBarProps> = ({
   }, []);
 
   const handleSettingsClick = useCallback(() => {
-    setIsSettingsOpen(true);
-  }, []);
-
-  const handleSettingsClose = useCallback(() => {
-    setIsSettingsOpen(false);
-  }, []);
+    toggleSettingsPanel();
+  }, [toggleSettingsPanel]);
 
   const handleSettingsKeyDown = useCallback((event: React.KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      setIsSettingsOpen(true);
+      toggleSettingsPanel();
     }
-  }, []);
+  }, [toggleSettingsPanel]);
 
   const handleThemeToggle = useCallback(() => {
     const themeOrder = ['light', 'dark', 'system'] as const;
@@ -91,7 +88,7 @@ const TopBar: React.FC<TopBarProps> = ({
   useEffect(() => {
     const handleEscapeKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isSettingsOpen) {
-        setIsSettingsOpen(false);
+        toggleSettingsPanel();
       }
     };
 
@@ -99,7 +96,7 @@ const TopBar: React.FC<TopBarProps> = ({
       document.addEventListener('keydown', handleEscapeKey);
       return () => document.removeEventListener('keydown', handleEscapeKey);
     }
-  }, [isSettingsOpen]);
+  }, [isSettingsOpen, toggleSettingsPanel]);
 
   return (
     <>

@@ -1,6 +1,6 @@
 import { Document } from '@/types/document';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export async function uploadDocument(file: File): Promise<Document> {
   const formData = new FormData();
