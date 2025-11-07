@@ -150,3 +150,14 @@ export async function sendMessageStreaming(
     } catch {}
   }
 }
+
+// getModels - fetches the list of available AI models
+export async function getModels() {
+  const response = await fetch('/api/v1/models');
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText);
+    throw new Error(text || response.statusText);
+  }
+  const data = await response.json();
+  return data.models || [];
+}

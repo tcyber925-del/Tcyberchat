@@ -5,7 +5,7 @@ import { ChatSession } from '@/types/chat';
 import { Message } from '@/types/message';
 import { Document } from '@/types/document';
 import { UserSettings } from '@/types/settings';
-import { sendMessageStreaming } from '@/lib/api/chat';
+import { sendMessageStreaming, getModels } from '@/lib/api/chat';
 import { uploadDocument as apiUploadDocument, getDocuments as apiGetDocuments, deleteDocument as apiDeleteDocument } from '@/lib/api/documents';
 import { useToast } from './toast-context'; // Import useToast
 
@@ -22,8 +22,6 @@ interface ChatContextType {
   setDocuments: (documents: Document[]) => void;
   selectedDocumentId: string | null; // Add selectedDocumentId
   setSelectedDocumentId: (documentId: string | null) => void; // Add setSelectedDocumentId
-  userSettings: UserSettings;
-  setUserSettings: (settings: UserSettings) => void;
   addMessage: (message: Message) => void;
   selectSession: (sessionId: string | null) => void;
   selectDocument: (documentId: string) => void;
@@ -32,7 +30,11 @@ interface ChatContextType {
   isLoading: boolean;
   error: string | null;
   setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+  setError: (error: string | null) => void; // Add setError
+  isModelMenuOpen: boolean; // Add isModelMenuOpen
+  setIsModelMenuOpen: (isOpen: boolean) => void; // Add setIsModelMenuOpen
+  localModels: any[]; // Add localModels
+  cloudModels: any[]; // Add cloudModels
   // Streaming functionality
   isStreaming: boolean;
   streamingMessage: Message | null;
@@ -43,23 +45,23 @@ interface ChatContextType {
   lastDeletedMessage: Message | null;
 }
 
+import { useSettings } from './settings-context';
+
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 export function ChatProvider({ children }: { children: ReactNode }) {
+  const { settings, isLoading: isSettingsLoading } = useSettings();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
-  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null); // Initialize selectedDocumentId
-  const [userSettings, setUserSettings] = useState<UserSettings>({
-    theme: 'system',
-    selectedModel: 'llama3.2:latest', // Changed default model to Ollama
-    notifications: true,
-    language: 'en',
-  });
+  const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false); // Initialize isModelMenuOpen
+  const [localModels, setLocalModels] = useState<any[]>([]);
+  const [cloudModels, setCloudModels] = useState<any[]>([]);
 
   // Streaming state
   const [isStreaming, setIsStreaming] = useState(false);
@@ -71,13 +73,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const { showToast } = useToast(); // Use the toast hook
 
-  // Conversation persistence
-  const STORAGE_KEY = 'tcyber-chat-sessions';
+  // Constants for localStorage keys
+  const SESSIONS_STORAGE_KEY = 'tcyber-chat-sessions';
 
   // Load conversations from localStorage on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
       if (stored) {
         const parsedSessions = JSON.parse(stored);
         const sessionsWithDates = parsedSessions.map((session: any) => ({
@@ -108,15 +110,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetchDocuments();
   }, [showToast]);
 
+  // Fetch models on mount
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        const allModels = await getModels();
+        const local = (allModels || []).filter(m => m.provider === 'llama.cpp');
+        const cloud = (allModels || []).filter(m => m.provider !== 'llama.cpp');
+        setLocalModels(local);
+        setCloudModels(cloud);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch models';
+        setError(errorMessage);
+        showToast(errorMessage, 'error');
+      }
+    };
+    fetchModels();
+  }, [showToast]);
+
   // Save sessions to localStorage whenever they change
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
     }  catch (error) {
       console.warn('Failed to save sessions to localStorage:', error);
       showToast('Failed to save chat sessions.', 'error');
     }
-  }, [sessions, showToast]);
+  }, [sessions]);
 
   const addMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
@@ -189,7 +209,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     // Get selected model from settings
-    const selectedModel = userSettings.selectedModel;
+    const selectedModel = settings.selectedModel;
 
     // Add user message immediately
     const userMessage: Message = {
@@ -356,8 +376,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setDocuments,
         selectedDocumentId,
         setSelectedDocumentId,
-        userSettings,
-        setUserSettings,
         addMessage,
         selectSession,
         selectDocument,
@@ -367,6 +385,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         error,
         setLoading: setIsLoading,
         setError,
+        isModelMenuOpen,
+        setIsModelMenuOpen,
+        localModels,
+        cloudModels,
         // Streaming functionality
         isStreaming,
         streamingMessage,

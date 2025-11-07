@@ -89,6 +89,24 @@ if not LANGCHAIN_AVAILABLE:
     ConversationBufferWindowMemory = _Stub
 else:
     from langchain_core.callbacks import BaseCallbackHandler
+    from langchain_core.language_models import BaseLLM, BaseChatModel
+    from langchain.chains.combine_documents import create_stuff_documents_chain
+    from langchain.chains.history_aware_retriever import create_history_aware_retriever
+    from langchain.chains.retrieval import create_retrieval_chain
+    from langchain_community.retrievers import BM25Retriever
+    from langchain.retrievers import EnsembleRetriever
+    from langchain.retrievers.document_compressors import DocumentCompressorPipeline, EmbeddingsFilter
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain.memory import ConversationBufferWindowMemory
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
+    from langchain_core.messages import HumanMessage, AIMessage
+    from langchain_core.runnables import Runnable, RunnablePassthrough
+    from langchain_core.output_parsers import StrOutputParser
+    from langchain_core.documents import Document as LangChainDocument
+    from langchain_core.outputs import Generation, LLMResult
+    from langchain_community.vectorstores import Chroma
+    from langchain_community.embeddings import SentenceTransformerEmbeddings
+    from langchain.schema import BaseRetriever
 
 # Import AI service lazily inside the service to avoid optional dependency failures
 # IMPORTANT: avoid importing the database/chroma at module import time. Use lazy resolution
@@ -229,10 +247,19 @@ class RAGService:
                 search_kwargs={"k": 10, "lambda_mult": 0.5}
             )
 
+            # Wrap retrievers in a Runnable interface for compatibility with EnsembleRetriever
+            class RunnableRetriever(Runnable):
+                retriever: BaseRetriever
+                def invoke(self, input, config=None):
+                    return self.retriever.get_relevant_documents(input, config=config)
+
             # BM25 retriever (keyword-based) - would need documents list
             # For now, create ensemble with available retrievers
             self.ensemble_retriever = EnsembleRetriever(
-                retrievers=[similarity_retriever, mmr_retriever],
+                retrievers=[
+                    RunnableRetriever(retriever=similarity_retriever),
+                    RunnableRetriever(retriever=mmr_retriever)
+                ],
                 weights=[0.7, 0.3]  # Weight similarity search higher
             )
 

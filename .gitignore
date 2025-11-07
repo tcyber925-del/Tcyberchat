@@ -119,3 +119,4 @@ frontend/.venv/
 *~
 .venv/
 backend\test_gemini_key.py
+backend\Images2_fix
