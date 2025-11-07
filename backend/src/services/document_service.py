@@ -12,34 +12,62 @@ import asyncio
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, Depends
 import aiofiles
+# Feature-detection flags for optional PDF libraries
+_HAS_PYMUPDF = False
+_HAS_PYPDF = False
 try:
     # pypdf is the maintained successor to PyPDF2
     from pypdf import PdfReader
+    _HAS_PYPDF = True
 except Exception:
-    # Fallback to PyPDF2 if pypdf isn't installed (backwards compatibility)
+    # Fallback to PyMuPDF or PyPDF2 if pypdf isn't installed
     try:
         # Prefer PyMuPDF for robust, fast PDF text extraction
         import fitz  # PyMuPDF
+
         _HAS_PYMUPDF = True
+        PdfReader = None
+        _HAS_PYPDF = False
     except Exception:
         _HAS_PYMUPDF = False
-
-    if not _HAS_PYMUPDF:
+        # Try pypdf again (some environments may have it under different discovery paths)
         try:
-            # pypdf is the maintained successor to PyPDF2
             from pypdf import PdfReader
+
             _HAS_PYPDF = True
         except Exception:
-            # Fallback to PyPDF2 if neither pypdf nor pymupdf is installed
-            from PyPDF2 import PdfReader
-            _HAS_PYPDF = True
-    else:
-        PdfReader = None
-from docx import Document as DocxDocument
-import pytesseract
-from PIL import Image
-import cv2
-import numpy as np
+            # Try PyPDF2 as a last resort; if it's missing, gracefully set PdfReader=None
+            try:
+                from PyPDF2 import PdfReader
+
+                _HAS_PYPDF = True
+            except Exception:
+                PdfReader = None
+                _HAS_PYPDF = False
+try:
+    from docx import Document as DocxDocument
+except Exception:
+    DocxDocument = None
+
+try:
+    import pytesseract
+except Exception:
+    pytesseract = None
+
+try:
+    from PIL import Image
+except Exception:
+    Image = None
+
+try:
+    import cv2
+except Exception:
+    cv2 = None
+
+try:
+    import numpy as np
+except Exception:
+    np = None
 
 from ..database import get_db
 from ..models.document import Document

@@ -1,13 +1,13 @@
 import time
 import requests
 
-URL = "http://127.0.0.1:3001/chat/stream"
+URL = "http://127.0.0.1:8000/chat/stream"
 PAYLOAD = {"message": "Hello from SSE client", "model": "dummy"}
 
 # Wait for server to be ready
 for attempt in range(10):
     try:
-        r = requests.get('http://127.0.0.1:3001/health', timeout=2)
+        r = requests.get('http://127.0.0.1:8000/health', timeout=2)
         if r.status_code == 200:
             print('Server ready')
             break

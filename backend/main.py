@@ -24,6 +24,9 @@ try:
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.render_content import router as render_content_router
 
+    # Import AI service
+    from src.services.ai_service import get_ai_service
+
     # Import database utilities
     from src.database import get_database_status
 except ImportError:
@@ -38,6 +41,9 @@ except ImportError:
     from src.api.analyze_image import router as analyze_image_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.render_content import router as render_content_router
+
+    # Import AI service
+    from src.services.ai_service import get_ai_service
 
     # Import database utilities
     from src.database import get_database_status
@@ -318,11 +324,17 @@ async def health_check():
         "database_details": db_status
     }
 
+@app.get("/api/v1/models")
+async def get_models():
+    """Get a list of all available AI models (local and cloud)."""
+    ai_service = await get_ai_service()
+    return await ai_service.get_available_models()
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=3001,
+        port=8000,
         reload=True,
         log_level="info"
     )

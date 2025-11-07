@@ -2,17 +2,16 @@
 
 import React, { useRef } from 'react';
 import { Document } from '@/types/document';
-import { useChat } from '@/lib/context/chat-context'; // Import useChat
 
 interface DocumentManagerProps {
   documents: Document[];
   onSelectDocument: (documentId: string) => void;
   onUploadDocument: (file: File) => void;
-  onDeleteDocument: (documentId: string) => void; // Add onDeleteDocument
+  onDeleteDocument: (documentId: string) => void;
+  isLoading: boolean;
 }
 
-const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDocument, onUploadDocument, onDeleteDocument }) => {
-  const { isLoading } = useChat(); // Use isLoading from context
+const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDocument, onUploadDocument, onDeleteDocument, isLoading }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,12 +26,12 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
   };
 
   return (
-    <div className="flex flex-col">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Documents</h2>
+    <div className="flex flex-col text-sm">
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-md font-semibold">Documents</h2>
         <button
           onClick={handleUploadClick}
-          className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+          className="p-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 cursor-pointer text-xs"
         >
           Upload
         </button>
@@ -46,45 +45,40 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
       <input
         id="document-search"
         placeholder="Search documents..."
-        className="mb-4 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="mb-2 p-2 border border-border bg-background text-foreground rounded focus:outline-none focus:ring-2 focus:ring-ring"
         aria-describedby="document-search-help"
         type="text"
       />
       <span id="document-search-help" className="sr-only">
         Type to filter your documents by name or content
       </span>
-      <ul role="listbox" aria-label="Document list">
+      <ul role="listbox" aria-label="Document list" className="space-y-1">
         {isLoading ? (
           // Loading skeleton
           Array.from({ length: 3 }).map((_, index) => (
             <li key={index} className="p-2">
-              <div className="h-6 bg-gray-300 rounded animate-pulse w-full"></div>
+              <div className="h-5 bg-muted rounded animate-pulse w-full"></div>
             </li>
           ))
         ) : documents.length > 0 ? (
           documents.map((doc, index) => (
             <li
               key={`${doc.id}-${index}`}
-              className="p-2 flex justify-between items-center hover:bg-gray-200 rounded"
+              className="p-2 flex justify-between items-center hover:bg-accent hover:text-accent-foreground rounded"
               role="option"
               aria-selected="false"
+              title={doc.filename}
             >
               <span
                 onClick={() => onSelectDocument(doc.id)}
-                className="cursor-pointer flex-grow"
+                className="cursor-pointer flex-grow truncate"
               >
                 {doc.filename}
               </span>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onSelectDocument(doc.id)}
-                  className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-xs"
-                >
-                  Select
-                </button>
+              <div className="flex gap-2 pl-2">
                 <button
                   onClick={() => onDeleteDocument(doc.id)}
-                  className="p-1 bg-red-500 text-white rounded hover:bg-red-600 text-xs"
+                  className="p-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
                 >
                   Delete
                 </button>
@@ -92,7 +86,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
             </li>
           ))
         ) : (
-          <li className="p-2 text-gray-500 text-center" role="status" aria-live="polite">
+          <li className="p-2 text-muted-foreground text-center" role="status" aria-live="polite">
             No documents uploaded yet
           </li>
         )}

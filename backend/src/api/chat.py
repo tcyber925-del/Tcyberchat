@@ -4,11 +4,23 @@ Chat API endpoints (clean single implementation)
 import json
 import logging
 from typing import Optional, AsyncGenerator
+from fastapi.responses import StreamingResponse
+import os
 from fastapi import APIRouter, Depends, HTTPException, Body
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from uuid import UUID
-from sse_starlette.sse import EventSourceResponse
+# Import sse-starlette lazily. When DEV_MOCK_AI is enabled we avoid importing
+# the sse module at import time because it can create loop-bound primitives
+# that conflict with pytest/anyio. Only attempt the import when not mocking.
+EventSourceResponse = None
+if os.getenv("DEV_MOCK_AI") != "1":
+    try:
+        from sse_starlette.sse import EventSourceResponse
+    except Exception:
+        # Make SSE optional at import time so tests that don't use streaming endpoints
+        # can import this module without requiring the sse-starlette package.
+        EventSourceResponse = None
 
 from ..database import get_db
 from ..services.chat_service import get_chat_service
@@ -64,7 +76,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
     chat_service = get_chat_service()
-    ai_service = get_ai_service(request.model)
+    ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
 
@@ -210,6 +222,27 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
 
 
 def _sse_response_from_generator(gen: AsyncGenerator) -> EventSourceResponse:
+    # If DEV_MOCK_AI is enabled, avoid using sse-starlette and return a
+    # simple text-based StreamingResponse that emits SSE-formatted lines.
+    if os.getenv("DEV_MOCK_AI") == "1":
+        async def _sse_text_wrapper(g=gen):
+            async for item in g:
+                try:
+                    if isinstance(item, dict):
+                        payload = item.get("data")
+                    else:
+                        payload = item
+                    payload_text = "" if payload is None else str(payload)
+                    yield f"data: {payload_text}\n\n"
+                except Exception:
+                    yield f"data: \n\n"
+
+        return StreamingResponse(_sse_text_wrapper(), media_type="text/event-stream")
+
+    # If SSE support isn't available at runtime, fail with a clear error.
+    if EventSourceResponse is None:
+        raise RuntimeError("SSE support not available. Install sse-starlette to use streaming endpoints.")
+
     return EventSourceResponse(gen)
 
 
@@ -219,7 +252,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
     chat_service = get_chat_service()
-    ai_service = get_ai_service(request.model)
+    ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
 
@@ -331,3 +364,39 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
     except Exception as e:
         logger.exception("Streaming chat processing failed")
         raise HTTPException(status_code=500, detail=f"Streaming chat processing failed: {str(e)}")
+
+
+@router.get("/models")
+async def get_available_models() -> dict:
+    """Get list of available models from all configured providers."""
+    try:
+        # Use a default AI service to fetch models from all providers
+        ai_service = await get_ai_service()
+        models = await ai_service.get_available_models()
+        
+        # Format models for frontend
+        formatted_models = []
+        for model in models:
+            # Handle size - it might be a string "unknown" or a number
+            size = model.get("size", 0)
+            if isinstance(size, str) and size == "unknown":
+                size = 0
+            elif not isinstance(size, (int, float)):
+                size = 0
+            
+            formatted_models.append({
+                "name": model.get("name", "unknown"),
+                "size": int(size) if isinstance(size, (int, float)) else 0,
+                "modified_at": model.get("modified_at", ""),
+                "provider": model.get("provider", "unknown")
+            })
+        
+        return {
+            "models": formatted_models,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch available models: {e}")
+        return {
+            "models": [],
+            "error": str(e)
+        }
