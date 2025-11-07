@@ -1,70 +1,56 @@
 import os
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, AsyncMock
 
-# Mock the cloud clients before they are imported by the service
+# This fixture is essential to reset the state between tests
 @pytest.fixture(autouse=True)
-def mock_clients():
-    with patch('backend.src.clients.gemini_client.GeminiClient') as mock_gemini, \
-         patch('backend.src.clients.openrouter_client.OpenRouterClient') as mock_openrouter, \
-         patch('ollama.Client') as mock_ollama:
-        yield mock_gemini, mock_openrouter, mock_ollama
-
-# Since get_ai_service is a singleton, we need to clear its instance between tests
-@pytest.fixture(autouse=True)
-def reset_ai_service_singleton():
+def reset_ai_service_cache():
     from backend.src.services import ai_service
-    ai_service._ai_service_instance = None
+    ai_service._ai_service_instance_cache.clear()
+    ai_service.AIService._llama_cpp_client = None
+    ai_service.AIService._llama_cpp_models = []
+    ai_service.AIService._llama_cpp_last_fetch = 0
     yield
-    ai_service._ai_service_instance = None
-
-
-def test_get_ai_service_prioritizes_openrouter():
-    """Tests that OpenRouter is prioritized when its API key is set."""
-    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test_key"}):
-        from backend.src.services.ai_service import get_ai_service
-        service = get_ai_service()
-        assert service.model_name == "google/gemini-flash-1.5"
-        assert service.openrouter_client is not None
-        assert service.gemini_client is None # Gemini key is not set
-
-def test_get_ai_service_falls_back_to_gemini():
-    """Tests that Gemini is used when only its API key is set."""
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key", "OPENROUTER_API_KEY": ""}):
-        from backend.src.services.ai_service import get_ai_service
-        service = get_ai_service()
-        assert service.model_name == "gemini-1.5-flash"
-        assert service.gemini_client is not None
-        assert service.openrouter_client is None
-
-def test_get_ai_service_falls_back_to_ollama():
-    """Tests that Ollama is used when no cloud API keys are set."""
-    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "", "GEMINI_API_KEY": ""}):
-        from backend.src.services.ai_service import get_ai_service
-        # We need to mock OLLAMA_AVAILABLE to be True for this test
-        with patch('backend.src.services.ai_service.OLLAMA_AVAILABLE', True):
-            service = get_ai_service()
-            assert service.model_name == "llama3.2:latest"
-            assert service.client is not None
-            assert service.gemini_client is None
-            assert service.openrouter_client is None
+    ai_service._ai_service_instance_cache.clear()
+    ai_service.AIService._llama_cpp_client = None
+    ai_service.AIService._llama_cpp_models = []
+    ai_service.AIService._llama_cpp_last_fetch = 0
 
 @pytest.mark.asyncio
-async def test_streaming_response_with_openrouter():
-    """Tests that generate_streaming_response calls the correct client method."""
-    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test_key"}):
-        from backend.src.services.ai_service import get_ai_service
-        service = get_ai_service()
+async def test_llama_cpp_integration():
+    """An integration test for the Llama.cpp server functionality."""
+    
+    # 1. Define a fake LlamaCppClient that simulates the real one
+    class FakeLlamaCppClient:
+        async def get_available_models(self):
+            return ["fake-model.gguf"]
 
-        # Configure the mock OpenRouter client to return a stream
-        mock_stream_content = ["Hello", ", ", "world!"]
-        async def mock_stream_generator(prompt):
-            for item in mock_stream_content:
-                yield item
+        async def generate_stream(self, messages, model, **kwargs):
+            assert model == "fake-model.gguf"
+            assert messages == [{"role": "user", "content": "A test prompt"}]
+            for chunk in ["This", " is", " a", " test."]:
+                yield chunk
+
+    # 2. Patch the real client with our fake one
+    with patch('backend.src.services.ai_service.LlamaCppClient') as mock_llama_client:
+        mock_llama_client.return_value = FakeLlamaCppClient()
+
+        from backend.src.services.ai_service import AIService, get_ai_service
+
+        # 3. Test fetching available models
+        service_instance = AIService() # Use a direct instance to test get_available_models
+        models = await service_instance.get_available_models()
+        assert any(m['name'] == "fake-model.gguf" for m in models)
+
+        # 4. Test getting the service and streaming a response
+        # Use the singleton factory, which should now find our fake model
+        service = await get_ai_service(model_name="fake-model.gguf")
         
-        service.openrouter_client.chat_stream = mock_stream_generator
+        # Ensure the correct provider and model are set
+        provider = await service._get_provider_for_model("fake-model.gguf")
+        assert provider == "llama.cpp"
+        assert service.model_name == "fake-model.gguf"
 
-        # Collect the streaming response
-        result = [chunk async for chunk in service.generate_streaming_response("test prompt")]
-
-        assert result == mock_stream_content
+        # Generate and verify the streaming response
+        result = [chunk async for chunk in service.generate_streaming_response("A test prompt")]
+        assert result == ["This", " is", " a", " test."]

@@ -76,7 +76,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
     chat_service = get_chat_service()
-    ai_service = get_ai_service(request.model)
+    ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
 
@@ -252,7 +252,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
     chat_service = get_chat_service()
-    ai_service = get_ai_service(request.model)
+    ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
 
@@ -368,10 +368,11 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
 
 @router.get("/models")
 async def get_available_models() -> dict:
-    """Get list of available Ollama models"""
+    """Get list of available models from all configured providers."""
     try:
-        ai_service = get_ai_service()
-        models = ai_service.get_available_models()
+        # Use a default AI service to fetch models from all providers
+        ai_service = await get_ai_service()
+        models = await ai_service.get_available_models()
         
         # Format models for frontend
         formatted_models = []
@@ -387,19 +388,15 @@ async def get_available_models() -> dict:
                 "name": model.get("name", "unknown"),
                 "size": int(size) if isinstance(size, (int, float)) else 0,
                 "modified_at": model.get("modified_at", ""),
-                "provider": "ollama"
+                "provider": model.get("provider", "unknown")
             })
         
         return {
             "models": formatted_models,
-            "provider": "ollama",
-            "available": len(formatted_models) > 0 and formatted_models[0].get("name") != "mock-model"
         }
     except Exception as e:
         logger.error(f"Failed to fetch available models: {e}")
         return {
             "models": [],
-            "provider": "ollama",
-            "available": False,
             "error": str(e)
         }

@@ -235,26 +235,15 @@ def create_embeddings(model_name: str = "all-MiniLM-L6-v2") -> Optional[Any]:
     return None
 def create_vectorstore(client: Any, collection_name: str = "documents", embedding=None) -> Optional[Any]:
     """Return a vectorstore instance or None when not available."""
-    # Prefer an existing chroma client (if available) so we use the real
-    # chromadb-backed collection. This helps the adapter prefer the system's
-    # configured Chroma instance even when LangChain is installed.
-    try:
-        if client is None:
-            try:
-                from ..database import chroma_client as _ch
+    # Try to get the chroma_client from the database module
+    if client is None:
+        try:
+            from ..database import chroma_client as _ch
+            client = _ch
+        except Exception:
+            client = None
 
-                client = _ch
-            except Exception:
-                client = None
-        if client is not None:
-            # Return a thin wrapper that uses the chroma client directly via
-            # our fallback class (it will use real collections when possible).
-            return _FallbackVectorStore(client=client, collection_name=collection_name, embedding_function=embedding)
-    except Exception:
-        # fall through to other options
-        client = client
-
-    # If a dedicated LangChain Chroma is available use it as another option
+    # If LangChain is available, use the official Chroma vectorstore
     if LANGCHAIN_PRESENT:
         try:
             with warnings.catch_warnings():
@@ -266,12 +255,13 @@ def create_vectorstore(client: Any, collection_name: str = "documents", embeddin
                     mod = importlib.import_module("langchain.vectorstores")
                     Chroma = getattr(mod, "Chroma")
 
+            # Pass the existing client if available
             return Chroma(client=client, collection_name=collection_name, embedding_function=embedding)
         except Exception:
-            # fallback to in-memory/chroma-client wrapper below
+            # If creating the LangChain Chroma store fails, fall through to the fallback
             pass
 
-    # Final fallback: in-memory vectorstore implementation
+    # Fallback to a minimal implementation if LangChain is not available or fails
     try:
         return _FallbackVectorStore(client=client, collection_name=collection_name, embedding_function=embedding)
     except Exception:

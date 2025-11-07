@@ -10,10 +10,9 @@ import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
 
+import Sidebar from '@/components/sidebar';
+
 // Lazy load components for performance optimization
-const TopBar = lazy(() => import('@/components/top-bar'));
-const ChatHistoryDrawer = lazy(() => import('@/components/chat-history-drawer'));
-const DocumentManagerDrawer = lazy(() => import('@/components/document-manager-drawer'));
 const SettingsDrawer = lazy(() => import('@/components/settings-drawer'));
 
 // Loading fallback component
@@ -24,26 +23,40 @@ const LoadingFallback = () => (
 );
 
 export default function Home() {
-  const { messages, setMessages, isLoading, isStreaming, streamingMessage, sendStreamingMessage, stopStreaming } = useChat();
+  const { 
+    messages, 
+    setMessages, 
+    isLoading, 
+    isStreaming, 
+    streamingMessage, 
+    sendStreamingMessage, 
+    stopStreaming,
+    sessions,
+    documents,
+    selectSession,
+    selectDocument,
+    uploadDocument,
+    deleteDocument,
+  } = useChat();
   const { isSettingsOpen, toggleSettingsPanel } = useSettings();
   const [input, setInput] = useState('');
-  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
-  const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const toggleChatHistory = useCallback(() => {
-    setIsChatHistoryOpen(prev => !prev);
-    setIsDocumentManagerOpen(false); // Close document manager if open
-  }, []);
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
 
-  const toggleDocumentManager = useCallback(() => {
-    setIsDocumentManagerOpen(prev => !prev);
-    setIsChatHistoryOpen(false); // Close chat history if open
-  }, []);
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      uploadDocument(file);
+    }
+    // Clear the input value so that selecting the same file twice still triggers the onChange event
+    event.target.value = '';
+  };
 
   const handleNewChat = useCallback(() => {
     setMessages([]); // Clear the chat messages
-    setIsChatHistoryOpen(false);
-    setIsDocumentManagerOpen(false);
   }, [setMessages]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -87,26 +100,28 @@ export default function Home() {
   }, []);
 
   return (
-    <div data-testid="main-layout" className="flex h-screen bg-background">
-      <Suspense fallback={<LoadingFallback />}>
-        <ChatHistoryDrawer isOpen={isChatHistoryOpen} onClose={() => setIsChatHistoryOpen(false)} />
-      </Suspense>
+    <div data-testid="main-layout" className="flex h-screen bg-background text-foreground">
+      <Sidebar 
+        sessions={sessions}
+        documents={documents}
+        onNewChat={handleNewChat}
+        onSelectSession={selectSession}
+        onSelectDocument={selectDocument}
+        onUploadDocument={uploadDocument}
+        onDeleteDocument={deleteDocument}
+        onToggleSettings={toggleSettingsPanel}
+        isLoading={isLoading}
+      />
 
       <Suspense fallback={<LoadingFallback />}>
         <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
       <div className="flex flex-col flex-grow">
-        <Suspense fallback={<LoadingFallback />}>
-          <TopBar
-            onToggleChatHistory={toggleChatHistory}
-            onToggleDocumentManager={toggleDocumentManager}
-            isChatHistoryOpen={isChatHistoryOpen}
-            isDocumentManagerOpen={isDocumentManagerOpen}
-            onNewChat={handleNewChat} // Pass handleNewChat to TopBar
-          />
-        </Suspense>
-  <main ref={chatRef} className="flex-grow p-4 overflow-y-auto">
+        <header className="flex items-center p-4 border-b border-border">
+          <h1 className="text-xl font-bold">TcyberChatbot</h1>
+        </header>
+        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto">
           <div>
             <div>
               {messages.length === 0 && !isLoading && !streamingMessage ? (
@@ -165,32 +180,29 @@ export default function Home() {
           </div>
         </main>
 
-        {/* Undo notification - Removed as it's not directly supported by AI SDK's useChat */}
-        {/* {lastDeletedMessage && (
-          <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-card text-card-foreground border border-border px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-slide-up">
-            <span className="text-sm font-medium">Message deleted</span>
-            <button
-              onClick={undoDeleteMessage}
-              className="text-primary hover:text-primary/80 underline text-sm font-medium transition-colors duration-200"
-            >
-              Undo
-            </button>
-          </div>
-        )} */}
-
         <form onSubmit={handleSubmitLocal} className="p-4 border-t bg-background flex items-center space-x-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <button
+            type="button"
+            onClick={handleAttachmentClick}
+            className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent"
+            title="Attach file"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13.5" />
+            </svg>
+          </button>
           <ChatInput value={input} onChange={handleInputChange} placeholder="Type your message here..." className="flex-grow" />
           <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
             {isStreaming ? 'Stop' : 'Send'}
           </Button>
         </form>
       </div>
-      <Suspense fallback={<LoadingFallback />}>
-        <DocumentManagerDrawer isOpen={isDocumentManagerOpen} onClose={() => setIsDocumentManagerOpen(false)} />
-      </Suspense>
-
-      {/* Debug overlay (client-only to avoid hydration mismatches) */}
-      {/* debug overlay removed */}
     </div>
   );
 }

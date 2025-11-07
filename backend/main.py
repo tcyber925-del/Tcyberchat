@@ -327,8 +327,8 @@ async def health_check():
 @app.get("/api/v1/models")
 async def get_models():
     """Get a list of all available AI models (local and cloud)."""
-    ai_service = get_ai_service()
-    return ai_service.get_available_models()
+    ai_service = await get_ai_service()
+    return await ai_service.get_available_models()
 
 if __name__ == "__main__":
     uvicorn.run(

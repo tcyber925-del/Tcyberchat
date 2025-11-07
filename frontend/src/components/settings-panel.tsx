@@ -133,6 +133,35 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         </div>
       </fieldset>
 
+      {/* Appearance Settings */}
+      <fieldset>
+        <legend className="block text-sm font-medium text-foreground mb-2">Appearance</legend>
+        <div className="space-y-2">
+          <label htmlFor="theme" className="block text-sm font-medium text-foreground">Theme</label>
+          <div className="flex space-x-4 rounded-md bg-muted p-1">
+            {(['light', 'dark', 'system'] as const).map((themeOption) => (
+              <label
+                key={themeOption}
+                className={`relative flex-1 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  localSettings.theme === themeOption
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-background/50'
+                }`}>
+                <input
+                  type="radio"
+                  name="theme"
+                  value={themeOption}
+                  checked={localSettings.theme === themeOption}
+                  onChange={handleChange}
+                  className="sr-only"
+                />
+                <span className="capitalize">{themeOption}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </fieldset>
+
       {/* Other settings fields... */}
 
       <div className="flex justify-end space-x-3 pt-4">

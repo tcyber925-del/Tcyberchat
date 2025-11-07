@@ -17,7 +17,6 @@ langchain-community
 langchain-core
 langchain-text-splitters
 sentence-transformers
-ollama
 google-generativeai
 openai
 
