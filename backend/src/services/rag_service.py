@@ -10,11 +10,11 @@ from uuid import uuid4
 from .rag_adapter import (
     create_memory,
     create_splitter,
-    create_embeddings,
     create_vectorstore,
     AIServiceLLMAdapter,
     LANGCHAIN_PRESENT,
 )
+from langchain_community.embeddings import SentenceTransformerEmbeddings
 
 LANGCHAIN_AVAILABLE = LANGCHAIN_PRESENT
 
@@ -156,10 +156,12 @@ class RAGService:
         self.conversation_memory = None
         self.callback_handler = None
         # Lazy import of AI service to avoid optional dependency errors at module import
+        # Note: get_ai_service() is async, so we'll lazy-load it in async methods
+        self._ai_service_getter = None
+        self._ai_service_instance = None
         try:
             from .ai_service import get_ai_service
-
-            self.ai_service = get_ai_service()
+            self._ai_service_getter = get_ai_service
         except Exception:
             # Minimal stub AI service
             class _AIStub:
@@ -176,7 +178,7 @@ class RAGService:
 
                     return gen()
 
-            self.ai_service = _AIStub()
+            self._ai_service_instance = _AIStub()
 
         # Advanced retrievers and chains
         self.ensemble_retriever = None
@@ -200,13 +202,34 @@ class RAGService:
             except Exception:
                 self.vectorstore = None
 
+    async def _get_ai_service(self, model_name: Optional[str] = None):
+        """Lazy-load AI service (async) - always get fresh instance for the specified model"""
+        # Don't cache - always get a fresh instance for the specified model
+        # The get_ai_service function already caches by model_name
+        if self._ai_service_getter:
+            return await self._ai_service_getter(model_name)
+        # Fallback stub
+        class _AIStub:
+            def __init__(self):
+                self.model_name = "stub"
+
+            async def generate_response(self, prompt: str):
+                return {"response": "(AI stub) " + str(prompt)}
+
+            async def generate_streaming_response(self, prompt: str):
+                async def gen():
+                    yield "(AI stub) " + str(prompt)
+                return gen()
+        
+        return _AIStub()
+
     def _initialize_langchain_components(self):
         """Initialize comprehensive LangChain components for RAG"""
         try:
             # Initialize embeddings, vectorstore, splitter and memory through the adapter
             # Adapter will try to use LangChain components when available, otherwise
             # return safe None/stubs so tests and CI remain stable.
-            self.embeddings = create_embeddings(model_name="all-MiniLM-L6-v2")
+            self.embeddings = SentenceTransformerEmbeddings(model_name="all-MiniLM-L6-v2")
 
             # Use shared ChromaDB client via adapter (adapter will lazily resolve chroma client).
             self.vectorstore = create_vectorstore(client=None, collection_name="documents", embedding=self.embeddings)
@@ -247,34 +270,79 @@ class RAGService:
                 search_kwargs={"k": 10, "lambda_mult": 0.5}
             )
 
-            # Wrap retrievers in a Runnable interface for compatibility with EnsembleRetriever
-            class RunnableRetriever(Runnable):
-                retriever: BaseRetriever
-                def invoke(self, input, config=None):
-                    return self.retriever.get_relevant_documents(input, config=config)
+            # Validate retrievers before creating ensemble
+            if similarity_retriever is None or mmr_retriever is None:
+                print("Warning: One or more retrievers are None, skipping ensemble setup")
+                return
 
-            # BM25 retriever (keyword-based) - would need documents list
-            # For now, create ensemble with available retrievers
-            self.ensemble_retriever = EnsembleRetriever(
-                retrievers=[
-                    RunnableRetriever(retriever=similarity_retriever),
-                    RunnableRetriever(retriever=mmr_retriever)
-                ],
-                weights=[0.7, 0.3]  # Weight similarity search higher
-            )
+            # EnsembleRetriever accepts BaseRetriever objects directly
+            # No need to wrap them in Runnable
+            try:
+                self.ensemble_retriever = EnsembleRetriever(
+                    retrievers=[
+                        similarity_retriever,
+                        mmr_retriever
+                    ],
+                    weights=[0.7, 0.3]  # Weight similarity search higher
+                )
+            except TypeError as te:
+                # Handle different EnsembleRetriever API versions
+                if "takes no arguments" in str(te) or "positional" in str(te).lower():
+                    # Try alternative initialization
+                    try:
+                        from langchain.retrievers import EnsembleRetriever as ER
+                        # Some versions might need keyword-only args
+                        self.ensemble_retriever = ER(
+                            retrievers=[similarity_retriever, mmr_retriever],
+                            weights=[0.7, 0.3]
+                        )
+                    except Exception:
+                        print(f"Failed to create EnsembleRetriever with alternative method: {te}")
+                        self.ensemble_retriever = None
+                else:
+                    raise
 
             # Document compression pipeline
-            embeddings_filter = EmbeddingsFilter(
-                embeddings=self.embeddings,
-                similarity_threshold=0.7
-            )
-
-            self.compression_retriever = DocumentCompressorPipeline(
-                transformers=[embeddings_filter]
-            )
+            # Note: DocumentCompressorPipeline needs a base_retriever, not just transformers
+            # We'll create a compression retriever by wrapping a base retriever
+            if self.embeddings is not None:
+                print(f"DEBUG: Type of self.embeddings before EmbeddingsFilter: {type(self.embeddings)}")
+                from langchain_core.embeddings import Embeddings as LangchainEmbeddings
+                print(f"DEBUG: Is self.embeddings an instance of LangchainEmbeddings? {isinstance(self.embeddings, LangchainEmbeddings)}")
+                try:
+                    embeddings_filter = EmbeddingsFilter(
+                        embeddings=self.embeddings,
+                        similarity_threshold=0.7
+                    )
+                    
+                    # Create a base retriever for compression
+                    base_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 10})
+                    
+                    # DocumentCompressorPipeline wraps a retriever with compressors
+                    self.compression_retriever = DocumentCompressorPipeline(
+                        base_retriever=base_retriever,
+                        transformers=[embeddings_filter]
+                    )
+                except TypeError as te:
+                    # Handle different API versions - some might use 'compressors' instead of 'transformers'
+                    try:
+                        self.compression_retriever = DocumentCompressorPipeline(
+                            base_retriever=base_retriever,
+                            compressors=[embeddings_filter]
+                        )
+                    except Exception as e2:
+                        print(f"Failed to create DocumentCompressorPipeline: {e2}")
+                        self.compression_retriever = None
+                except Exception as e:
+                    print(f"Failed to setup compression retriever: {e}")
+                    self.compression_retriever = None
+            else:
+                self.compression_retriever = None
 
         except Exception as e:
             print(f"Failed to setup advanced retrievers: {e}")
+            self.ensemble_retriever = None
+            self.compression_retriever = None
 
     def _setup_chains(self):
         """Set up comprehensive LangChain chains"""
@@ -290,8 +358,10 @@ class RAGService:
                     # Declare fields so pydantic/BaseModel-style initialization accepts them
                     ai_service: Any
                     callback_handler: Optional[BaseCallbackHandler] = None
+                    _model_name: Optional[str] = None
+                    _ai_service_getter: Optional[Any] = None
 
-                    def __init__(self, ai_service, callback_handler=None):
+                    def __init__(self, ai_service=None, callback_handler=None, model_name=None, ai_service_getter=None):
                         # BaseLLM may be a simple class; avoid relying on pydantic behavior here
                         try:
                             super().__init__()
@@ -299,6 +369,14 @@ class RAGService:
                             pass
                         self.ai_service = ai_service
                         self.callback_handler = callback_handler
+                        self._model_name = model_name
+                        self._ai_service_getter = ai_service_getter
+
+                    async def _get_ai_service(self):
+                        """Get AI service, using getter if available for dynamic model selection"""
+                        if self._ai_service_getter:
+                            return await self._ai_service_getter(self._model_name)
+                        return self.ai_service
 
                     @property
                     def _llm_type(self) -> str:
@@ -312,7 +390,9 @@ class RAGService:
                                 # Some callback handlers require additional args; ignore for dev
                                 pass
 
-                        response = await self.ai_service.generate_response(prompt=prompt)
+                        # Get AI service dynamically if getter is available
+                        ai_service = await self._get_ai_service() if self._ai_service_getter else self.ai_service
+                        response = await ai_service.generate_response(prompt=prompt)
 
                         if self.callback_handler and hasattr(self.callback_handler, 'on_chain_end'):
                             try:
@@ -353,7 +433,26 @@ class RAGService:
                             return LLMResult(generations=generations)
                         return {'generations': generations}
 
-            custom_llm = AIServiceLLM(self.ai_service, self.callback_handler)
+            # Only create custom_llm if BaseLLM is available
+            # Use ai_service_getter for dynamic model selection instead of fixed instance
+            custom_llm = None
+            if isinstance(BaseLLM, type):
+                try:
+                    # Pass the getter function so LLM can dynamically get the right model
+                    custom_llm = AIServiceLLM(
+                        ai_service=self._ai_service_instance,  # Fallback if getter fails
+                        callback_handler=self.callback_handler,
+                        model_name=None,  # Will be set per-request
+                        ai_service_getter=self._ai_service_getter  # For dynamic model selection
+                    )
+                except Exception as e:
+                    print(f"Failed to create AIServiceLLM: {e}")
+                    custom_llm = None
+
+            # Skip chain setup if custom_llm is not available
+            if custom_llm is None:
+                print("Skipping chain setup: custom_llm is not available (AI service will be lazy-loaded when needed)")
+                return
 
             # 1. Basic RAG Chain
             rag_prompt = ChatPromptTemplate.from_template("""
@@ -376,11 +475,22 @@ Answer:""")
             # Create stuff documents chain
             stuff_chain = create_stuff_documents_chain(custom_llm, rag_prompt)
 
-            # Create retrieval chain
-            self.rag_chain = create_retrieval_chain(
-                self.ensemble_retriever,
-                stuff_chain
-            )
+            # Create retrieval chain - ensure ensemble_retriever is available
+            if self.ensemble_retriever is None:
+                # Fallback to basic retriever if ensemble is not available
+                base_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 10}) if self.vectorstore else None
+                if base_retriever is None:
+                    print("Warning: No retriever available for RAG chain setup")
+                    return
+                self.rag_chain = create_retrieval_chain(
+                    base_retriever,
+                    stuff_chain
+                )
+            else:
+                self.rag_chain = create_retrieval_chain(
+                    self.ensemble_retriever,
+                    stuff_chain
+                )
 
             # 2. Conversational RAG Chain with memory
             condense_prompt = PromptTemplate.from_template("""
@@ -393,8 +503,16 @@ Follow Up Input: {question}
 
 Standalone question:""")
 
+            # Ensure we have a retriever for history-aware retriever
+            retriever_for_history = self.ensemble_retriever
+            if retriever_for_history is None:
+                retriever_for_history = self.vectorstore.as_retriever(search_kwargs={"k": 10}) if self.vectorstore else None
+                if retriever_for_history is None:
+                    print("Warning: No retriever available for conversational chain setup")
+                    return
+
             history_aware_retriever = create_history_aware_retriever(
-                custom_llm, self.ensemble_retriever, condense_prompt
+                custom_llm, retriever_for_history, condense_prompt
             )
 
             conversational_prompt = ChatPromptTemplate.from_messages([
@@ -428,11 +546,25 @@ Conversation History: {chat_history}
 
     async def generate_rag_streaming_response(self, query: str, document_id: Optional[str] = None,
                                               max_context_chunks: int = 3, conversational: bool = False,
-                                              chat_history: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+                                              chat_history: Optional[List[Dict[str, str]]] = None,
+                                              model_name: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
         """Generate RAG-enhanced streaming response using advanced LangChain chains"""
         full_response_content = ""
         citations = []
         try:
+            # Update AIServiceLLM model_name if using chains (for dynamic model selection)
+            if model_name:
+                # Try to update the LLM's model_name if it supports it
+                try:
+                    if hasattr(self, 'rag_chain') and self.rag_chain and hasattr(self.rag_chain, 'llm'):
+                        if hasattr(self.rag_chain.llm, '_model_name'):
+                            self.rag_chain.llm._model_name = model_name
+                    if hasattr(self, 'conversational_chain') and self.conversational_chain and hasattr(self.conversational_chain, 'llm'):
+                        if hasattr(self.conversational_chain.llm, '_model_name'):
+                            self.conversational_chain.llm._model_name = model_name
+                except Exception:
+                    pass  # If update fails, continue with existing model
+            
             if conversational and chat_history and self.conversational_chain:
                 # Use conversational RAG chain with memory
                 formatted_history = []
@@ -450,9 +582,35 @@ Conversation History: {chat_history}
                     elif isinstance(msg, AIMessage):
                         self.conversation_memory.chat_memory.add_ai_message(msg.content)
 
+                # Apply document filtering to conversational chain if document_id is provided
+                chain_config = {"memory": self.conversation_memory}
+                if document_id:
+                    # Create filtered retriever for conversational chain
+                    try:
+                        all_docs = self.vectorstore.get()
+                        filtered_docs = []
+                        for doc_text, metadata, doc_id_vec in zip(
+                            all_docs.get('documents', []), 
+                            all_docs.get('metadatas', []), 
+                            all_docs.get('ids', [])
+                        ):
+                            doc_id_str = str(metadata.get('document_id', '')) if metadata else ''
+                            if doc_id_str == str(document_id):
+                                filtered_docs.append(LangChainDocument(
+                                    page_content=doc_text,
+                                    metadata=metadata or {}
+                                ))
+                        
+                        if filtered_docs:
+                            bm25_retriever = BM25Retriever.from_documents(filtered_docs)
+                            bm25_retriever.k = max_context_chunks
+                            chain_config["retriever"] = bm25_retriever
+                    except Exception as e:
+                        print(f"Warning: Failed to filter conversational chain by document_id {document_id}: {e}")
+
                 async for chunk in self.conversational_chain.astream(
                     {"input": query},
-                    config={"memory": self.conversation_memory}
+                    config=chain_config
                 ):
                     if "answer" in chunk:
                         full_response_content += chunk["answer"]
@@ -462,19 +620,56 @@ Conversation History: {chat_history}
                         source_docs = chunk.get('context', [])
                         for i, doc in enumerate(source_docs):
                             if hasattr(doc, 'metadata'):
-                                citations.append({
-                                    "document_id": doc.metadata.get("document_id"),
-                                    "chunk_index": doc.metadata.get("chunk_index"),
-                                    "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
-                                    "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
-                                    "retrieval_method": "conversational"
-                                })
+                                doc_id = doc.metadata.get("document_id")
+                                # Only include citations from the requested document if document_id is specified
+                                if not document_id or str(doc_id) == str(document_id):
+                                    citations.append({
+                                        "document_id": doc_id,
+                                        "chunk_index": doc.metadata.get("chunk_index"),
+                                        "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
+                                        "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
+                                        "retrieval_method": "conversational"
+                                    })
             elif self.rag_chain:
                 # Use basic RAG chain
                 # Create document-filtered retriever if needed
                 if document_id:
-                    search_kwargs = {"k": max_context_chunks}
-                    retriever = self.vectorstore.as_retriever(search_kwargs=search_kwargs)
+                    # Filter documents by document_id and create a retriever from filtered docs
+                    # This ensures we only search within the specified document
+                    try:
+                        all_docs = self.vectorstore.get()
+                        filtered_docs = []
+                        for doc_text, metadata, doc_id_vec in zip(
+                            all_docs.get('documents', []), 
+                            all_docs.get('metadatas', []), 
+                            all_docs.get('ids', [])
+                        ):
+                            # Match document_id (handle both string and UUID formats)
+                            doc_id_str = str(metadata.get('document_id', '')) if metadata else ''
+                            if doc_id_str == str(document_id):
+                                filtered_docs.append(LangChainDocument(
+                                    page_content=doc_text,
+                                    metadata=metadata or {}
+                                ))
+                        
+                        if filtered_docs:
+                            # Create BM25 retriever for keyword-based search within filtered documents
+                            # This provides better semantic search within the document
+                            bm25_retriever = BM25Retriever.from_documents(filtered_docs)
+                            bm25_retriever.k = max_context_chunks
+                            retriever = bm25_retriever
+                        else:
+                            # No documents found for this document_id, use empty retriever
+                            # This will result in no context but won't break the chain
+                            class EmptyRetriever:
+                                def get_relevant_documents(self, query, k=5):
+                                    return []
+                            retriever = EmptyRetriever()
+                    except Exception as e:
+                        # If filtering fails, log and fall back to unfiltered retriever
+                        print(f"Warning: Failed to filter by document_id {document_id}: {e}")
+                        search_kwargs = {"k": max_context_chunks}
+                        retriever = self.vectorstore.as_retriever(search_kwargs=search_kwargs)
                 else:
                     retriever = self.ensemble_retriever or self.vectorstore.as_retriever(search_kwargs={"k": max_context_chunks})
 
@@ -490,18 +685,133 @@ Conversation History: {chat_history}
                         source_docs = chunk.get('context', [])
                         for i, doc in enumerate(source_docs):
                             if hasattr(doc, 'metadata'):
-                                citations.append({
-                                    "document_id": doc.metadata.get("document_id"),
-                                    "chunk_index": doc.metadata.get("chunk_index"),
-                                    "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
-                                    "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
-                                    "retrieval_method": "ensemble"
-                                })
+                                doc_id = doc.metadata.get("document_id")
+                                # Only include citations from the requested document if document_id is specified
+                                if not document_id or str(doc_id) == str(document_id):
+                                    citations.append({
+                                        "document_id": doc_id,
+                                        "chunk_index": doc.metadata.get("chunk_index"),
+                                        "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
+                                        "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
+                                        "retrieval_method": "ensemble"
+                                    })
             else:
-                # Fallback to AI service without RAG
-                async for chunk_content in self.ai_service.generate_streaming_response(prompt=query):
-                    full_response_content += chunk_content
-                    yield {"content": chunk_content, "done": False}
+                # Fallback to AI service, but still use RAG if document_id is provided
+                if document_id:
+                    # Even without RAG chain, we can still retrieve relevant chunks and use them as context
+                    try:
+                        print(f"DEBUG: Fallback RAG path - document_id={document_id}, query={query[:50]}...")
+                        # Get relevant chunks from the specified document
+                        relevant_chunks = await self.search_relevant_chunks(
+                            query=query,
+                            document_id=document_id,
+                            limit=max_context_chunks,
+                            use_ensemble=False,
+                            use_compression=False
+                        )
+                        print(f"DEBUG: Found {len(relevant_chunks)} relevant chunks for document_id={document_id}")
+                        
+                        if relevant_chunks:
+                            # Build context from retrieved chunks
+                            context_parts = []
+                            for chunk in relevant_chunks:
+                                content = chunk.get('content', '')
+                                if content:
+                                    context_parts.append(content)
+                                    # Add citation
+                                    citations.append({
+                                        "document_id": chunk.get('document_id'),
+                                        "chunk_index": chunk.get('chunk_index'),
+                                        "score": chunk.get('score'),
+                                        "content_preview": content[:100] + "..." if len(content) > 100 else content,
+                                        "retrieval_method": "similarity"
+                                    })
+                            
+                            # Build context string
+                            context = "\n\n".join(context_parts)
+                            
+                            # Create enhanced prompt with context
+                            enhanced_prompt = f"""Based on the following document context, answer the question.
+
+Document Context:
+{context}
+
+Question: {query}
+
+Answer:"""
+                            
+                            # Use AI service with context - use the specified model
+                            ai_service = await self._get_ai_service(model_name)
+                            if ai_service and hasattr(ai_service, 'generate_streaming_response'):
+                                async for chunk_content in ai_service.generate_streaming_response(
+                                    prompt=enhanced_prompt, context=None
+                                ):
+                                    full_response_content += chunk_content
+                                    yield {"content": chunk_content, "done": False}
+                            else:
+                                yield {"content": "AI service not available", "done": False}
+                        else:
+                            # No chunks found - check if document exists in vector store
+                            print(f"DEBUG: No chunks found for document_id={document_id}, checking vector store...")
+                            try:
+                                all_docs = self.vectorstore.get()
+                                print(f"DEBUG: Vector store contains {len(all_docs.get('documents', []))} total documents")
+                                # Check if any documents have this document_id
+                                matching_docs = 0
+                                all_document_ids = set()
+                                for metadata in all_docs.get('metadatas', []):
+                                    if metadata:
+                                        doc_id = metadata.get('document_id', '')
+                                        all_document_ids.add(str(doc_id))
+                                        if str(doc_id) == str(document_id):
+                                            matching_docs += 1
+                                print(f"DEBUG: Found {matching_docs} documents with document_id={document_id} in vector store")
+                                print(f"DEBUG: All document_ids in vector store: {list(all_document_ids)[:10]}")  # Show first 10
+                            except Exception as e:
+                                print(f"DEBUG: Error checking vector store: {e}")
+                                import traceback
+                                print(f"Traceback: {traceback.format_exc()}")
+                            
+                            # No chunks found, use AI service without context - use the specified model
+                            ai_service = await self._get_ai_service(model_name)
+                            if ai_service and hasattr(ai_service, 'generate_streaming_response'):
+                                async for chunk_content in ai_service.generate_streaming_response(
+                                    prompt=f"I couldn't find relevant information in the selected document. {query}", 
+                                    context=None
+                                ):
+                                    full_response_content += chunk_content
+                                    yield {"content": chunk_content, "done": False}
+                            else:
+                                yield {"content": "AI service not available and no document context found", "done": False}
+                    except Exception as e:
+                        import traceback
+                        print(f"Error in RAG fallback with document_id: {e}")
+                        print(f"Traceback: {traceback.format_exc()}")
+                        # Fall through to regular AI service fallback - use the specified model
+                        ai_service = await self._get_ai_service(model_name)
+                        if ai_service and hasattr(ai_service, 'generate_streaming_response'):
+                            try:
+                                async for chunk_content in ai_service.generate_streaming_response(prompt=query):
+                                    full_response_content += chunk_content
+                                    yield {"content": chunk_content, "done": False}
+                            except Exception as e2:
+                                print(f"Error in AI service streaming: {e2}")
+                                yield {"content": f"Error generating response: {str(e2)}", "done": False}
+                        else:
+                            yield {"content": "AI service not available", "done": False}
+                else:
+                    # No document_id, use AI service without RAG - use the specified model
+                    ai_service = await self._get_ai_service(model_name)
+                    if ai_service and hasattr(ai_service, 'generate_streaming_response'):
+                        try:
+                            async for chunk_content in ai_service.generate_streaming_response(prompt=query):
+                                full_response_content += chunk_content
+                                yield {"content": chunk_content, "done": False}
+                        except Exception as e:
+                            print(f"Error in AI service streaming: {e}")
+                            yield {"content": f"Error generating response: {str(e)}", "done": False}
+                    else:
+                        yield {"content": "AI service not available", "done": False}
 
             yield {
                 "content": full_response_content,
@@ -556,14 +866,27 @@ Conversation History: {chat_history}
 
             # Add to vector store
             try:
+                print(f"DEBUG: add_document_with_chunking - Adding {len(langchain_docs)} chunks for document_id={document_id}")
                 self.vectorstore.add_documents(langchain_docs)
                 try:
                     self.vectorstore.persist()  # Ensure persistence when supported
                 except Exception:
                     pass
+                # Verify documents were added
+                try:
+                    all_docs = self.vectorstore.get()
+                    matching_count = 0
+                    for metadata in all_docs.get('metadatas', []):
+                        if metadata and str(metadata.get('document_id', '')) == str(document_id):
+                            matching_count += 1
+                    print(f"DEBUG: add_document_with_chunking - Verified: {matching_count} chunks with document_id={document_id} in vector store")
+                except Exception as e:
+                    print(f"DEBUG: add_document_with_chunking - Could not verify: {e}")
                 return True
             except Exception as e:
                 print(f"Failed to add docs to vectorstore: {e}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
                 return False
 
         except Exception as e:
@@ -650,10 +973,34 @@ Conversation History: {chat_history}
                         ))
 
                 if filtered_docs:
-                    # Create BM25 retriever for keyword-based search within filtered documents
-                    bm25_retriever = BM25Retriever.from_documents(filtered_docs)
-                    docs = bm25_retriever.get_relevant_documents(query, k=limit)
-                    retriever_method = "bm25_filtered"
+                    # Try BM25 retriever for keyword-based search within filtered documents
+                    try:
+                        bm25_retriever = BM25Retriever.from_documents(filtered_docs)
+                        docs = bm25_retriever.get_relevant_documents(query, k=limit)
+                        retriever_method = "bm25_filtered"
+                    except Exception as bm25_error:
+                        # Fallback to simple keyword matching if BM25 is not available
+                        print(f"DEBUG: BM25 not available ({bm25_error}), using keyword matching on filtered documents")
+                        # Simple keyword-based scoring
+                        scored_docs = []
+                        query_lower = query.lower()
+                        query_words = set(query_lower.split())
+                        for doc in filtered_docs:
+                            content_lower = doc.page_content.lower()
+                            content_words = set(content_lower.split())
+                            # Calculate Jaccard similarity (intersection over union)
+                            intersection = len(query_words & content_words)
+                            union = len(query_words | content_words)
+                            score = intersection / union if union > 0 else 0
+                            # Also boost score if query words appear multiple times
+                            word_count_score = sum(content_lower.count(word) for word in query_words) / max(len(query_words), 1)
+                            final_score = (score * 0.7) + (min(word_count_score / 10, 0.3) * 0.3)  # Weighted combination
+                            scored_docs.append((final_score, doc))
+                        
+                        # Sort by score and take top k
+                        scored_docs.sort(key=lambda x: x[0], reverse=True)
+                        docs = [doc for _, doc in scored_docs[:limit]]
+                        retriever_method = "keyword_filtered"
                 else:
                     docs = []
             else:
@@ -825,21 +1172,21 @@ Conversation History: {chat_history}
                     pass
 
                 # Fallback to AI service without RAG - get AI service for requested model
-                def _get_ai_with_fallback(mname: Optional[str] = None):
+                async def _get_ai_with_fallback(mname: Optional[str] = None):
                     try:
-                        ai_obj = get_ai_service(mname)
+                        ai_obj = await get_ai_service(mname)
                         # If the chosen provider cannot handle the model, fall back to default
                         try:
                             provider = ai_obj._get_provider_for_model(mname or ai_obj.model_name)
                         except Exception:
                             provider = "none"
                         if provider == "none":
-                            return get_ai_service(None)
+                            return await get_ai_service(None)
                         return ai_obj
                     except Exception:
-                        return get_ai_service(None)
+                        return await get_ai_service(None)
 
-                ai = _get_ai_with_fallback(model_name)
+                ai = await _get_ai_with_fallback(model_name)
                 ai_response = await ai.generate_response(prompt=query)
                 return {
                     **ai_response,
@@ -884,20 +1231,20 @@ Conversation History: {chat_history}
                 pass
 
             # Fallback to regular AI response with model availability check
-            def _get_ai_with_fallback_local(mname: Optional[str] = None):
+            async def _get_ai_with_fallback_local(mname: Optional[str] = None):
                 try:
-                    ai_obj = get_ai_service(mname)
+                    ai_obj = await get_ai_service(mname)
                     try:
                         provider = ai_obj._get_provider_for_model(mname or ai_obj.model_name)
                     except Exception:
                         provider = "none"
                     if provider == "none":
-                        return get_ai_service(None)
+                        return await get_ai_service(None)
                     return ai_obj
                 except Exception:
-                    return get_ai_service(None)
+                    return await get_ai_service(None)
 
-            ai = _get_ai_with_fallback_local(model_name)
+            ai = await _get_ai_with_fallback_local(model_name)
             ai_response = await ai.generate_response(prompt=query)
             return {
                 **ai_response,
@@ -1119,22 +1466,46 @@ Conversation History: {chat_history}
                     search_kwargs={"k": 10, "lambda_mult": mmr_lambda}
                 )
 
-                self.ensemble_retriever = EnsembleRetriever(
-                    retrievers=[similarity_retriever, mmr_retriever],
-                    weights=[0.7, 0.3]
-                )
+                try:
+                    self.ensemble_retriever = EnsembleRetriever(
+                        retrievers=[similarity_retriever, mmr_retriever],
+                        weights=[0.7, 0.3]
+                    )
+                except TypeError as te:
+                    if "takes no arguments" in str(te) or "positional" in str(te).lower():
+                        print(f"Warning: EnsembleRetriever API issue, using fallback: {te}")
+                        # Fallback to similarity retriever only
+                        self.ensemble_retriever = similarity_retriever
+                    else:
+                        raise
 
             elif strategy == "compression":
                 # Reconfigure compression retriever
+                if self.embeddings is None:
+                    print("Warning: Embeddings not available for compression retriever")
+                    return False
+                
                 embeddings_filter = EmbeddingsFilter(
                     embeddings=self.embeddings,
                     similarity_threshold=similarity_threshold
                 )
 
-                self.compression_retriever = DocumentCompressorPipeline(
-                    retrievers=[self.vectorstore.as_retriever(search_kwargs={"k": 10})],
-                    compressors=[embeddings_filter]
-                )
+                base_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 10})
+                try:
+                    self.compression_retriever = DocumentCompressorPipeline(
+                        base_retriever=base_retriever,
+                        transformers=[embeddings_filter]
+                    )
+                except TypeError:
+                    # Try alternative API with compressors parameter
+                    try:
+                        self.compression_retriever = DocumentCompressorPipeline(
+                            base_retriever=base_retriever,
+                            compressors=[embeddings_filter]
+                        )
+                    except Exception as e:
+                        print(f"Failed to create compression retriever: {e}")
+                        return False
 
             elif strategy == "mmr":
                 self.ensemble_retriever = self.vectorstore.as_retriever(
@@ -1303,11 +1674,12 @@ if not LANGCHAIN_AVAILABLE:
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
             self.conversation_memory = create_memory(k=5)
             self.callback_handler = None
-            # Lazy import AI service
+            # Lazy import AI service - note: get_ai_service() is async
+            self._ai_service_getter = None
+            self._ai_service_instance = None
             try:
                 from .ai_service import get_ai_service
-
-                self.ai_service = get_ai_service()
+                self._ai_service_getter = get_ai_service
             except Exception:
                 class _AIStub:
                     def __init__(self):
@@ -1322,14 +1694,39 @@ if not LANGCHAIN_AVAILABLE:
 
                         return gen()
 
-                self.ai_service = _AIStub()
+                self._ai_service_instance = _AIStub()
+
+        async def _get_ai_service(self, model_name: Optional[str] = None):
+            """Lazy-load AI service (async)"""
+            if self._ai_service_instance is not None:
+                return self._ai_service_instance
+            if self._ai_service_getter:
+                self._ai_service_instance = await self._ai_service_getter(model_name)
+                return self._ai_service_instance
+            # Fallback stub
+            class _AIStub:
+                def __init__(self):
+                    self.model_name = "stub"
+
+                async def generate_response(self, prompt: str):
+                    return {"response": "(AI stub) " + str(prompt)}
+
+                async def generate_streaming_response(self, prompt: str):
+                    async def gen():
+                        yield "(AI stub) " + str(prompt)
+                    return gen()
+            
+            self._ai_service_instance = _AIStub()
+            return self._ai_service_instance
 
         async def generate_rag_streaming_response(self, query: str, document_id: Optional[str] = None,
                                                   max_context_chunks: int = 3, conversational: bool = False,
-                                                  chat_history: Optional[List[Dict[str, str]]] = None) -> AsyncGenerator[Dict[str, Any], None]:
+                                                  chat_history: Optional[List[Dict[str, str]]] = None,
+                                                  model_name: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
             # Fallback: stream AI service outputs as simple content chunks
             try:
-                async for chunk in self.ai_service.generate_streaming_response(prompt=query):
+                ai_service = await self._get_ai_service(model_name)
+                async for chunk in ai_service.generate_streaming_response(prompt=query):
                     yield {"content": chunk}
                 # final payload
                 yield {"content": "", "done": True, "citations": []}
@@ -1338,10 +1735,12 @@ if not LANGCHAIN_AVAILABLE:
 
         async def generate_rag_response(self, query: str, document_id: Optional[str] = None,
                                         max_context_chunks: int = 3, conversational: bool = False,
-                                        chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
+                                        chat_history: Optional[List[Dict[str, str]]] = None,
+                                        model_name: Optional[str] = None) -> Dict[str, Any]:
             # Fallback sync response from AI service
             try:
-                resp = await self.ai_service.generate_response(prompt=query)
+                ai_service = await self._get_ai_service(model_name)
+                resp = await ai_service.generate_response(prompt=query)
                 if isinstance(resp, dict):
                     return {"response": resp.get("response", ""), "citations": resp.get("citations", [])}
                 return {"response": str(resp), "citations": []}

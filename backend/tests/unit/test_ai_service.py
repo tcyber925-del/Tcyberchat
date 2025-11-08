@@ -5,7 +5,7 @@ from unittest.mock import patch, AsyncMock
 # This fixture is essential to reset the state between tests
 @pytest.fixture(autouse=True)
 def reset_ai_service_cache():
-    from backend.src.services import ai_service
+    from src.services import ai_service
     ai_service._ai_service_instance_cache.clear()
     ai_service.AIService._llama_cpp_client = None
     ai_service.AIService._llama_cpp_models = []
@@ -32,10 +32,10 @@ async def test_llama_cpp_integration():
                 yield chunk
 
     # 2. Patch the real client with our fake one
-    with patch('backend.src.services.ai_service.LlamaCppClient') as mock_llama_client:
+    with patch('src.services.ai_service.LlamaCppClient') as mock_llama_client:
         mock_llama_client.return_value = FakeLlamaCppClient()
 
-        from backend.src.services.ai_service import AIService, get_ai_service
+        from src.services.ai_service import AIService, get_ai_service
 
         # 3. Test fetching available models
         service_instance = AIService() # Use a direct instance to test get_available_models

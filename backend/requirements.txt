@@ -25,6 +25,7 @@ sse-starlette
 
 # LangChain memory and conversation management
 langchain-experimental
+langchain-huggingface
 
 # Multi-modal processing
 transformers
@@ -40,15 +41,10 @@ pymupdf
 python-docx
 pytesseract
 opencv-python
-# File processing
-python-multipart
-aiofiles
-pymupdf
 
 # Utilities
 python-dotenv
 httpx
-asyncio
 
 # Development dependencies
 pytest

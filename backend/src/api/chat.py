@@ -142,7 +142,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                     # Fall back to streaming generator if available
                     if hasattr(rag_service, "generate_rag_streaming_response"):
                         full = []
-                        async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[]):
+                        async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[], model_name=request.model):
                             c = chunk.get("content") if isinstance(chunk, dict) else None
                             if c:
                                 full.append(str(c))
@@ -151,7 +151,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                         response_text = "".join(full)
             elif hasattr(rag_service, "generate_rag_streaming_response"):
                 full = []
-                async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[]):
+                async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[], model_name=request.model):
                     c = chunk.get("content") if isinstance(chunk, dict) else None
                     if c:
                         full.append(str(c))
@@ -263,14 +263,23 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
     try:
         conversation_id = request.conversationId
         if not conversation_id:
-            conversation = chat_service.create_conversation()
+            # Create new conversation with document_id if provided
+            conversation = chat_service.create_conversation(document_id=str(request.documentId) if request.documentId else None)
             conversation_id = str(conversation.id)
         else:
-            conversation_id = str(UUID(conversation_id))
+            # request.conversationId is validated as UUID by Pydantic; ensure string form
+            conversation_id = str(conversation_id)
 
-        # Add user message
+        # Add user message with metadata
+        user_metadata = {
+            "model_used": request.model,
+            "document_id": str(request.documentId) if request.documentId else None,
+        }
         user_message = chat_service.add_message(
-            conversation_id=conversation_id, content=request.message.strip(), message_type="user"
+            conversation_id=conversation_id, 
+            content=request.message.strip(), 
+            message_type="user",
+            metadata=user_metadata
         )
 
         # Create placeholder bot message
@@ -286,29 +295,45 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                 # initial ping
                 yield {"event": "chunk", "data": " "}
                 try:
+                    # Convert document_id to string (RAG service expects string, not UUID)
+                    doc_id = str(request.documentId) if request.documentId else None
                     async for chunk_data in rag_service.generate_rag_streaming_response(
-                        query=request.message, document_id=request.documentId, conversational=True, chat_history=[]
+                        query=request.message, document_id=doc_id, conversational=True, chat_history=[], model_name=request.model
                     ):
                         # chunk_data may be dicts with 'content' or final dict with 'citations'
                         content_piece = None
                         if isinstance(chunk_data, dict):
                             content_piece = chunk_data.get("content")
-                        if content_piece is None:
-                            # Skip non-content chunks
-                            continue
-                        # Coerce to str safely
-                        if isinstance(content_piece, list):
-                            piece_text = "".join(map(str, content_piece))
-                        else:
-                            piece_text = str(content_piece)
-                        full_response += piece_text
-                        yield {"event": "chunk", "data": piece_text}
-                        if isinstance(chunk_data, dict) and chunk_data.get("citations"):
-                            citations = chunk_data.get("citations")
+                            # Check if this is the final chunk with citations
+                            if chunk_data.get("done") and chunk_data.get("citations"):
+                                citations = chunk_data.get("citations", [])
+                            elif chunk_data.get("citations"):
+                                citations = chunk_data.get("citations", [])
+                        
+                        # Handle content chunks
+                        if content_piece is not None:
+                            # Coerce to str safely
+                            if isinstance(content_piece, list):
+                                piece_text = "".join(map(str, content_piece))
+                            else:
+                                piece_text = str(content_piece)
+                            if piece_text:  # Only yield non-empty content
+                                full_response += piece_text
+                                yield {"event": "chunk", "data": piece_text}
+                        # If this is a done chunk without content, we still want to process citations
+                        elif isinstance(chunk_data, dict) and chunk_data.get("done"):
+                            # Final chunk - citations already captured above
+                            pass
 
-                    # finalize placeholder
+                    # finalize placeholder with enhanced metadata
+                    processing_metadata = {
+                        "streaming": True,
+                        "rag_enabled": True,
+                        "model_used": request.model,
+                        "document_id": str(request.documentId) if request.documentId else None,
+                    }
                     updated = chat_service.update_message(
-                        str(placeholder.id), content=full_response, citations=citations, processing_metadata={"streaming": True, "rag_enabled": True}, placeholder=False
+                        str(placeholder.id), content=full_response, citations=citations, processing_metadata=processing_metadata, placeholder=False
                     )
                     yield {"event": "message", "data": json.dumps({"content": full_response, "done": True, "messageId": str(updated.id if updated else placeholder.id), "citations": citations})}
                 except Exception as e:
@@ -351,8 +376,13 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                 # Add AI response to memory
                 memory_service.add_message(conversation_id, "assistant", full_response)
 
-                # finalize placeholder
-                updated = chat_service.update_message(str(placeholder.id), content=full_response, processing_metadata={"streaming": True}, placeholder=False)
+                # finalize placeholder with enhanced metadata
+                processing_metadata = {
+                    "streaming": True,
+                    "model_used": request.model,
+                    "document_id": str(request.documentId) if request.documentId else None,
+                }
+                updated = chat_service.update_message(str(placeholder.id), content=full_response, processing_metadata=processing_metadata, placeholder=False)
                 yield {"event": "message", "data": json.dumps({"content": full_response, "done": True, "messageId": str(updated.id if updated else placeholder.id), "citations": []})}
 
             except Exception as e:

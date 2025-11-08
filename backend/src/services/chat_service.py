@@ -52,15 +52,28 @@ class ChatService:
         )
 
         self.db.add(message)
+        self.db.flush()  # Flush to get the message ID and make it available
 
         # Update conversation last activity
         conversation = self.db.query(Conversation).filter(Conversation.id == conversation_id).first()
         if conversation:
             conversation.update_activity()
             # Generate smart title if this is the first user message
-            if message_type == 'user' and len(conversation.messages) == 0:
-                # use setter to avoid assigning Column objects directly
-                conversation.title = conversation.generate_smart_title()
+            if message_type == 'user':
+                # Count existing user messages (excluding the one we just added)
+                existing_user_messages = self.db.query(Message).filter(
+                    Message.conversation_id == conversation_id,
+                    Message.type == 'user'
+                ).count()
+                # If this is the first user message (count is 1, meaning only the one we just added)
+                if existing_user_messages == 1:
+                    # Use the message content directly to generate title
+                    if content and len(content.strip()) > 0:
+                        # Truncate to first 50 characters, add ellipsis if needed
+                        title_content = content.strip()[:50]
+                        if len(content.strip()) > 50:
+                            title_content += "..."
+                        conversation.title = title_content
 
         self.db.commit()
         self.db.refresh(message)

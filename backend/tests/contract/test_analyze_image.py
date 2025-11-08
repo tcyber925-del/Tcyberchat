@@ -5,7 +5,7 @@ Tests image analysis functionality using multi-modal AI
 
 import pytest
 from fastapi.testclient import TestClient
-from backend.main import app
+from main import app
 
 client = TestClient(app)
 
