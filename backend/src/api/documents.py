@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Body
 import asyncio
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pathlib import Path
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -8,12 +8,18 @@ from ..services.document_service import get_document_service, DocumentService
 from ..models.document import Document, DocumentRead
 from typing import List # Import List for type hinting
 from uuid import uuid4
+from pydantic import BaseModel
+import json
 
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["documents"])
+
+
+class UpdateDocumentRequest(BaseModel):
+    filename: str
 
 
 @router.post("/", status_code=201)
@@ -124,6 +130,13 @@ async def upload_document(
             document = document_service.create_document_record(filename=file.filename, file_path=path, size=size, mime_type=mime)
 
         logger.info(f"Document '{file.filename}' uploaded with ID: {document.id}")
+
+        # Process document asynchronously to extract content and add to vector store
+        try:
+            # Run processing in background to avoid blocking the response
+            asyncio.create_task(document_service.process_document_async(str(document.id)))
+        except Exception as e:
+            logger.exception(f"Failed to start document processing for {document.id}: {e}")
 
         return {
             "documentId": str(document.id),
@@ -246,6 +259,51 @@ def summarize_document(
         "summaryId": summary_id,
         "model": "extractive-placeholder"
     }
+
+@router.patch("/{document_id}", response_model=DocumentRead)
+def update_document(
+    document_id: str,
+    request: UpdateDocumentRequest = Body(...),
+    document_service: DocumentService = Depends(get_document_service),
+) -> Document:
+    """
+    Updates a document's filename.
+    """
+    logger.info(f"Updating document with ID: {document_id}")
+    document = document_service.update_document_filename(document_id, request.filename)
+    if not document:
+        logger.warning(f"Document with ID {document_id} not found for update")
+        raise HTTPException(status_code=404, detail="Document not found")
+    logger.info(f"Document with ID {document_id} updated successfully")
+    return document
+
+
+@router.post("/{document_id}/export")
+def export_document(
+    document_id: str,
+    document_service: DocumentService = Depends(get_document_service),
+) -> Response:
+    """
+    Exports a document as JSON with all its metadata and content.
+    """
+    logger.info(f"Exporting document with ID: {document_id}")
+    document = document_service.get_document(document_id)
+    if not document:
+        logger.warning(f"Document with ID {document_id} not found for export")
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Build export payload
+    payload = document.to_dict()
+    # Include additional fields for export
+    payload["content"] = getattr(document, 'content', None)
+    payload["transcription"] = getattr(document, 'transcription', None)
+    payload["imageAnalysis"] = getattr(document, 'image_analysis', None)
+    payload["chunks"] = getattr(document, 'chunks', None)
+    payload["vectorStoreId"] = getattr(document, 'vector_store_id', None)
+    
+    body = json.dumps(payload, indent=2, default=str)
+    return Response(content=body, media_type="application/json")
+
 
 @router.delete("/{document_id}", status_code=204)
 def delete_document(

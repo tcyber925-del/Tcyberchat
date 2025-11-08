@@ -17,6 +17,7 @@ from typing import Callable
 # Import API routers
 try:
     from src.api.chat import router as chat_router
+    from src.api.conversations import router as conversations_router
     from src.api.documents import router as documents_router
     from src.api.search import router as search_router
     from src.api.data_management import router as data_management_router
@@ -35,6 +36,7 @@ except ImportError:
     import os
     sys.path.insert(0, os.path.dirname(__file__))
     from src.api.chat import router as chat_router
+    from src.api.conversations import router as conversations_router
     from src.api.documents import router as documents_router
     from src.api.search import router as search_router
     from src.api.data_management import router as data_management_router
@@ -197,6 +199,8 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
 app.include_router(chat_router, prefix="/api/chat")
 # Also include chat router at top-level /chat for older tests that call /chat/
 app.include_router(chat_router, prefix="/chat")
+app.include_router(conversations_router, prefix="/api/v1/chat/conversations")
+app.include_router(conversations_router, prefix="/api/chat/conversations")
 app.include_router(documents_router, prefix="/api/documents")
 # Also include documents router at top-level /documents for tests that use that path
 app.include_router(documents_router, prefix="/documents")

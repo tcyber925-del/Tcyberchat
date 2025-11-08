@@ -56,6 +56,25 @@ class AIService:
         """Determine which AI provider to use for a given model name."""
         await self._fetch_llama_cpp_models_if_needed()
 
+        # Handle provider prefixes (e.g., "google: models/gemini-2.5-flash", "openrouter: openai/gpt-3.5-turbo")
+        # Only treat as provider prefix if the part before colon is a known provider name (not a model path)
+        if ":" in model_name:
+            parts = model_name.split(":", 1)
+            provider_prefix = parts[0].lower().strip()
+            # Only treat as provider prefix if it's a simple provider name (not a path like "openai/gpt-oss-20b")
+            if "/" not in provider_prefix:
+                if provider_prefix in ("google", "gemini"):
+                    return "google"
+                elif provider_prefix in ("openrouter", "openai"):
+                    return "openrouter"
+                elif provider_prefix == "llama.cpp":
+                    return "llama.cpp"
+                # If prefix doesn't match known providers, continue with normal logic
+                # Use the part after the colon as the model name
+                model_name = parts[1].strip()
+            # If there's a "/" in the prefix, it's likely a model path (e.g., "openai/gpt-oss-20b:free")
+            # Continue with normal logic using the full model_name
+
         # Normalize model name by removing version/tag if present
         base_model_name = model_name.split(":")[0]
 
@@ -106,11 +125,53 @@ class AIService:
             elif provider == "google" and self.gemini_client:
                 logger.info(f"Attempting streaming response with Google Gemini using model: {self.model_name}...")
                 full_prompt = self._construct_full_prompt(prompt, context)
+                # Use the selected model, not the hardcoded one
+                # Extract model name (remove provider prefix if present, e.g., "google: models/gemini-2.5-flash" -> "models/gemini-2.5-flash")
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    # Check if the first part is a provider prefix
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix in ("google", "gemini"):
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                # Create a new client with the correct model if needed
+                if self.gemini_client.model_name != actual_model:
+                    try:
+                        from ..clients.gemini_client import GeminiClient
+                        gemini_key = os.getenv('GEMINI_API_KEY')
+                        if gemini_key:
+                            self.gemini_client = GeminiClient(api_key=gemini_key, model=actual_model)
+                    except Exception as e:
+                        logger.warning(f"Failed to update Gemini client model: {e}")
                 async for chunk in self.gemini_client.generate_stream(full_prompt):
                     yield chunk
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(f"Attempting streaming response with OpenRouter using model: {self.model_name}...")
                 full_prompt = self._construct_full_prompt(prompt, context)
+                # Use the selected model, not the hardcoded one
+                # Extract model name (remove provider prefix if present, e.g., "openrouter: openai/gpt-3.5-turbo" -> "openai/gpt-3.5-turbo")
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    # Check if the first part is a provider prefix
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix in ("openrouter", "openai"):
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                # Create a new client with the correct model if needed
+                if self.openrouter_client.model != actual_model:
+                    try:
+                        from ..clients.openrouter_client import OpenRouterClient
+                        openrouter_key = os.getenv('OPENROUTER_API_KEY')
+                        if openrouter_key:
+                            self.openrouter_client = OpenRouterClient(api_key=openrouter_key, model=actual_model)
+                    except Exception as e:
+                        logger.warning(f"Failed to update OpenRouter client model: {e}")
                 async for chunk in self.openrouter_client.chat_stream(full_prompt):
                     yield chunk
             else:
@@ -145,11 +206,49 @@ class AIService:
             elif provider == "google" and self.gemini_client:
                 logger.info(f"Attempting non-streaming response with Google Gemini using model: {self.model_name}...")
                 full_prompt = self._construct_full_prompt(prompt, context)
+                # Use the selected model, not the hardcoded one
+                # Extract model name (remove provider prefix if present)
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix in ("google", "gemini"):
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                if self.gemini_client.model_name != actual_model:
+                    try:
+                        from ..clients.gemini_client import GeminiClient
+                        gemini_key = os.getenv('GEMINI_API_KEY')
+                        if gemini_key:
+                            self.gemini_client = GeminiClient(api_key=gemini_key, model=actual_model)
+                    except Exception as e:
+                        logger.warning(f"Failed to update Gemini client model: {e}")
                 if self.gemini_client:
                     response_text = await asyncio.get_event_loop().run_in_executor(None, lambda: self.gemini_client.generate(full_prompt))
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(f"Attempting non-streaming response with OpenRouter using model: {self.model_name}...")
                 full_prompt = self._construct_full_prompt(prompt, context)
+                # Use the selected model, not the hardcoded one
+                # Extract model name (remove provider prefix if present)
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix in ("openrouter", "openai"):
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                if self.openrouter_client.model != actual_model:
+                    try:
+                        from ..clients.openrouter_client import OpenRouterClient
+                        openrouter_key = os.getenv('OPENROUTER_API_KEY')
+                        if openrouter_key:
+                            self.openrouter_client = OpenRouterClient(api_key=openrouter_key, model=actual_model)
+                    except Exception as e:
+                        logger.warning(f"Failed to update OpenRouter client model: {e}")
                 if self.openrouter_client:
                     response_text = await asyncio.get_event_loop().run_in_executor(None, lambda: self.openrouter_client.chat(full_prompt))
             else:

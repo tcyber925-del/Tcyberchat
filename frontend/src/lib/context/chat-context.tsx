@@ -5,8 +5,8 @@ import { ChatSession } from '@/types/chat';
 import { Message } from '@/types/message';
 import { Document } from '@/types/document';
 import { UserSettings } from '@/types/settings';
-import { sendMessageStreaming, getModels } from '@/lib/api/chat';
-import { uploadDocument as apiUploadDocument, getDocuments as apiGetDocuments, deleteDocument as apiDeleteDocument } from '@/lib/api/documents';
+import { sendMessageStreaming, getModels, getConversations, getConversationMessages, deleteConversation, updateConversation, exportConversation } from '@/lib/api/chat';
+import { uploadDocument as apiUploadDocument, getDocuments as apiGetDocuments, deleteDocument as apiDeleteDocument, updateDocument as apiUpdateDocument, exportDocument as apiExportDocument } from '@/lib/api/documents';
 import { useToast } from './toast-context'; // Import useToast
 
 interface ChatContextType {
@@ -27,6 +27,8 @@ interface ChatContextType {
   selectDocument: (documentId: string) => void;
   uploadDocument: (file: File) => Promise<void>;
   deleteDocument: (documentId: string) => Promise<void>; // Add deleteDocument
+  renameDocument: (documentId: string, newFilename: string) => Promise<void>;
+  shareDocument: (documentId: string) => Promise<void>;
   isLoading: boolean;
   error: string | null;
   setLoading: (loading: boolean) => void;
@@ -43,6 +45,10 @@ interface ChatContextType {
   deleteMessage: (messageId: string) => void;
   undoDeleteMessage: () => void;
   lastDeletedMessage: Message | null;
+  // Conversation management
+  deleteSession: (sessionId: string) => Promise<void>;
+  renameSession: (sessionId: string, newTitle: string) => Promise<void>;
+  shareSession: (sessionId: string) => Promise<void>;
 }
 
 import { useSettings } from './settings-context';
@@ -73,26 +79,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const { showToast } = useToast(); // Use the toast hook
 
-  // Constants for localStorage keys
-  const SESSIONS_STORAGE_KEY = 'tcyber-chat-sessions';
-
-  // Load conversations from localStorage on mount
+  // Load conversations from database on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SESSIONS_STORAGE_KEY);
-      if (stored) {
-        const parsedSessions = JSON.parse(stored);
-        const sessionsWithDates = parsedSessions.map((session: any) => ({
-          ...session,
-          timestamp: new Date(session.timestamp),
-          lastActivity: new Date(session.lastActivity),
-        }));
+    const loadConversations = async () => {
+      try {
+        setIsLoading(true);
+        const conversations = await getConversations(50);
+        // Validate and normalize conversation data
+        const sessionsWithDates = conversations
+          .filter((conv: any) => conv && conv.id) // Filter out invalid conversations
+          .map((conv: any) => {
+            try {
+              return {
+                id: conv.id,
+                title: conv.title || 'Untitled Conversation',
+                timestamp: conv.startedAt ? new Date(conv.startedAt) : new Date(),
+                lastActivity: conv.lastActivity ? new Date(conv.lastActivity) : new Date(),
+                documentId: conv.documentId || undefined,
+                messageCount: conv.messageCount || 0,
+              };
+            } catch (dateError) {
+              console.warn('Error parsing dates for conversation:', conv.id, dateError);
+              // Fallback to current date if date parsing fails
+              return {
+                id: conv.id,
+                title: conv.title || 'Untitled Conversation',
+                timestamp: new Date(),
+                lastActivity: new Date(),
+                documentId: conv.documentId || undefined,
+                messageCount: conv.messageCount || 0,
+              };
+            }
+          });
         setSessions(sessionsWithDates);
+      } catch (error) {
+        console.error('Failed to load conversations from database:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load chat sessions';
+        showToast(errorMessage, 'error');
+        // Set empty array on error to prevent UI issues
+        setSessions([]);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.warn('Failed to load sessions from localStorage:', error);
-      showToast('Failed to load chat sessions.', 'error');
-    }
+    };
+    loadConversations();
   }, [showToast]);
 
   // Fetch documents on mount
@@ -128,38 +158,69 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     fetchModels();
   }, [showToast]);
 
-  // Save sessions to localStorage whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem(SESSIONS_STORAGE_KEY, JSON.stringify(sessions));
-    }  catch (error) {
-      console.warn('Failed to save sessions to localStorage:', error);
-      showToast('Failed to save chat sessions.', 'error');
-    }
-  }, [sessions]);
-
   const addMessage = (message: Message) => {
     setMessages((prev) => [...prev, message]);
   };
 
-  const selectSession = (sessionId: string | null) => {
+  const selectSession = async (sessionId: string | null) => {
     if (sessionId === null) {
       setCurrentSession(null);
       setMessages([]);
+      setSelectedDocumentId(null);
       showToast('Started a new chat.', 'info');
       return;
     }
-    // TODO: Implement fetching session details from API
-    const newSession: ChatSession = {
-      id: sessionId,
-      title: `Chat ${sessionId.substring(0, 4)}`,
-      timestamp: new Date(),
-      lastActivity: new Date(),
-      messageCount: 0,
-    };
-    setCurrentSession(newSession);
-    setMessages([]); // Clear messages for new session
-    showToast(`Switched to session ${newSession.title}`, 'info');
+    
+    // Load conversation and messages from API
+    try {
+      setIsLoading(true);
+      const { conversation, messages: loadedMessages } = await getConversationMessages(sessionId);
+      
+      const session: ChatSession = {
+        id: conversation.id,
+        title: conversation.title,
+        timestamp: new Date(conversation.startedAt),
+        lastActivity: new Date(conversation.lastActivity),
+        documentId: conversation.documentId || undefined,
+        messageCount: conversation.messageCount,
+      };
+      
+      setCurrentSession(session);
+      setMessages(loadedMessages);
+      
+      // Set selected document if conversation has one
+      if (conversation.documentId) {
+        setSelectedDocumentId(conversation.documentId);
+      } else {
+        setSelectedDocumentId(null);
+      }
+      
+      // Refresh conversations list to update last activity (don't fail if this fails)
+      try {
+        const conversations = await getConversations(50);
+        const updatedSessions = conversations
+          .filter((conv: any) => conv && conv.id)
+          .map((conv: any) => ({
+            id: conv.id,
+            title: conv.title || 'Untitled Conversation',
+            timestamp: conv.startedAt ? new Date(conv.startedAt) : new Date(),
+            lastActivity: conv.lastActivity ? new Date(conv.lastActivity) : new Date(),
+            documentId: conv.documentId || undefined,
+            messageCount: conv.messageCount || 0,
+          }));
+        setSessions(updatedSessions);
+      } catch (refreshError) {
+        // Don't show error for refresh failure, just log it
+        console.warn('Failed to refresh conversations list:', refreshError);
+      }
+      
+      showToast(`Loaded conversation: ${session.title}`, 'info');
+    } catch (error) {
+      console.error('Failed to load conversation:', error);
+      showToast('Failed to load conversation.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const selectDocument = (documentId: string) => {
@@ -197,6 +258,66 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete document';
       setError(errorMessage);
       showToast(errorMessage, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renameDocument = async (documentId: string, newFilename: string) => {
+    if (!newFilename || newFilename.trim().length === 0) {
+      showToast('Filename cannot be empty.', 'error');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const updatedDocument = await apiUpdateDocument(documentId, newFilename.trim());
+      
+      // Update in documents list
+      setDocuments(prev => prev.map(doc => 
+        doc.id === documentId ? updatedDocument : doc
+      ));
+      
+      showToast('Document renamed successfully.', 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename document';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const shareDocument = async (documentId: string) => {
+    try {
+      setIsLoading(true);
+      const documentData = await apiExportDocument(documentId);
+      
+      // Create a JSON blob and download it
+      const jsonString = JSON.stringify(documentData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `document-${documentId}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // Also copy to clipboard as a fallback
+      try {
+        await navigator.clipboard.writeText(jsonString);
+        showToast('Document exported and copied to clipboard!', 'success');
+      } catch (clipboardError) {
+        showToast('Document exported successfully!', 'success');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export document';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -298,6 +419,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           addMessage(aiMessage);
           showToast('AI response received!', 'success');
 
+          // Refresh conversations list to get updated last activity and any new conversations
+          const refreshConversations = async () => {
+            try {
+              const conversations = await getConversations(50);
+              const updatedSessions = conversations
+                .filter((conv: any) => conv && conv.id)
+                .map((conv: any) => ({
+                  id: conv.id,
+                  title: conv.title || 'Untitled Conversation',
+                  timestamp: conv.startedAt ? new Date(conv.startedAt) : new Date(),
+                  lastActivity: conv.lastActivity ? new Date(conv.lastActivity) : new Date(),
+                  documentId: conv.documentId || undefined,
+                  messageCount: conv.messageCount || 0,
+                }));
+              setSessions(updatedSessions);
+              
+              // If we don't have a current session but we have a conversationId, find and set it
+              if (!currentSession && (conversationId || userMessage.conversationId)) {
+                const convId = conversationId || userMessage.conversationId;
+                const foundSession = updatedSessions.find((s: ChatSession) => s.id === convId);
+                if (foundSession) {
+                  setCurrentSession(foundSession);
+                }
+              }
+            } catch (error) {
+              // Don't show error toast for background refresh failures
+              console.warn('Failed to refresh conversations:', error);
+            }
+          };
+          // Don't await - let it run in background
+          refreshConversations();
+
           // Update session last activity
           if (currentSession) {
             setCurrentSession({
@@ -361,6 +514,98 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Conversation management functions
+  const deleteSession = async (sessionId: string) => {
+    try {
+      setIsLoading(true);
+      await deleteConversation(sessionId);
+      
+      // Remove from sessions list
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      
+      // If the deleted session was the current one, clear it
+      if (currentSession?.id === sessionId) {
+        setCurrentSession(null);
+        setMessages([]);
+        setSelectedDocumentId(null);
+      }
+      
+      showToast('Conversation deleted successfully.', 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const renameSession = async (sessionId: string, newTitle: string) => {
+    if (!newTitle || newTitle.trim().length === 0) {
+      showToast('Title cannot be empty.', 'error');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      await updateConversation(sessionId, { title: newTitle.trim() });
+      
+      // Update in sessions list
+      setSessions(prev => prev.map(s => 
+        s.id === sessionId ? { ...s, title: newTitle.trim() } : s
+      ));
+      
+      // Update current session if it's the one being renamed
+      if (currentSession?.id === sessionId) {
+        setCurrentSession({ ...currentSession, title: newTitle.trim() });
+      }
+      
+      showToast('Conversation renamed successfully.', 'success');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to rename conversation';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const shareSession = async (sessionId: string) => {
+    try {
+      setIsLoading(true);
+      const conversationData = await exportConversation(sessionId);
+      
+      // Create a JSON blob and download it
+      const jsonString = JSON.stringify(conversationData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `conversation-${sessionId}-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // Also copy to clipboard as a fallback
+      try {
+        await navigator.clipboard.writeText(jsonString);
+        showToast('Conversation exported and copied to clipboard!', 'success');
+      } catch (clipboardError) {
+        showToast('Conversation exported successfully!', 'success');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export conversation';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <ChatContext.Provider
       value={{
@@ -381,6 +626,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         selectDocument,
         uploadDocument,
         deleteDocument, // Add deleteDocument
+        renameDocument,
+        shareDocument,
         isLoading,
         error,
         setLoading: setIsLoading,
@@ -398,6 +645,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         deleteMessage,
         undoDeleteMessage,
         lastDeletedMessage,
+        // Conversation management
+        deleteSession,
+        renameSession,
+        shareSession,
       }}
     >
       {children}
