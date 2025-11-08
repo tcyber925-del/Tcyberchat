@@ -209,6 +209,15 @@ class DocumentService:
             self.db.refresh(document)
         return document
 
+    def update_document_filename(self, document_id: str, new_filename: str) -> Optional[Document]:
+        """Update document filename"""
+        document = self.get_document(document_id)
+        if document:
+            document.filename = new_filename
+            self.db.commit()
+            self.db.refresh(document)
+        return document
+
     def delete_document(self, document_id: str) -> bool:
         """Delete document and its file"""
         document = self.get_document(document_id)
@@ -300,6 +309,7 @@ class DocumentService:
         """Generate text chunks for RAG and create vector embeddings"""
         content_val = getattr(document, 'content', None)
         if not content_val:
+            print(f"DEBUG: _generate_chunks - No content for document {getattr(document, 'id')}")
             return
 
         # Import RAG service
@@ -320,6 +330,7 @@ class DocumentService:
         except Exception:
             file_size = 0
 
+        print(f"DEBUG: _generate_chunks - Adding document_id={doc_id}, filename={filename}, content_length={len(full_text)}")
         success = await rag_service.add_document_with_chunking(
             document_id=doc_id,
             full_text=full_text,
@@ -330,6 +341,7 @@ class DocumentService:
                 "file_size": file_size,
             }
         )
+        print(f"DEBUG: _generate_chunks - add_document_with_chunking returned success={success} for document_id={doc_id}")
 
         if success:
             # Mark document as having embeddings

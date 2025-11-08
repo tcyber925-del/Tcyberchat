@@ -197,39 +197,7 @@ def create_embeddings(model_name: str = "all-MiniLM-L6-v2") -> Optional[Any]:
                 warnings.simplefilter("ignore")
                 emb = SentenceTransformerEmbeddings(model_name=model_name)
 
-            # Ensure a stable, small API for the rest of the app: provide an object
-            # with a single `embed` method that accepts a string or list[str]. Different
-            # embedding classes expose different method names, so adapt them here.
-            class _EmbeddingsAdapter:
-                def __init__(self, backend):
-                    self._backend = backend
-
-                def embed(self, texts):
-                    # normalize to list
-                    single = False
-                    if isinstance(texts, str):
-                        texts = [texts]
-                        single = True
-                    try:
-                        if hasattr(self._backend, 'embed_documents'):
-                            out = self._backend.embed_documents(texts)
-                        elif hasattr(self._backend, 'embed_texts'):
-                            out = self._backend.embed_texts(texts)
-                        elif hasattr(self._backend, 'embed_query'):
-                            # embed_query usually expects a single string
-                            out = [self._backend.embed_query(t) for t in texts]
-                        elif callable(self._backend):
-                            out = self._backend(texts)
-                        else:
-                            out = None
-                    except Exception:
-                        out = None
-
-                    if single and isinstance(out, list):
-                        return out[0]
-                    return out
-
-            return _EmbeddingsAdapter(emb)
+            return emb
         except Exception:
             return None
     return None
