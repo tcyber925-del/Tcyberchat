@@ -40,7 +40,7 @@ interface ChatContextType {
   // Streaming functionality
   isStreaming: boolean;
   streamingMessage: Message | null;
-  sendStreamingMessage: (content: string, conversationId?: string) => Promise<void>;
+  sendStreamingMessage: (content: string, conversationId?: string, enableWebSearch?: boolean) => Promise<void>;
   stopStreaming: () => void;
   deleteMessage: (messageId: string) => void;
   undoDeleteMessage: () => void;
@@ -323,7 +323,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const sendStreamingMessage = async (content: string, conversationId?: string) => {
+  const sendStreamingMessage = async (content: string, conversationId?: string, enableWebSearch: boolean = false) => {
     if (isStreaming) return; // Prevent multiple simultaneous streams
 
     setIsStreaming(true);
@@ -358,7 +358,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         content,
         conversationId || currentSession?.id,
         selectedModel, // Pass the selected model
-    selectedDocumentId ?? undefined, // Pass the selected document ID or undefined
+        selectedDocumentId ?? undefined, // Pass the selected document ID or undefined
+        enableWebSearch, // Pass the web search flag
         // onChunk callback - update streaming message content
         (chunk: string) => {
           // eslint-disable-next-line no-console
