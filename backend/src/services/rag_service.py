@@ -194,6 +194,7 @@ class RAGService:
 
             self.conversation_memory = create_memory(k=5)
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
+            self.markdown_splitter = None  # Markdown splitter not available without LangChain
             # Ensure we have a usable vectorstore (fallback) even without LangChain
             try:
                 from .rag_adapter import create_vectorstore
@@ -236,6 +237,9 @@ class RAGService:
 
             # Initialize text splitter for document chunking
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
+            
+            # Initialize markdown-aware text splitter for markdown files
+            self.markdown_splitter = self._create_markdown_splitter()
 
             # Initialize conversation memory
             self.conversation_memory = create_memory(k=5)
@@ -251,6 +255,94 @@ class RAGService:
             print(f"Failed to initialize LangChain components: {e}")
             self.vectorstore = None
             self.embeddings = None
+            self.markdown_splitter = None
+
+    def _create_markdown_splitter(self):
+        """Create a markdown-aware text splitter that respects markdown structure"""
+        if not LANGCHAIN_AVAILABLE:
+            # Fallback to regular splitter if LangChain not available
+            return create_splitter(chunk_size=1000, chunk_overlap=200)
+        
+        try:
+            # Try to use MarkdownHeaderTextSplitter for better markdown chunking
+            try:
+                from langchain.text_splitter import MarkdownHeaderTextSplitter
+                
+                # Define headers to split on (h1, h2, h3)
+                headers_to_split_on = [
+                    ("#", "Header 1"),
+                    ("##", "Header 2"),
+                    ("###", "Header 3"),
+                ]
+                
+                markdown_header_splitter = MarkdownHeaderTextSplitter(
+                    headers_to_split_on=headers_to_split_on,
+                    strip_headers=False  # Keep headers in chunks for context
+                )
+                
+                # Wrap in recursive splitter for fine-grained chunking within sections
+                from langchain.text_splitter import RecursiveCharacterTextSplitter
+                recursive_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1000,
+                    chunk_overlap=200,
+                    separators=["\n\n", "\n", ". ", " ", ""]  # Markdown-aware separators
+                )
+                
+                # Return a combined splitter that first splits by headers, then recursively
+                class CombinedMarkdownSplitter:
+                    def __init__(self, header_splitter, recursive_splitter):
+                        self.header_splitter = header_splitter
+                        self.recursive_splitter = recursive_splitter
+                    
+                    def split_text(self, text: str) -> List[str]:
+                        """Split markdown text by headers first, then recursively"""
+                        try:
+                            # First split by markdown headers
+                            header_splits = self.header_splitter.split_text(text)
+                            
+                            # Then recursively split each section
+                            all_chunks = []
+                            for split in header_splits:
+                                # Preserve header metadata in chunk
+                                header_info = ""
+                                if hasattr(split, 'metadata'):
+                                    metadata = split.metadata
+                                    for header_level in ["Header 1", "Header 2", "Header 3"]:
+                                        if header_level in metadata:
+                                            header_info = f"{metadata[header_level]}\n\n"
+                                            break
+                                
+                                # Get content (either page_content attribute or string)
+                                content = getattr(split, 'page_content', str(split))
+                                
+                                # Recursively split the section
+                                recursive_chunks = self.recursive_splitter.split_text(content)
+                                
+                                # Add header info to first chunk of each section
+                                for i, chunk in enumerate(recursive_chunks):
+                                    if i == 0 and header_info:
+                                        chunk = header_info + chunk
+                                    all_chunks.append(chunk)
+                            
+                            return all_chunks if all_chunks else [text]
+                        except Exception as e:
+                            # Fallback to recursive splitter if header splitting fails
+                            print(f"Markdown header splitting failed, using recursive splitter: {e}")
+                            return self.recursive_splitter.split_text(text)
+                
+                return CombinedMarkdownSplitter(markdown_header_splitter, recursive_splitter)
+                
+            except ImportError:
+                # MarkdownHeaderTextSplitter not available, use recursive splitter with markdown-aware separators
+                from langchain.text_splitter import RecursiveCharacterTextSplitter
+                return RecursiveCharacterTextSplitter(
+                    chunk_size=1000,
+                    chunk_overlap=200,
+                    separators=["\n\n##", "\n\n#", "\n\n", "\n", ". ", " ", ""]  # Markdown-aware separators
+                )
+        except Exception as e:
+            print(f"Failed to create markdown splitter: {e}, using default splitter")
+            return create_splitter(chunk_size=1000, chunk_overlap=200)
 
     def _setup_advanced_retrievers(self):
         """Set up advanced retrieval strategies"""
@@ -461,9 +553,14 @@ Use the following pieces of context to answer the question at the end.
 
 Guidelines:
 - If you don't know the answer based on the context, say so clearly
-- Provide specific references to the source material when possible
+- Provide specific references to the source material when possible (include URLs for web sources)
 - Be concise but comprehensive
 - Use citations when referencing specific information
+- Clearly distinguish between document sources and web sources in citations
+- If "Web Search Results" section is provided, prioritize information from it if it is more recent or directly addresses the query
+- If the query asks for "latest" or "recent" information, ensure your answer reflects the most up-to-date data available in the context
+- When using information from "Web Search Results", explicitly state "According to web search..." or similar, and include the provided URLs in citations
+- If you cannot find recent information in the provided context, state that clearly
 
 Context:
 {context}
@@ -517,13 +614,18 @@ Standalone question:""")
 
             conversational_prompt = ChatPromptTemplate.from_messages([
                 ("system", """
-You are a helpful AI assistant with access to document knowledge. Use the provided context and conversation history to answer questions.
+You are a helpful AI assistant with access to document knowledge and web search. Use the provided context and conversation history to answer questions.
 
 Guidelines:
 - Use both the retrieved context and conversation history
 - Maintain coherence across the conversation
-- Cite sources when providing specific information
+- Cite sources when providing specific information (include URLs for web sources)
 - Ask for clarification if needed
+- If "Web Search Results" section is provided, prioritize information from it if it is more recent or directly addresses the query
+- If the query asks for "latest" or "recent" information, ensure your answer reflects the most up-to-date data available in the context
+- When using information from "Web Search Results", explicitly state "According to web search..." or similar, and include the provided URLs in citations
+- Clearly distinguish between document sources and web sources in citations
+- If you cannot find recent information in the provided context, state that clearly
 
 Context: {context}
 Conversation History: {chat_history}
@@ -547,10 +649,23 @@ Conversation History: {chat_history}
     async def generate_rag_streaming_response(self, query: str, document_id: Optional[str] = None,
                                               max_context_chunks: int = 3, conversational: bool = False,
                                               chat_history: Optional[List[Dict[str, str]]] = None,
-                                              model_name: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
-        """Generate RAG-enhanced streaming response using advanced LangChain chains"""
+                                              model_name: Optional[str] = None,
+                                              use_web_search: bool = False) -> AsyncGenerator[Dict[str, Any], None]:
+        """Generate RAG-enhanced streaming response using advanced LangChain chains
+        
+        Args:
+            query: User query string
+            document_id: Optional document ID to filter search
+            max_context_chunks: Maximum number of document chunks to use
+            conversational: Whether to use conversational RAG chain
+            chat_history: Optional chat history for conversational mode
+            model_name: Optional model name to use
+            use_web_search: Whether to include web search results (optional, defaults to False)
+        """
         full_response_content = ""
         citations = []
+        web_search_results = []
+        web_search_used = False
         try:
             # Update AIServiceLLM model_name if using chains (for dynamic model selection)
             if model_name:
@@ -564,6 +679,67 @@ Conversation History: {chat_history}
                             self.conversational_chain.llm._model_name = model_name
                 except Exception:
                     pass  # If update fails, continue with existing model
+            
+            # Analyze query for time-sensitivity
+            def is_time_sensitive_query(q: str) -> bool:
+                """Detect if query is time-sensitive"""
+                if not q:
+                    return False
+                q_lower = q.lower()
+                time_keywords = ["latest", "recent", "news", "update", "what's new", "current", "today", "now"]
+                return any(kw in q_lower for kw in time_keywords)
+            
+            is_time_sensitive = is_time_sensitive_query(query)
+            
+            # Perform web search if enabled
+            web_search_context = ""
+            if use_web_search:
+                try:
+                    from .web_search_service import get_web_search_service
+                    web_search_service = get_web_search_service()
+                    
+                    # For time-sensitive queries, increase max_results and force fresh
+                    search_max_results = max_context_chunks * 2 if is_time_sensitive else max_context_chunks
+                    
+                    # Perform web search (cache automatically disabled for time-sensitive queries)
+                    web_results = await web_search_service.search(
+                        query, 
+                        max_results=search_max_results,
+                        use_cache=not is_time_sensitive,  # Disable cache for time-sensitive
+                        force_fresh=is_time_sensitive  # Force fresh for time-sensitive
+                    )
+                    web_search_results = web_results
+                    web_search_used = len(web_results) > 0
+                    
+                    if web_results:
+                        # Format web search results for context with clear structure
+                        web_context_parts = ["=== Web Search Results (Most Recent Information) ==="]
+                        for i, result in enumerate(web_results, 1):
+                            web_context_parts.append(f"\n[Web Source {i}] {result.title}")
+                            web_context_parts.append(f"URL: {result.url}")
+                            web_context_parts.append(f"Content: {result.snippet}")
+                            if result.timestamp:
+                                web_context_parts.append(f"Retrieved: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                            
+                            # Add web search citation
+                            citations.append({
+                                "url": result.url,
+                                "title": result.title,
+                                "snippet": result.snippet,
+                                "source": "web_search",
+                                "source_type": "web",  # NEW: Explicit source type
+                                "relevance_score": result.relevance_score,
+                                "timestamp": result.timestamp.isoformat() if result.timestamp else None
+                            })
+                        
+                        web_search_context = "\n".join(web_context_parts)
+                        logger.info(
+                            f"Web search returned {len(web_results)} results for query: '{query[:50]}' "
+                            f"(time_sensitive={is_time_sensitive})"
+                        )
+                except Exception as e:
+                    logger.warning(f"Web search failed, continuing without web results: {e}", exc_info=True)
+                    # Continue without web search - don't break the flow
             
             if conversational and chat_history and self.conversational_chain:
                 # Use conversational RAG chain with memory
@@ -584,6 +760,7 @@ Conversation History: {chat_history}
 
                 # Apply document filtering to conversational chain if document_id is provided
                 chain_config = {"memory": self.conversation_memory}
+                base_retriever = None
                 if document_id:
                     # Create filtered retriever for conversational chain
                     try:
@@ -604,12 +781,76 @@ Conversation History: {chat_history}
                         if filtered_docs:
                             bm25_retriever = BM25Retriever.from_documents(filtered_docs)
                             bm25_retriever.k = max_context_chunks
-                            chain_config["retriever"] = bm25_retriever
+                            base_retriever = bm25_retriever
                     except Exception as e:
                         print(f"Warning: Failed to filter conversational chain by document_id {document_id}: {e}")
-
+                else:
+                    # Use default retriever for conversational chain
+                    base_retriever = self.ensemble_retriever or (self.vectorstore.as_retriever(search_kwargs={"k": max_context_chunks}) if self.vectorstore else None)
+                
+                # Create wrapper retriever that includes web search context
+                if base_retriever:
+                    class WebSearchContextRetriever:
+                        """Wrapper retriever that combines document retrieval with web search results"""
+                        def __init__(self, base_retriever, web_search_context: str, is_time_sensitive: bool):
+                            self.base_retriever = base_retriever
+                            self.web_search_context = web_search_context
+                            self.is_time_sensitive = is_time_sensitive
+                        
+                        def get_relevant_documents(self, query: str, k: int = 5):
+                            """Get documents from base retriever and prepend web search context"""
+                            docs = self.base_retriever.get_relevant_documents(query, k)
+                            
+                            # If web search context exists, create a document from it and prepend
+                            if self.web_search_context:
+                                web_doc = LangChainDocument(
+                                    page_content=self.web_search_context,
+                                    metadata={
+                                        "source": "web_search",
+                                        "source_type": "web",
+                                        "is_time_sensitive": self.is_time_sensitive
+                                    }
+                                )
+                                # For time-sensitive queries, web search comes first
+                                if self.is_time_sensitive:
+                                    return [web_doc] + docs
+                                else:
+                                    return docs + [web_doc]
+                            return docs
+                        
+                        async def aget_relevant_documents(self, query: str, k: int = 5):
+                            """Async version"""
+                            if hasattr(self.base_retriever, 'aget_relevant_documents'):
+                                docs = await self.base_retriever.aget_relevant_documents(query, k)
+                            else:
+                                docs = self.base_retriever.get_relevant_documents(query, k)
+                            
+                            # If web search context exists, create a document from it and prepend
+                            if self.web_search_context:
+                                web_doc = LangChainDocument(
+                                    page_content=self.web_search_context,
+                                    metadata={
+                                        "source": "web_search",
+                                        "source_type": "web",
+                                        "is_time_sensitive": self.is_time_sensitive
+                                    }
+                                )
+                                # For time-sensitive queries, web search comes first
+                                if self.is_time_sensitive:
+                                    return [web_doc] + docs
+                                else:
+                                    return docs + [web_doc]
+                            return docs
+                    
+                    wrapped_retriever = WebSearchContextRetriever(
+                        base_retriever, 
+                        web_search_context, 
+                        is_time_sensitive
+                    ) if web_search_context else base_retriever
+                    chain_config["retriever"] = wrapped_retriever
+                
                 async for chunk in self.conversational_chain.astream(
-                    {"input": query},
+                    {"input": query},  # Use original query, web search is in context now
                     config=chain_config
                 ):
                     if "answer" in chunk:
@@ -673,9 +914,70 @@ Conversation History: {chat_history}
                 else:
                     retriever = self.ensemble_retriever or self.vectorstore.as_retriever(search_kwargs={"k": max_context_chunks})
 
+                # Create a wrapper that injects web search results into the context
+                # This ensures web search results are properly included in the {context} field
+                class WebSearchContextRetriever:
+                    """Wrapper retriever that combines document retrieval with web search results"""
+                    def __init__(self, base_retriever, web_search_context: str, is_time_sensitive: bool):
+                        self.base_retriever = base_retriever
+                        self.web_search_context = web_search_context
+                        self.is_time_sensitive = is_time_sensitive
+                    
+                    def get_relevant_documents(self, query: str, k: int = 5):
+                        """Get documents from base retriever and prepend web search context"""
+                        docs = self.base_retriever.get_relevant_documents(query, k)
+                        
+                        # If web search context exists, create a document from it and prepend
+                        if self.web_search_context:
+                            web_doc = LangChainDocument(
+                                page_content=self.web_search_context,
+                                metadata={
+                                    "source": "web_search",
+                                    "source_type": "web",
+                                    "is_time_sensitive": self.is_time_sensitive
+                                }
+                            )
+                            # For time-sensitive queries, web search comes first
+                            if self.is_time_sensitive:
+                                return [web_doc] + docs
+                            else:
+                                return docs + [web_doc]
+                        return docs
+                    
+                    async def aget_relevant_documents(self, query: str, k: int = 5):
+                        """Async version"""
+                        if hasattr(self.base_retriever, 'aget_relevant_documents'):
+                            docs = await self.base_retriever.aget_relevant_documents(query, k)
+                        else:
+                            docs = self.base_retriever.get_relevant_documents(query, k)
+                        
+                        # If web search context exists, create a document from it and prepend
+                        if self.web_search_context:
+                            web_doc = LangChainDocument(
+                                page_content=self.web_search_context,
+                                metadata={
+                                    "source": "web_search",
+                                    "source_type": "web",
+                                    "is_time_sensitive": self.is_time_sensitive
+                                }
+                            )
+                            # For time-sensitive queries, web search comes first
+                            if self.is_time_sensitive:
+                                return [web_doc] + docs
+                            else:
+                                return docs + [web_doc]
+                        return docs
+                
+                # Wrap the retriever to include web search context
+                wrapped_retriever = WebSearchContextRetriever(
+                    retriever, 
+                    web_search_context, 
+                    is_time_sensitive
+                ) if web_search_context else retriever
+                
                 async for chunk in self.rag_chain.astream(
-                    {"input": query},
-                    config={"retriever": retriever}
+                    {"input": query},  # Use original query, web search is in context now
+                    config={"retriever": wrapped_retriever}
                 ):
                     if "answer" in chunk:
                         full_response_content += chunk["answer"]
@@ -685,6 +987,11 @@ Conversation History: {chat_history}
                         source_docs = chunk.get('context', [])
                         for i, doc in enumerate(source_docs):
                             if hasattr(doc, 'metadata'):
+                                # Check if this is a web search document
+                                if doc.metadata.get("source_type") == "web" or doc.metadata.get("source") == "web_search":
+                                    # This is already in web_search_citations, skip
+                                    continue
+                                
                                 doc_id = doc.metadata.get("document_id")
                                 # Only include citations from the requested document if document_id is specified
                                 if not document_id or str(doc_id) == str(document_id):
@@ -730,8 +1037,12 @@ Conversation History: {chat_history}
                             # Build context string
                             context = "\n\n".join(context_parts)
                             
+                            # Add web search context if available
+                            if web_search_context:
+                                context = f"{context}\n\n{web_search_context}"
+                            
                             # Create enhanced prompt with context
-                            enhanced_prompt = f"""Based on the following document context, answer the question.
+                            enhanced_prompt = f"""Based on the following document context{' and web search results' if web_search_context else ''}, answer the question.
 
 Document Context:
 {context}
@@ -820,6 +1131,8 @@ Answer:"""
                 "context_chunks_used": len(citations),
                 "rag_enabled": bool(citations),
                 "chain_type": "streaming_rag",
+                "web_search_used": web_search_used,  # NEW: Indicate if web search was used
+                "web_search_results_count": len(web_search_results) if web_search_used else 0,  # NEW: Count of web results
             }
 
         except Exception as e:
@@ -843,8 +1156,29 @@ Answer:"""
                 **(metadata or {})
             }
 
-            # Split text using recursive character splitter
-            chunks = self.text_splitter.split_text(full_text)
+            # Determine if this is a markdown file and use appropriate splitter
+            mime_type = metadata.get('mime_type', '') if metadata else ''
+            filename = metadata.get('filename', '') if metadata else ''
+            is_markdown = (
+                mime_type == 'text/markdown' or 
+                filename.endswith('.md') or 
+                filename.endswith('.markdown')
+            )
+            
+            # Use markdown-aware splitter for markdown files, otherwise use regular splitter
+            if is_markdown and self.markdown_splitter:
+                try:
+                    chunks = self.markdown_splitter.split_text(full_text)
+                    base_metadata['file_type'] = 'markdown'
+                    base_metadata['chunking_method'] = 'markdown_aware'
+                except Exception as e:
+                    print(f"Markdown splitter failed, falling back to regular splitter: {e}")
+                    chunks = self.text_splitter.split_text(full_text) if self.text_splitter else [full_text]
+                    base_metadata['chunking_method'] = 'recursive_fallback'
+            else:
+                # Use regular text splitter for non-markdown files
+                chunks = self.text_splitter.split_text(full_text) if self.text_splitter else [full_text]
+                base_metadata['chunking_method'] = 'recursive'
 
             # Create LangChain-like documents or plain dicts for fallback
             langchain_docs = []
@@ -1039,8 +1373,21 @@ Answer:"""
     async def generate_rag_response(self, query: str, document_id: Optional[str] = None,
                                    max_context_chunks: int = 3, conversational: bool = False,
                                    chat_history: Optional[List[Dict[str, str]]] = None,
-                                   model_name: Optional[str] = None) -> Dict[str, Any]:
-        """Generate RAG-enhanced response using advanced LangChain chains"""
+                                   model_name: Optional[str] = None,
+                                   use_web_search: bool = False) -> Dict[str, Any]:
+        """Generate RAG-enhanced response using advanced LangChain chains
+        
+        Args:
+            query: User query string
+            document_id: Optional document ID to filter search
+            max_context_chunks: Maximum number of document chunks to use
+            conversational: Whether to use conversational RAG chain
+            chat_history: Optional chat history for conversational mode
+            model_name: Optional model name to use
+            use_web_search: Whether to include web search results (optional, defaults to False)
+        """
+        web_search_results = []
+        web_search_used = False
         try:
             # QUICK DB-WIDE PRE-CHECK: if any uploaded document contains the query
             # or common keywords, return a short snippet immediately. This avoids
@@ -1077,16 +1424,92 @@ Answer:"""
                 # Non-fatal: continue to chain-based logic
                 pass
 
+            # Analyze query for time-sensitivity
+            def is_time_sensitive_query(q: str) -> bool:
+                """Detect if query is time-sensitive"""
+                if not q:
+                    return False
+                q_lower = q.lower()
+                time_keywords = ["latest", "recent", "news", "update", "what's new", "current", "today", "now"]
+                return any(kw in q_lower for kw in time_keywords)
+            
+            is_time_sensitive = is_time_sensitive_query(query)
+            
+            # Perform web search if enabled
+            web_search_context = ""
+            web_search_citations = []
+            if use_web_search:
+                try:
+                    from .web_search_service import get_web_search_service
+                    web_search_service = get_web_search_service()
+                    
+                    # For time-sensitive queries, increase max_results and force fresh
+                    search_max_results = max_context_chunks * 2 if is_time_sensitive else max_context_chunks
+                    
+                    # Perform web search (cache automatically disabled for time-sensitive queries)
+                    web_results = await web_search_service.search(
+                        query, 
+                        max_results=search_max_results,
+                        use_cache=not is_time_sensitive,  # Disable cache for time-sensitive
+                        force_fresh=is_time_sensitive  # Force fresh for time-sensitive
+                    )
+                    web_search_results = web_results
+                    web_search_used = len(web_results) > 0
+                    
+                    if web_results:
+                        # Format web search results for context with clear structure
+                        web_context_parts = ["=== Web Search Results (Most Recent Information) ==="]
+                        for i, result in enumerate(web_results, 1):
+                            web_context_parts.append(f"\n[Web Source {i}] {result.title}")
+                            web_context_parts.append(f"URL: {result.url}")
+                            web_context_parts.append(f"Content: {result.snippet}")
+                            if result.timestamp:
+                                web_context_parts.append(f"Retrieved: {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+                            
+                            # Add web search citation
+                            web_search_citations.append({
+                                "url": result.url,
+                                "title": result.title,
+                                "snippet": result.snippet,
+                                "source": "web_search",
+                                "source_type": "web",  # NEW: Explicit source type
+                                "relevance_score": result.relevance_score,
+                                "timestamp": result.timestamp.isoformat() if result.timestamp else None
+                            })
+                        
+                        web_search_context = "\n".join(web_context_parts)
+                        logger.info(
+                            f"Web search returned {len(web_results)} results for query: '{query[:50]}' "
+                            f"(time_sensitive={is_time_sensitive})"
+                        )
+                except Exception as e:
+                    logger.warning(f"Web search failed, continuing without web results: {e}", exc_info=True)
+                    # Continue without web search - don't break the flow
+            
             if conversational and chat_history and self.conversational_chain:
                 # Use conversational RAG chain with memory
-                return await self._generate_conversational_rag_response(
-                    query, document_id, max_context_chunks, chat_history
+                # For time-sensitive queries, reduce document chunks to prioritize web search
+                adjusted_chunks = max_context_chunks // 2 if is_time_sensitive and web_search_context else max_context_chunks
+                result = await self._generate_conversational_rag_response(
+                    query, document_id, adjusted_chunks, chat_history, web_search_context, web_search_citations, is_time_sensitive
                 )
+                # Add web search metadata
+                result["web_search_used"] = web_search_used
+                result["web_search_results_count"] = len(web_search_results) if web_search_used else 0
+                result["is_time_sensitive"] = is_time_sensitive  # NEW: Include time-sensitivity flag
+                return result
             elif self.rag_chain:
                 # Use basic RAG chain
-                return await self._generate_basic_rag_response(
-                    query, document_id, max_context_chunks
+                # For time-sensitive queries, reduce document chunks to prioritize web search
+                adjusted_chunks = max_context_chunks // 2 if is_time_sensitive and web_search_context else max_context_chunks
+                result = await self._generate_basic_rag_response(
+                    query, document_id, adjusted_chunks, web_search_context, web_search_citations, is_time_sensitive
                 )
+                # Add web search metadata
+                result["web_search_used"] = web_search_used
+                result["web_search_results_count"] = len(web_search_results) if web_search_used else 0
+                result["is_time_sensitive"] = is_time_sensitive  # NEW: Include time-sensitivity flag
+                return result
             else:
                 # If vectorstore / chains are not available, try a lightweight DB-backed fallback
                 # that inspects the uploaded document content (if document_id provided)
@@ -1256,8 +1679,23 @@ Answer:"""
             }
 
     async def _generate_basic_rag_response(self, query: str, document_id: Optional[str] = None,
-                                          max_context_chunks: int = 3) -> Dict[str, Any]:
-        """Generate basic RAG response using the configured chain"""
+                                          max_context_chunks: int = 3,
+                                          web_search_context: str = "",
+                                          web_search_citations: List[Dict[str, Any]] = None,
+                                          is_time_sensitive: bool = False) -> Dict[str, Any]:
+        """Generate basic RAG response using the configured chain
+        
+        Args:
+            query: User query string
+            document_id: Optional document ID to filter search
+            max_context_chunks: Maximum number of document chunks to use
+            web_search_context: Optional web search context to include
+            web_search_citations: Optional web search citations to include
+            is_time_sensitive: Whether the query is time-sensitive
+        """
+        if web_search_citations is None:
+            web_search_citations = []
+        
         # Create document-filtered retriever if needed
         if document_id:
             # For document-specific queries, create a filtered retriever
@@ -1268,10 +1706,70 @@ Answer:"""
             retriever = self.ensemble_retriever or self.vectorstore.as_retriever(search_kwargs={"k": max_context_chunks})
 
         try:
-            # Execute RAG chain
+            # Create wrapper retriever that includes web search context
+            class WebSearchContextRetriever:
+                """Wrapper retriever that combines document retrieval with web search results"""
+                def __init__(self, base_retriever, web_search_context: str, is_time_sensitive: bool):
+                    self.base_retriever = base_retriever
+                    self.web_search_context = web_search_context
+                    self.is_time_sensitive = is_time_sensitive
+                
+                def get_relevant_documents(self, query: str, k: int = 5):
+                    """Get documents from base retriever and prepend web search context"""
+                    docs = self.base_retriever.get_relevant_documents(query, k)
+                    
+                    # If web search context exists, create a document from it and prepend
+                    if self.web_search_context:
+                        web_doc = LangChainDocument(
+                            page_content=self.web_search_context,
+                            metadata={
+                                "source": "web_search",
+                                "source_type": "web",
+                                "is_time_sensitive": self.is_time_sensitive
+                            }
+                        )
+                        # For time-sensitive queries, web search comes first
+                        if self.is_time_sensitive:
+                            return [web_doc] + docs
+                        else:
+                            return docs + [web_doc]
+                    return docs
+                
+                async def aget_relevant_documents(self, query: str, k: int = 5):
+                    """Async version"""
+                    if hasattr(self.base_retriever, 'aget_relevant_documents'):
+                        docs = await self.base_retriever.aget_relevant_documents(query, k)
+                    else:
+                        docs = self.base_retriever.get_relevant_documents(query, k)
+                    
+                    # If web search context exists, create a document from it and prepend
+                    if self.web_search_context:
+                        web_doc = LangChainDocument(
+                            page_content=self.web_search_context,
+                            metadata={
+                                "source": "web_search",
+                                "source_type": "web",
+                                "is_time_sensitive": self.is_time_sensitive
+                            }
+                        )
+                        # For time-sensitive queries, web search comes first
+                        if self.is_time_sensitive:
+                            return [web_doc] + docs
+                        else:
+                            return docs + [web_doc]
+                    return docs
+            
+            # Wrap the retriever to include web search context
+            wrapped_retriever = WebSearchContextRetriever(
+                retriever, 
+                web_search_context, 
+                is_time_sensitive
+            ) if web_search_context else retriever
+            
+            # Execute RAG chain with wrapped retriever
             result = await self.rag_chain.ainvoke(
-                {"input": query},
-                config={"retriever": retriever}
+                {"input": query},  # Use original query, web search is in context now
+                config={"retriever": wrapped_retriever}
             )
 
             # Extract citations from source documents
@@ -1280,19 +1778,28 @@ Answer:"""
             if source_docs:
                 for i, doc in enumerate(source_docs):
                     if hasattr(doc, 'metadata'):
+                        # Check if this is a web search document
+                        if doc.metadata.get("source_type") == "web" or doc.metadata.get("source") == "web_search":
+                            # This is already in web_search_citations, skip
+                            continue
+                        
                         citations.append({
                             "document_id": doc.metadata.get("document_id"),
                             "chunk_index": doc.metadata.get("chunk_index"),
                             "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
                             "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
-                            "retrieval_method": "ensemble"
+                            "retrieval_method": "ensemble",
+                            "source": "document"
                         })
+            
+            # Add web search citations
+            citations.extend(web_search_citations)
 
             return {
                 "response": result.get("answer", ""),
                 "citations": citations,
-                "context_chunks_used": len(citations),
-                "rag_enabled": bool(citations),
+                "context_chunks_used": len([c for c in citations if c.get("source") == "document"]),
+                "rag_enabled": bool([c for c in citations if c.get("source") == "document"]),
                 "chain_type": "basic_rag",
                 "retrieval_method": "ensemble"
             }
@@ -1303,8 +1810,24 @@ Answer:"""
 
     async def _generate_conversational_rag_response(self, query: str, document_id: Optional[str] = None,
                                                    max_context_chunks: int = 3,
-                                                   chat_history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
-        """Generate conversational RAG response with memory"""
+                                                   chat_history: Optional[List[Dict[str, str]]] = None,
+                                                   web_search_context: str = "",
+                                                   web_search_citations: List[Dict[str, Any]] = None,
+                                                   is_time_sensitive: bool = False) -> Dict[str, Any]:
+        """Generate conversational RAG response with memory
+        
+        Args:
+            query: User query string
+            document_id: Optional document ID to filter search
+            max_context_chunks: Maximum number of document chunks to use
+            chat_history: Optional chat history for conversational mode
+            web_search_context: Optional web search context to include
+            web_search_citations: Optional web search citations to include
+            is_time_sensitive: Whether the query is time-sensitive
+        """
+        if web_search_citations is None:
+            web_search_citations = []
+        
         try:
             # Convert chat history to LangChain format
             formatted_history = []
@@ -1322,10 +1845,86 @@ Answer:"""
                 elif isinstance(msg, AIMessage):
                     self.conversation_memory.chat_memory.add_ai_message(msg.content)
 
+            # Get the base retriever from the conversational chain
+            # The conversational chain uses history_aware_retriever, but we can override it in config
+            base_retriever = None
+            if hasattr(self.conversational_chain, 'retriever'):
+                base_retriever = self.conversational_chain.retriever
+            elif hasattr(self, 'ensemble_retriever') and self.ensemble_retriever:
+                base_retriever = self.ensemble_retriever
+            elif self.vectorstore:
+                base_retriever = self.vectorstore.as_retriever(search_kwargs={"k": max_context_chunks})
+            
+            # Create wrapper retriever that includes web search context
+            if base_retriever and web_search_context:
+                class WebSearchContextRetriever:
+                    """Wrapper retriever that combines document retrieval with web search results"""
+                    def __init__(self, base_retriever, web_search_context: str, is_time_sensitive: bool):
+                        self.base_retriever = base_retriever
+                        self.web_search_context = web_search_context
+                        self.is_time_sensitive = is_time_sensitive
+                    
+                    def get_relevant_documents(self, query: str, k: int = 5):
+                        """Get documents from base retriever and prepend web search context"""
+                        docs = self.base_retriever.get_relevant_documents(query, k)
+                        
+                        # If web search context exists, create a document from it and prepend
+                        if self.web_search_context:
+                            web_doc = LangChainDocument(
+                                page_content=self.web_search_context,
+                                metadata={
+                                    "source": "web_search",
+                                    "source_type": "web",
+                                    "is_time_sensitive": self.is_time_sensitive
+                                }
+                            )
+                            # For time-sensitive queries, web search comes first
+                            if self.is_time_sensitive:
+                                return [web_doc] + docs
+                            else:
+                                return docs + [web_doc]
+                        return docs
+                    
+                    async def aget_relevant_documents(self, query: str, k: int = 5):
+                        """Async version"""
+                        if hasattr(self.base_retriever, 'aget_relevant_documents'):
+                            docs = await self.base_retriever.aget_relevant_documents(query, k)
+                        else:
+                            docs = self.base_retriever.get_relevant_documents(query, k)
+                        
+                        # If web search context exists, create a document from it and prepend
+                        if self.web_search_context:
+                            web_doc = LangChainDocument(
+                                page_content=self.web_search_context,
+                                metadata={
+                                    "source": "web_search",
+                                    "source_type": "web",
+                                    "is_time_sensitive": self.is_time_sensitive
+                                }
+                            )
+                            # For time-sensitive queries, web search comes first
+                            if self.is_time_sensitive:
+                                return [web_doc] + docs
+                            else:
+                                return docs + [web_doc]
+                        return docs
+                
+                wrapped_retriever = WebSearchContextRetriever(
+                    base_retriever, 
+                    web_search_context, 
+                    is_time_sensitive
+                )
+                chain_config = {
+                    "memory": self.conversation_memory,
+                    "retriever": wrapped_retriever
+                }
+            else:
+                chain_config = {"memory": self.conversation_memory}
+
             # Execute conversational chain
             result = await self.conversational_chain.ainvoke(
-                {"input": query},
-                config={"memory": self.conversation_memory}
+                {"input": query},  # Use original query, web search is in context now
+                config=chain_config
             )
 
             # Extract citations from source documents
@@ -1334,19 +1933,28 @@ Answer:"""
             if source_docs:
                 for i, doc in enumerate(source_docs):
                     if hasattr(doc, 'metadata'):
+                        # Check if this is a web search document
+                        if doc.metadata.get("source_type") == "web" or doc.metadata.get("source") == "web_search":
+                            # This is already in web_search_citations, skip
+                            continue
+                        
                         citations.append({
                             "document_id": doc.metadata.get("document_id"),
                             "chunk_index": doc.metadata.get("chunk_index"),
                             "score": getattr(doc, 'score', None) or (1.0 - i * 0.1),
                             "content_preview": doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content,
-                            "retrieval_method": "conversational"
+                            "retrieval_method": "conversational",
+                            "source": "document"
                         })
+            
+            # Add web search citations
+            citations.extend(web_search_citations)
 
             return {
                 "response": result.get("answer", ""),
                 "citations": citations,
-                "context_chunks_used": len(citations),
-                "rag_enabled": bool(citations),
+                "context_chunks_used": len([c for c in citations if c.get("source") == "document"]),
+                "rag_enabled": bool([c for c in citations if c.get("source") == "document"]),
                 "chain_type": "conversational_rag",
                 "conversation_turns": len(formatted_history),
                 "memory_buffer_size": (
@@ -1672,6 +2280,7 @@ if not LANGCHAIN_AVAILABLE:
             self.vectorstore = create_vectorstore(client=None, collection_name="documents")
             self.embeddings = None
             self.text_splitter = create_splitter(chunk_size=1000, chunk_overlap=200)
+            self.markdown_splitter = None  # Markdown splitter not available in fallback mode
             self.conversation_memory = create_memory(k=5)
             self.callback_handler = None
             # Lazy import AI service - note: get_ai_service() is async

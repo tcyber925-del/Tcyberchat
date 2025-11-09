@@ -94,6 +94,33 @@ async def upload_document(
             raise HTTPException(status_code=413, detail="File exceeds maximum allowed size")
 
     mime = file.content_type or 'application/octet-stream'
+    
+    # If MIME type is application/octet-stream, try to detect from file extension
+    if mime == 'application/octet-stream' and file.filename:
+        filename_lower = file.filename.lower()
+        if filename_lower.endswith(('.md', '.markdown')):
+            mime = 'text/markdown'
+        elif filename_lower.endswith('.txt'):
+            mime = 'text/plain'
+        elif filename_lower.endswith('.pdf'):
+            mime = 'application/pdf'
+        elif filename_lower.endswith(('.jpg', '.jpeg')):
+            mime = 'image/jpeg'
+        elif filename_lower.endswith('.png'):
+            mime = 'image/png'
+        elif filename_lower.endswith('.gif'):
+            mime = 'image/gif'
+        elif filename_lower.endswith('.webp'):
+            mime = 'image/webp'
+        elif filename_lower.endswith(('.mp3', '.mpeg')):
+            mime = 'audio/mpeg'
+        elif filename_lower.endswith(('.wav', '.wave')):
+            mime = 'audio/wav'
+        elif filename_lower.endswith('.ogg'):
+            mime = 'audio/ogg'
+        elif filename_lower.endswith('.mp4'):
+            mime = 'audio/mp4'
+    
     # Accept common text types and common images/audio; otherwise return Unsupported Media Type
     allowed = [
         'text/plain', 'text/markdown', 'application/pdf',
@@ -104,8 +131,7 @@ async def upload_document(
         raise HTTPException(status_code=415, detail=f"Unsupported file type: {mime}")
 
     try:
-        mime = file.content_type or 'application/octet-stream'
-
+        # Use the already-detected MIME type (may have been corrected from extension)
         # Text-like files: read and create document with content
         if isinstance(mime, str) and (mime.startswith('text/') or mime == 'application/markdown' or mime == 'application/pdf'):
             raw = await file.read()
@@ -113,7 +139,8 @@ async def upload_document(
                 content = raw.decode('utf-8')
             except Exception:
                 content = raw.decode('latin-1', errors='ignore')
-            document = document_service.create_document(file_name=file.filename, file_content=content)
+            # Pass the detected MIME type to ensure proper processing
+            document = document_service.create_document(file_name=file.filename, file_content=content, mime_type=mime)
 
         else:
             # Binary files (images, audio): save to disk

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { useSettings } from '@/lib/context/settings-context';
 import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
@@ -9,8 +8,12 @@ import { Message as ChatMessageType } from '@/types/message';
 import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { TypingIndicator } from '@/components/ui/typing-indicator';
+import { ChatInputModal } from '@/components/ui/chat-input-modal';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/context/toast-context';
+import { Plus, Globe } from 'lucide-react';
 
 import Sidebar from '@/components/sidebar';
 import { DocumentIndicator } from '@/components/document-indicator';
@@ -47,7 +50,12 @@ export default function Home() {
   const { showToast } = useToast();
   const [input, setInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleAttachmentClick = () => {
     fileInputRef.current?.click();
@@ -143,6 +151,20 @@ export default function Home() {
     setInput(e.target.value);
   }, []);
 
+  const handleEditMessage = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setInput(content);
+    // Focus the input field after a short delay to ensure it's rendered
+    setTimeout(() => {
+      inputRef.current?.focus();
+      // Move cursor to end of text
+      if (inputRef.current) {
+        const length = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(length, length);
+      }
+    }, 100);
+  }, []);
+
   const handleSubmitLocal = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     // If already streaming, stop the stream
@@ -152,25 +174,53 @@ export default function Home() {
     }
     const text = input?.trim();
     if (!text) return;
+    
     try {
-      await sendStreamingMessage(text);
-      setInput('');
+      // If editing a message, update it instead of sending a new one
+      if (editingMessageId) {
+        // Find the message and update it
+        const messageToEdit = messages.find(m => m.id === editingMessageId);
+        if (messageToEdit) {
+          // Update the message content
+          setMessages(prev => prev.map(m => 
+            m.id === editingMessageId 
+              ? { ...m, content: text, timestamp: new Date() }
+              : m
+          ));
+          
+          // Resend the edited message
+          await sendStreamingMessage(text, undefined, webSearchEnabled);
+          
+          // Clear editing state
+          setEditingMessageId(null);
+          setInput('');
+          setWebSearchEnabled(false);
+          showToast('Message updated and resent!', 'success');
+        }
+      } else {
+        // Normal send
+        await sendStreamingMessage(text, undefined, webSearchEnabled);
+        setInput('');
+        setWebSearchEnabled(false); // Reset web search after sending
+      }
     } catch (err) {
       // swallow - context handles error state and toasts
       console.error('send error', err);
     }
-  }, [input, sendStreamingMessage, isStreaming, stopStreaming]);
+  }, [input, sendStreamingMessage, isStreaming, stopStreaming, webSearchEnabled, editingMessageId, messages, setMessages, showToast]);
 
   const chatRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll when messages or streamingMessage change
+  // Smooth auto-scroll when messages or streamingMessage change
   useEffect(() => {
-    const el = chatRef.current;
-    if (!el) return;
-    // Scroll to bottom smoothly
-    try {
-      el.scrollTop = el.scrollHeight;
-    } catch {}
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
+    
+    // Small delay to ensure DOM is updated
+    const timeoutId = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timeoutId);
   }, [messages, streamingMessage]);
 
   // Only render certain debug UI on the client to avoid hydration mismatches
@@ -178,6 +228,22 @@ export default function Home() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Close modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (inputContainerRef.current && !inputContainerRef.current.contains(event.target as Node)) {
+        setIsModalOpen(false);
+      }
+    };
+
+    if (isModalOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isModalOpen]);
 
   return (
     <div data-testid="main-layout" className="flex h-screen bg-background text-foreground">
@@ -201,7 +267,7 @@ export default function Home() {
         <header className="flex items-center p-4 border-b border-border">
           <h1 className="text-xl font-bold">TcyberChatbot</h1>
         </header>
-        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto">
+        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto scroll-smooth">
           <div>
             <div>
               {messages.length === 0 && !isLoading && !streamingMessage ? (
@@ -242,16 +308,26 @@ export default function Home() {
                     // Normalize role: some messages may use `type` or `role`, and older code used 'ai'
                     const rawRole = (m as any).role ?? (m as any).type ?? 'assistant';
                     const role = rawRole === 'ai' ? 'assistant' : rawRole;
+                    const isUserMessage = role === 'user';
                     return (
                       <ChatMessage 
                         key={m.id} 
                         role={role as any}
                         content={m.content}
+                        timestamp={m.timestamp}
+                        messageId={m.id}
                         onCopy={(text) => {
                           showToast('Message copied to clipboard!', 'success');
                         }}
+                        onEdit={isUserMessage ? (content) => {
+                          handleEditMessage(m.id, content);
+                        } : undefined}
                       >
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                        {isUserMessage ? (
+                          <div className="whitespace-pre-wrap">{m.content}</div>
+                        ) : (
+                          <MarkdownRenderer content={m.content} />
+                        )}
                       </ChatMessage>
                     );
                   })}
@@ -261,13 +337,21 @@ export default function Home() {
                       key={streamingMessage.id} 
                       role="assistant"
                       content={streamingMessage.content}
+                      timestamp={streamingMessage.timestamp}
+                      isStreaming={isStreaming}
                       onCopy={(text) => {
                         showToast('Message copied to clipboard!', 'success');
                       }}
                     >
-                      <ReactMarkdown>{streamingMessage.content}</ReactMarkdown>
+                      {streamingMessage.content === 'Assistant is typing...' ? (
+                        <TypingIndicator />
+                      ) : (
+                        <MarkdownRenderer content={streamingMessage.content} />
+                      )}
                     </ChatMessage>
                   )}
+                  {/* Invisible element to scroll to */}
+                  <div ref={messagesEndRef} />
                 </Chat>
               )}
             </div>
@@ -318,28 +402,69 @@ export default function Home() {
           
           {/* Hide form when dragging to show drop zone clearly */}
           {!isDragging && (
-            <form onSubmit={handleSubmitLocal} className="p-4 flex items-center space-x-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={handleAttachmentClick}
-              className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent"
-              title="Attach file"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13.5" />
-              </svg>
-            </button>
-            <ChatInput value={input} onChange={handleInputChange} placeholder="Type your message here..." className="flex-grow" />
-            <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
-              {isStreaming ? 'Stop' : 'Send'}
-            </Button>
-          </form>
+            <div ref={inputContainerRef} className="relative">
+              {/* Modal Overlay */}
+              <ChatInputModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onFileAttach={handleAttachmentClick}
+                onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
+                webSearchEnabled={webSearchEnabled}
+              />
+              
+              <form onSubmit={handleSubmitLocal} className="p-4 flex items-center space-x-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                {/* Plus button to open modal */}
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(!isModalOpen)}
+                  className={cn(
+                    "p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors",
+                    isModalOpen && "bg-accent text-foreground"
+                  )}
+                  title="More options"
+                  aria-label="More options"
+                >
+                  <Plus className="h-6 w-6" />
+                </button>
+                <ChatInput 
+                  ref={inputRef}
+                  value={input} 
+                  onChange={handleInputChange} 
+                  placeholder={editingMessageId ? "Edit your message..." : "Type your message here..."}
+                  className="flex-grow"
+                  onFocus={() => setIsModalOpen(false)}
+                />
+                {/* Web search indicator */}
+                {webSearchEnabled && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium">
+                    <Globe className="h-3 w-3" />
+                    <span>Web</span>
+                  </div>
+                )}
+                {editingMessageId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingMessageId(null);
+                      setInput('');
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
+                  {isStreaming ? 'Stop' : editingMessageId ? 'Resend' : 'Send'}
+                </Button>
+              </form>
+            </div>
           )}
         </div>
       </div>

@@ -17,6 +17,11 @@ const ChatHistoryDrawer: React.FC<ChatHistoryDrawerProps> = ({ isOpen, onClose }
     onClose(); // Close drawer after selecting a session
   }, [selectSession, onClose]);
 
+  const handleNewChat = useCallback(() => {
+    selectSession(null); // Start a new chat by clearing current session
+    onClose(); // Close drawer after starting new chat
+  }, [selectSession, onClose]);
+
   return (
     <aside
       className={`fixed left-0 top-0 h-full bg-gray-100 border-r border-gray-200 transition-transform duration-300 ease-in-out z-40 ${
@@ -38,7 +43,7 @@ const ChatHistoryDrawer: React.FC<ChatHistoryDrawerProps> = ({ isOpen, onClose }
         </div>
         <ChatHistory sessions={sessions} onSelectSession={handleSelectSession} />
         <button
-          onClick={() => console.log('New chat')} // TODO: Implement new chat logic
+          onClick={handleNewChat}
           className="mt-4 p-2 bg-blue-500 text-white rounded hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 w-full"
           aria-label="Start a new chat conversation"
         >
