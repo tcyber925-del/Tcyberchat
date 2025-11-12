@@ -56,3 +56,5 @@ pytest-asyncio
 black
 ruff
 pre-commit
+tavily-python
+duckduckgo-search
