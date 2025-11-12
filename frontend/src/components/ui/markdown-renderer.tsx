@@ -13,12 +13,12 @@ interface MarkdownRendererProps {
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className }) => {
   // Try to detect theme - fallback to light if not available
   const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
-  
+
   React.useEffect(() => {
     // Check for theme preference
     const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(darkMode ? 'dark' : 'light');
-    
+
     // Listen for theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
@@ -65,7 +65,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
               <code
                 className={cn(
                   'relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm',
-                  className
+                  className,
                 )}
                 {...props}
               >
@@ -142,4 +142,3 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
     </div>
   );
 };
-

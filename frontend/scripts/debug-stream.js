@@ -27,7 +27,11 @@ const { chromium } = require('@playwright/test');
   if (!browser) browser = await tryLaunch({ headless: false, timeout: 120000 });
   // 3) try using system chrome if CHROME_PATH is provided
   if (!browser && process.env.CHROME_PATH) {
-    browser = await tryLaunch({ headless: true, timeout: 120000, executablePath: process.env.CHROME_PATH });
+    browser = await tryLaunch({
+      headless: true,
+      timeout: 120000,
+      executablePath: process.env.CHROME_PATH,
+    });
   }
 
   if (!browser) {
@@ -46,8 +50,10 @@ const { chromium } = require('@playwright/test');
   const fs = require('fs');
   const consoleLogPath = 'frontend/debug-stream-console.log';
   // Clear old log
-  try { if (fs.existsSync(consoleLogPath)) fs.unlinkSync(consoleLogPath); } catch {}
-  page.on('console', async msg => {
+  try {
+    if (fs.existsSync(consoleLogPath)) fs.unlinkSync(consoleLogPath);
+  } catch {}
+  page.on('console', async (msg) => {
     try {
       const text = msg.text();
       const line = `[page console] ${new Date().toISOString()} ${msg.type()} ${text}\n`;
@@ -71,8 +77,8 @@ const { chromium } = require('@playwright/test');
       console.error('[debug-stream] console handler error', e && e.message);
     }
   });
-  page.on('request', req => console.log('[page request]', req.method(), req.url()));
-  page.on('response', async res => {
+  page.on('request', (req) => console.log('[page request]', req.method(), req.url()));
+  page.on('response', async (res) => {
     console.log('[page response]', res.status(), res.url(), res.headers()['content-type']);
     if (res.url().includes('/api/chat')) {
       try {
@@ -96,7 +102,7 @@ const { chromium } = require('@playwright/test');
     } catch (e) {
       console.log('[debug-stream] goto attempt', i, 'failed:', e.message);
       if (i === 4) throw e;
-      await new Promise(r => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
   // Fill the chat input. The app uses a ChatInput with placeholder "Type your message here..."
@@ -107,7 +113,10 @@ const { chromium } = require('@playwright/test');
     // Submit the form via the submit button
     await page.click('button[type="submit"]');
   } catch (e) {
-    console.warn('[debug-stream] could not fill/submit input, continuing to wait for streaming (error)', e && e.message);
+    console.warn(
+      '[debug-stream] could not fill/submit input, continuing to wait for streaming (error)',
+      e && e.message,
+    );
   }
 
   // Wait until we see the final onComplete console message or timeout after 2 minutes

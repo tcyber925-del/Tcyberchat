@@ -2,6 +2,7 @@
 
 Keep light-weight shims here to avoid importing heavy optional deps during unit tests.
 """
+
 from typing import Any
 
 
@@ -13,6 +14,7 @@ def inject_rag_shims(rag_mod: Any):
       - BM25Retriever: minimal from_documents/get_relevant_documents
       - get_ai_service: returns a simple async AI stub
     """
+
     class LangChainDocumentShim:
         def __init__(self, page_content=None, metadata=None):
             self.page_content = page_content
@@ -29,8 +31,10 @@ def inject_rag_shims(rag_mod: Any):
                     q = query.lower()
                     out = []
                     for d in self.docs:
-                        pc = getattr(d, 'page_content', '') or ''
-                        if q in pc.lower() or any(kw in pc.lower() for kw in ["paris", "capital"]):
+                        pc = getattr(d, "page_content", "") or ""
+                        if q in pc.lower() or any(
+                            kw in pc.lower() for kw in ["paris", "capital"]
+                        ):
                             out.append(d)
                     return out[:k]
 

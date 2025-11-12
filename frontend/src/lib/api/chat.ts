@@ -7,7 +7,7 @@ export async function sendMessageStreaming(
   enableWebSearch?: boolean,
   onChunk?: (chunk: string) => void,
   onComplete?: (finalMessage: { content: string; messageId?: string; citations?: any[] }) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ) {
   const response = await fetch('/api/chat', {
     method: 'POST',
@@ -56,7 +56,7 @@ export async function sendMessageStreaming(
         const lines = buffer.split(/\r?\n/);
         // If the buffer does not end with a newline, the last element is a partial line — keep it in buffer
         const endsWithNewline = /\r?\n$/.test(buffer);
-        const partial = endsWithNewline ? '' : lines.pop() ?? '';
+        const partial = endsWithNewline ? '' : (lines.pop() ?? '');
 
         // State for accumulating an event block across lines
         let currentEvent = 'message';
@@ -80,7 +80,15 @@ export async function sendMessageStreaming(
               if (data) {
                 try {
                   const parsed = JSON.parse(data);
-                  onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+                  onComplete?.({
+                    content: parsed.content,
+                    messageId: parsed.messageId,
+                    citations: parsed.citations,
+                    webSearchUsed: parsed.webSearchUsed,
+                    webSearchResultsCount: parsed.webSearchResultsCount,
+                    webProvider: parsed.webProvider,
+                    webImpl: parsed.webImpl,
+                  });
                 } catch (e) {
                   onComplete?.({ content: data });
                 }
@@ -134,7 +142,15 @@ export async function sendMessageStreaming(
       if (sawSSE) {
         try {
           const parsed = JSON.parse(remaining);
-          onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+          onComplete?.({
+            content: parsed.content,
+            messageId: parsed.messageId,
+            citations: parsed.citations,
+            webSearchUsed: parsed.webSearchUsed,
+            webSearchResultsCount: parsed.webSearchResultsCount,
+            webProvider: parsed.webProvider,
+            webImpl: parsed.webImpl,
+          });
         } catch (e) {
           // If not JSON, call onChunk with remaining
           onChunk?.(remaining);
@@ -171,7 +187,9 @@ export async function getConversations(limit: number = 50): Promise<any[]> {
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations?limit=${limit}`);
     if (!response.ok) {
       const text = await response.text().catch(() => response.statusText);
-      throw new Error(text || `Failed to fetch conversations: ${response.status} ${response.statusText}`);
+      throw new Error(
+        text || `Failed to fetch conversations: ${response.status} ${response.statusText}`,
+      );
     }
     const data = await response.json();
     // Ensure we return an array even if API returns null/undefined
@@ -190,7 +208,7 @@ export async function getConversationMessages(conversationId: string): Promise<a
   if (!conversationId || typeof conversationId !== 'string') {
     throw new Error('Invalid conversation ID');
   }
-  
+
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`);
@@ -199,15 +217,17 @@ export async function getConversationMessages(conversationId: string): Promise<a
         throw new Error('Conversation not found');
       }
       const text = await response.text().catch(() => response.statusText);
-      throw new Error(text || `Failed to fetch conversation: ${response.status} ${response.statusText}`);
+      throw new Error(
+        text || `Failed to fetch conversation: ${response.status} ${response.statusText}`,
+      );
     }
     const data = await response.json();
-    
+
     // Validate and normalize data
     if (!data || !data.id) {
       throw new Error('Invalid conversation data received from server');
     }
-    
+
     return {
       conversation: {
         id: data.id,
@@ -217,22 +237,29 @@ export async function getConversationMessages(conversationId: string): Promise<a
         documentId: data.documentId || null,
         messageCount: data.messageCount || 0,
       },
-      messages: (Array.isArray(data.messages) ? data.messages : []).map((msg: any) => {
-        // Validate message data
-        if (!msg || !msg.id || !msg.content) {
-          console.warn('Invalid message data:', msg);
-          return null;
-        }
-        return {
-          id: msg.id,
-          content: msg.content || '',
-          timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
-          role: msg.type === 'bot' ? 'assistant' : msg.type === 'user' ? 'user' : msg.type || 'assistant',
-          conversationId: msg.conversationId || conversationId,
-          citations: Array.isArray(msg.citations) ? msg.citations : [],
-          metadata: msg.metadata || {},
-        };
-      }).filter((msg: any) => msg !== null), // Remove invalid messages
+      messages: (Array.isArray(data.messages) ? data.messages : [])
+        .map((msg: any) => {
+          // Validate message data
+          if (!msg || !msg.id || !msg.content) {
+            console.warn('Invalid message data:', msg);
+            return null;
+          }
+          return {
+            id: msg.id,
+            content: msg.content || '',
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+            role:
+              msg.type === 'bot'
+                ? 'assistant'
+                : msg.type === 'user'
+                  ? 'user'
+                  : msg.type || 'assistant',
+            conversationId: msg.conversationId || conversationId,
+            citations: Array.isArray(msg.citations) ? msg.citations : [],
+            metadata: msg.metadata || {},
+          };
+        })
+        .filter((msg: any) => msg !== null), // Remove invalid messages
     };
   } catch (error) {
     // Handle network errors
@@ -248,19 +275,21 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   if (!conversationId || typeof conversationId !== 'string') {
     throw new Error('Invalid conversation ID');
   }
-  
+
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
       method: 'DELETE',
     });
-    
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Conversation not found');
       }
       const text = await response.text().catch(() => response.statusText);
-      throw new Error(text || `Failed to delete conversation: ${response.status} ${response.statusText}`);
+      throw new Error(
+        text || `Failed to delete conversation: ${response.status} ${response.statusText}`,
+      );
     }
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -273,12 +302,12 @@ export async function deleteConversation(conversationId: string): Promise<void> 
 // updateConversation - updates a conversation (title, isPinned, isArchived)
 export async function updateConversation(
   conversationId: string,
-  updates: { title?: string; isPinned?: boolean; isArchived?: boolean }
+  updates: { title?: string; isPinned?: boolean; isArchived?: boolean },
 ): Promise<any> {
   if (!conversationId || typeof conversationId !== 'string') {
     throw new Error('Invalid conversation ID');
   }
-  
+
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
@@ -288,15 +317,17 @@ export async function updateConversation(
       },
       body: JSON.stringify(updates),
     });
-    
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Conversation not found');
       }
       const text = await response.text().catch(() => response.statusText);
-      throw new Error(text || `Failed to update conversation: ${response.status} ${response.statusText}`);
+      throw new Error(
+        text || `Failed to update conversation: ${response.status} ${response.statusText}`,
+      );
     }
-    
+
     return await response.json();
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -311,21 +342,26 @@ export async function exportConversation(conversationId: string): Promise<any> {
   if (!conversationId || typeof conversationId !== 'string') {
     throw new Error('Invalid conversation ID');
   }
-  
+
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}/export`, {
-      method: 'POST',
-    });
-    
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/chat/conversations/${conversationId}/export`,
+      {
+        method: 'POST',
+      },
+    );
+
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Conversation not found');
       }
       const text = await response.text().catch(() => response.statusText);
-      throw new Error(text || `Failed to export conversation: ${response.status} ${response.statusText}`);
+      throw new Error(
+        text || `Failed to export conversation: ${response.status} ${response.statusText}`,
+      );
     }
-    
+
     return await response.json();
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {

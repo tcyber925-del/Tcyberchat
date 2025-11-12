@@ -2,12 +2,13 @@
 Content rendering API endpoints for multi-format document display
 """
 
+import json
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
-import json
+from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models.document import Document
@@ -15,26 +16,29 @@ from ..services.document_service import DocumentService
 
 router = APIRouter(prefix="", tags=["render-content"])
 
+
 class RenderRequest(BaseModel):
     """Request model for content rendering"""
+
     document_id: str
     format: str = "html"  # html, json, text, markdown
     include_metadata: bool = True
-    highlight_terms: Optional[List[str]] = None
-    page: Optional[int] = None  # For paginated content
+    highlight_terms: list[str] | None = None
+    page: int | None = None  # For paginated content
+
 
 class RenderOptions(BaseModel):
     """Options for content rendering"""
-    theme: Optional[str] = "default"
-    font_size: Optional[str] = "medium"
-    show_line_numbers: Optional[bool] = False
-    syntax_highlighting: Optional[bool] = True
+
+    theme: str | None = "default"
+    font_size: str | None = "medium"
+    show_line_numbers: bool | None = False
+    syntax_highlighting: bool | None = True
+
 
 @router.post("/render-content", response_class=HTMLResponse)
 async def render_document_content(
-    request: RenderRequest,
-    options: RenderOptions = None,
-    db: Session = Depends(get_db)
+    request: RenderRequest, options: RenderOptions = None, db: Session = Depends(get_db)
 ) -> HTMLResponse:
     """
     Render document content in various formats (HTML, JSON, text, markdown).
@@ -57,7 +61,7 @@ async def render_document_content(
                 include_metadata=request.include_metadata,
                 highlight_terms=request.highlight_terms,
                 options=options.dict() if options else None,
-                page=request.page
+                page=request.page,
             )
             return HTMLResponse(content=rendered_content)
 
@@ -65,7 +69,7 @@ async def render_document_content(
             rendered_content = await document_service.render_as_json(
                 document=document,
                 include_metadata=request.include_metadata,
-                page=request.page
+                page=request.page,
             )
             return JSONResponse(content=json.loads(rendered_content))
 
@@ -73,22 +77,20 @@ async def render_document_content(
             rendered_content = await document_service.render_as_text(
                 document=document,
                 include_metadata=request.include_metadata,
-                page=request.page
+                page=request.page,
             )
             return StreamingResponse(
-                content=iter([rendered_content]),
-                media_type="text/plain"
+                content=iter([rendered_content]), media_type="text/plain"
             )
 
         elif request.format.lower() == "markdown":
             rendered_content = await document_service.render_as_markdown(
                 document=document,
                 include_metadata=request.include_metadata,
-                page=request.page
+                page=request.page,
             )
             return StreamingResponse(
-                content=iter([rendered_content]),
-                media_type="text/markdown"
+                content=iter([rendered_content]), media_type="text/markdown"
             )
 
         else:
@@ -97,15 +99,18 @@ async def render_document_content(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Content rendering failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Content rendering failed: {str(e)}"
+        )
+
 
 @router.get("/render-content/{document_id}/preview")
 async def get_content_preview(
     document_id: str,
     max_length: int = Query(500, description="Maximum preview length"),
     include_metadata: bool = Query(True, description="Include metadata in preview"),
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """
     Get a preview of document content for quick display.
     """
@@ -120,9 +125,7 @@ async def get_content_preview(
 
         # Generate preview
         preview = await document_service.generate_preview(
-            document=document,
-            max_length=max_length,
-            include_metadata=include_metadata
+            document=document, max_length=max_length, include_metadata=include_metadata
         )
 
         return preview
@@ -130,10 +133,13 @@ async def get_content_preview(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Preview generation failed: {str(e)}"
+        )
+
 
 @router.get("/render-content/formats")
-async def get_supported_formats() -> Dict[str, Any]:
+async def get_supported_formats() -> dict[str, Any]:
     """
     Get list of supported rendering formats and their capabilities.
     """
@@ -141,31 +147,31 @@ async def get_supported_formats() -> Dict[str, Any]:
         "formats": {
             "html": {
                 "description": "Rich HTML with styling and interactive elements",
-                "capabilities": ["highlighting", "theming", "pagination", "metadata"]
+                "capabilities": ["highlighting", "theming", "pagination", "metadata"],
             },
             "json": {
                 "description": "Structured JSON representation",
-                "capabilities": ["metadata", "pagination", "structured_data"]
+                "capabilities": ["metadata", "pagination", "structured_data"],
             },
             "text": {
                 "description": "Plain text extraction",
-                "capabilities": ["pagination", "metadata"]
+                "capabilities": ["pagination", "metadata"],
             },
             "markdown": {
                 "description": "Markdown formatted text",
-                "capabilities": ["pagination", "metadata", "formatting"]
-            }
+                "capabilities": ["pagination", "metadata", "formatting"],
+            },
         },
         "themes": ["default", "dark", "light", "high-contrast"],
         "font_sizes": ["small", "medium", "large"],
-        "features": ["syntax_highlighting", "line_numbers", "search_highlighting"]
+        "features": ["syntax_highlighting", "line_numbers", "search_highlighting"],
     }
+
 
 @router.get("/render-content/{document_id}/pages")
 async def get_document_pages(
-    document_id: str,
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+    document_id: str, db: Session = Depends(get_db)
+) -> dict[str, Any]:
     """
     Get pagination information for a document.
     """
@@ -186,21 +192,24 @@ async def get_document_pages(
             "total_pages": page_info["total_pages"],
             "page_size": page_info.get("page_size"),
             "has_pages": page_info["total_pages"] > 1,
-            "estimated_total_length": page_info.get("estimated_total_length")
+            "estimated_total_length": page_info.get("estimated_total_length"),
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Page info retrieval failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Page info retrieval failed: {str(e)}"
+        )
+
 
 @router.post("/render-content/extract")
 async def extract_content_sections(
     document_id: str,
-    sections: List[str] = None,
+    sections: list[str] = None,
     format: str = "json",
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """
     Extract specific sections or elements from document content.
     """
@@ -217,7 +226,7 @@ async def extract_content_sections(
         extracted_content = await document_service.extract_sections(
             document=document,
             sections=sections or ["headers", "paragraphs", "tables", "images"],
-            format=format
+            format=format,
         )
 
         return extracted_content
@@ -225,7 +234,10 @@ async def extract_content_sections(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Content extraction failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Content extraction failed: {str(e)}"
+        )
+
 
 @router.get("/render-content/{document_id}/search")
 async def search_within_document(
@@ -233,8 +245,8 @@ async def search_within_document(
     query: str,
     case_sensitive: bool = False,
     whole_words: bool = False,
-    db: Session = Depends(get_db)
-) -> Dict[str, Any]:
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     """
     Search for text within a specific document.
     """
@@ -252,7 +264,7 @@ async def search_within_document(
             document=document,
             query=query,
             case_sensitive=case_sensitive,
-            whole_words=whole_words
+            whole_words=whole_words,
         )
 
         return {
@@ -260,7 +272,7 @@ async def search_within_document(
             "query": query,
             "total_matches": len(search_results.get("matches", [])),
             "matches": search_results.get("matches", []),
-            "context": search_results.get("context", {})
+            "context": search_results.get("context", {}),
         }
 
     except HTTPException:

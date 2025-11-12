@@ -5,7 +5,7 @@ Unit tests for utility functions and helpers
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+
 
 def test_path_operations():
     """Test basic path operations and file handling"""
@@ -18,6 +18,7 @@ def test_path_operations():
     expected_path = str(full_path).replace("\\", "/")  # Normalize for cross-platform
     assert expected_path == "test_dir/subfolder/file.txt"
 
+
 def test_environment_variables():
     """Test environment variable handling"""
     # Test default values
@@ -29,10 +30,11 @@ def test_environment_variables():
     assert python_path is not None
     assert len(python_path) > 0
 
+
 def test_file_operations():
     """Test basic file operations"""
     # Create temporary file
-    with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
         temp_path = f.name
         f.write("test content")
 
@@ -41,13 +43,14 @@ def test_file_operations():
         assert os.path.exists(temp_path)
 
         # Test file reading
-        with open(temp_path, 'r') as f:
+        with open(temp_path) as f:
             content = f.read()
             assert content == "test content"
 
     finally:
         # Cleanup
         os.unlink(temp_path)
+
 
 def test_json_operations():
     """Test JSON parsing and validation"""
@@ -61,16 +64,14 @@ def test_json_operations():
 
     # Test JSON with nested structures
     nested_data = {
-        "users": [
-            {"name": "Alice", "age": 30},
-            {"name": "Bob", "age": 25}
-        ],
-        "active": True
+        "users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}],
+        "active": True,
     }
     json_str = json.dumps(nested_data)
     parsed = json.loads(json_str)
     assert parsed["users"][0]["name"] == "Alice"
     assert parsed["active"] is True
+
 
 def test_string_operations():
     """Test string manipulation utilities"""
@@ -91,6 +92,7 @@ def test_string_operations():
     assert text.endswith("fox")
     assert "brown" in text
 
+
 def test_list_operations():
     """Test list manipulation and filtering"""
     # Test list comprehension
@@ -110,6 +112,7 @@ def test_list_operations():
     test_list.append(2)
     assert len(test_list) == 6
 
+
 def test_dict_operations():
     """Test dictionary operations and manipulation"""
     # Test dictionary creation and access
@@ -128,6 +131,7 @@ def test_dict_operations():
     squared_dict = {x: x**2 for x in range(1, 4)}
     assert squared_dict == {1: 1, 2: 4, 3: 9}
 
+
 def test_exception_handling():
     """Test exception handling patterns"""
     # Test try-except blocks
@@ -144,6 +148,7 @@ def test_exception_handling():
     except ZeroDivisionError:
         pass  # Expected
 
+
 def test_type_checking():
     """Test basic type checking and validation"""
     # Test isinstance
@@ -158,6 +163,7 @@ def test_type_checking():
     assert float("3.14") == 3.14
     assert bool(1) is True
     assert bool(0) is False
+
 
 if __name__ == "__main__":
     # Run all tests

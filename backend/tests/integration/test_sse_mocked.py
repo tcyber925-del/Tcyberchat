@@ -1,7 +1,6 @@
-import pytest
 import anyio
+import pytest
 import sse_starlette.sse as sse_module
-
 
 # Ensure sse-starlette global AppStatus event is bound to the current AnyIO backend
 # to avoid event-loop mismatch when tests run under pytest/anyio.
@@ -18,8 +17,9 @@ def test_sse_stream_with_mocked_ai(dev_mock_ai):
 
     This replaces the previous subprocess-based test which was flaky.
     """
-    from main import app
     from starlette.testclient import TestClient
+
+    from main import app
 
     with TestClient(app) as client:
         with client.stream("POST", "/chat/stream", json={"message": "test"}) as resp:
@@ -29,12 +29,12 @@ def test_sse_stream_with_mocked_ai(dev_mock_ai):
                 if not line:
                     continue
                 if isinstance(line, bytes):
-                    s = line.decode('utf-8').strip()
+                    s = line.decode("utf-8").strip()
                 else:
                     s = str(line).strip()
                 if s.startswith("data:"):
-                    val = s[len("data:"):].strip()
+                    val = s[len("data:") :].strip()
                     pieces.append(val)
 
-            joined = "".join([p for p in pieces if p and not p.startswith("{" )])
+            joined = "".join([p for p in pieces if p and not p.startswith("{")])
             assert "Hello world" in joined or any("Hello world" in p for p in pieces)

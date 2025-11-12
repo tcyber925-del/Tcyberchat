@@ -28,7 +28,3 @@ export async function getAvailableModels(): Promise<AvailableModel[]> {
     return [];
   }
 }
-
-
-
-

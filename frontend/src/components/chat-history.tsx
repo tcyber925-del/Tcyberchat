@@ -33,8 +33,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
   const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const filteredSessions = sessions.filter(session =>
-    session.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSessions = sessions.filter((session) =>
+    session.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   // Close dropdown menu when clicking outside
@@ -72,15 +72,18 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
     setExpandedMenuId(null);
   }, []);
 
-  const handleShareClick = useCallback(async (e: React.MouseEvent, session: ChatSession) => {
-    e.stopPropagation();
-    try {
-      await shareSession(session.id);
-    } catch (error) {
-      // Error is handled by the context
-    }
-    setExpandedMenuId(null);
-  }, [shareSession]);
+  const handleShareClick = useCallback(
+    async (e: React.MouseEvent, session: ChatSession) => {
+      e.stopPropagation();
+      try {
+        await shareSession(session.id);
+      } catch (error) {
+        // Error is handled by the context
+      }
+      setExpandedMenuId(null);
+    },
+    [shareSession],
+  );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (selectedSession) {
@@ -135,9 +138,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
               <li
                 key={session.id}
                 className={cn(
-                  "group relative flex items-center gap-2 p-2 rounded",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "transition-colors"
+                  'group relative flex items-center gap-2 p-2 rounded',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'transition-colors',
                 )}
                 onMouseEnter={() => setHoveredSessionId(session.id)}
                 onMouseLeave={() => {
@@ -170,7 +173,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
                         <MoreVertical className="h-3 w-3" />
                       </Button>
                       {expandedMenuId === session.id && (
-                        <div ref={menuRef} className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]">
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]"
+                        >
                           <button
                             onClick={(e) => handleRenameClick(e, session)}
                             className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent rounded text-left"
@@ -213,7 +219,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
           <DialogHeader>
             <DialogTitle>Delete Conversation</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{selectedSession?.title}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedSession?.title}"? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -226,10 +233,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-            >
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
             </Button>
           </DialogFooter>
@@ -241,9 +245,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename Conversation</DialogTitle>
-            <DialogDescription>
-              Enter a new name for this conversation.
-            </DialogDescription>
+            <DialogDescription>Enter a new name for this conversation.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -271,10 +273,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleRenameConfirm}
-              disabled={!renameValue.trim()}
-            >
+            <Button onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
               Save
             </Button>
           </DialogFooter>

@@ -1,17 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Body
 import asyncio
-from fastapi.responses import JSONResponse, Response
-from pathlib import Path
-from sqlalchemy.orm import Session
-from ..database import get_db
-from ..services.document_service import get_document_service, DocumentService
-from ..models.document import Document, DocumentRead
-from typing import List # Import List for type hinting
-from uuid import uuid4
-from pydantic import BaseModel
 import json
-
 import logging
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
+
+from ..models.document import Document, DocumentRead
+from ..services.document_service import DocumentService, get_document_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +53,11 @@ async def upload_document_root(
     # Default to 201 for API mount (/api/documents)
     return JSONResponse(content=result, status_code=201)
 
-@router.get("/", response_model=List[DocumentRead])
+
+@router.get("/", response_model=list[DocumentRead])
 def get_all_documents(
     document_service: DocumentService = Depends(get_document_service),
-) -> List[Document]:
+) -> list[Document]:
     """
     Retrieves all documents.
     """
@@ -66,6 +65,7 @@ def get_all_documents(
     documents = document_service.get_all_documents()
     logger.info(f"Found {len(documents)} documents")
     return documents
+
 
 @router.post("/upload", status_code=201)
 async def upload_document(
@@ -82,7 +82,7 @@ async def upload_document(
 
     # Enforce size limits and supported mime types
     max_size = 50 * 1024 * 1024  # 50MB
-    if hasattr(file, 'file'):
+    if hasattr(file, "file"):
         try:
             file.file.seek(0, 2)
             size = file.file.tell()
@@ -91,41 +91,51 @@ async def upload_document(
             size = 0
         if size > max_size:
             # Payload Too Large
-            raise HTTPException(status_code=413, detail="File exceeds maximum allowed size")
+            raise HTTPException(
+                status_code=413, detail="File exceeds maximum allowed size"
+            )
 
-    mime = file.content_type or 'application/octet-stream'
-    
+    mime = file.content_type or "application/octet-stream"
+
     # If MIME type is application/octet-stream, try to detect from file extension
-    if mime == 'application/octet-stream' and file.filename:
+    if mime == "application/octet-stream" and file.filename:
         filename_lower = file.filename.lower()
-        if filename_lower.endswith(('.md', '.markdown')):
-            mime = 'text/markdown'
-        elif filename_lower.endswith('.txt'):
-            mime = 'text/plain'
-        elif filename_lower.endswith('.pdf'):
-            mime = 'application/pdf'
-        elif filename_lower.endswith(('.jpg', '.jpeg')):
-            mime = 'image/jpeg'
-        elif filename_lower.endswith('.png'):
-            mime = 'image/png'
-        elif filename_lower.endswith('.gif'):
-            mime = 'image/gif'
-        elif filename_lower.endswith('.webp'):
-            mime = 'image/webp'
-        elif filename_lower.endswith(('.mp3', '.mpeg')):
-            mime = 'audio/mpeg'
-        elif filename_lower.endswith(('.wav', '.wave')):
-            mime = 'audio/wav'
-        elif filename_lower.endswith('.ogg'):
-            mime = 'audio/ogg'
-        elif filename_lower.endswith('.mp4'):
-            mime = 'audio/mp4'
-    
+        if filename_lower.endswith((".md", ".markdown")):
+            mime = "text/markdown"
+        elif filename_lower.endswith(".txt"):
+            mime = "text/plain"
+        elif filename_lower.endswith(".pdf"):
+            mime = "application/pdf"
+        elif filename_lower.endswith((".jpg", ".jpeg")):
+            mime = "image/jpeg"
+        elif filename_lower.endswith(".png"):
+            mime = "image/png"
+        elif filename_lower.endswith(".gif"):
+            mime = "image/gif"
+        elif filename_lower.endswith(".webp"):
+            mime = "image/webp"
+        elif filename_lower.endswith((".mp3", ".mpeg")):
+            mime = "audio/mpeg"
+        elif filename_lower.endswith((".wav", ".wave")):
+            mime = "audio/wav"
+        elif filename_lower.endswith(".ogg"):
+            mime = "audio/ogg"
+        elif filename_lower.endswith(".mp4"):
+            mime = "audio/mp4"
+
     # Accept common text types and common images/audio; otherwise return Unsupported Media Type
     allowed = [
-        'text/plain', 'text/markdown', 'application/pdf',
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-        'audio/mpeg', 'audio/wav', 'audio/ogg', 'audio/mp4'
+        "text/plain",
+        "text/markdown",
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "audio/mpeg",
+        "audio/wav",
+        "audio/ogg",
+        "audio/mp4",
     ]
     if mime not in allowed:
         raise HTTPException(status_code=415, detail=f"Unsupported file type: {mime}")
@@ -133,14 +143,20 @@ async def upload_document(
     try:
         # Use the already-detected MIME type (may have been corrected from extension)
         # Text-like files: read and create document with content
-        if isinstance(mime, str) and (mime.startswith('text/') or mime == 'application/markdown' or mime == 'application/pdf'):
+        if isinstance(mime, str) and (
+            mime.startswith("text/")
+            or mime == "application/markdown"
+            or mime == "application/pdf"
+        ):
             raw = await file.read()
             try:
-                content = raw.decode('utf-8')
+                content = raw.decode("utf-8")
             except Exception:
-                content = raw.decode('latin-1', errors='ignore')
+                content = raw.decode("latin-1", errors="ignore")
             # Pass the detected MIME type to ensure proper processing
-            document = document_service.create_document(file_name=file.filename, file_content=content, mime_type=mime)
+            document = document_service.create_document(
+                file_name=file.filename, file_content=content, mime_type=mime
+            )
 
         else:
             # Binary files (images, audio): save to disk
@@ -154,28 +170,35 @@ async def upload_document(
                 size = int(Path(path).stat().st_size)
             except Exception:
                 size = 0
-            document = document_service.create_document_record(filename=file.filename, file_path=path, size=size, mime_type=mime)
+            document = document_service.create_document_record(
+                filename=file.filename, file_path=path, size=size, mime_type=mime
+            )
 
         logger.info(f"Document '{file.filename}' uploaded with ID: {document.id}")
 
         # Process document asynchronously to extract content and add to vector store
         try:
             # Run processing in background to avoid blocking the response
-            asyncio.create_task(document_service.process_document_async(str(document.id)))
+            asyncio.create_task(
+                document_service.process_document_async(str(document.id))
+            )
         except Exception as e:
-            logger.exception(f"Failed to start document processing for {document.id}: {e}")
+            logger.exception(
+                f"Failed to start document processing for {document.id}: {e}"
+            )
 
         return {
             "documentId": str(document.id),
             "filename": document.filename,
-            "size": int(getattr(document, 'size', 0)),
-            "status": getattr(document, 'status', 'uploading')
+            "size": int(getattr(document, "size", 0)),
+            "status": getattr(document, "status", "uploading"),
         }
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error uploading document")
         raise HTTPException(status_code=500, detail=f"Failed to upload document: {e}")
+
 
 @router.get("/{document_id}", response_model=DocumentRead)
 def get_document(
@@ -219,6 +242,7 @@ def summarize_document(
     # Validate UUID format
     try:
         from uuid import UUID as _UUID
+
         _UUID(str(document_id))
     except Exception:
         # Pydantic/fastapi typically returns 422 for invalid path param format in tests
@@ -231,24 +255,29 @@ def summarize_document(
         seed_map = {
             "550e8400-e29b-41d4-a716-446655440000": {
                 "content": "This is a sample document used for summarize tests. It contains multiple sentences. The summary should pick first two sentences.",
-                "status": "completed"
+                "status": "completed",
             },
             "550e8400-e29b-41d4-a716-446655440001": {
                 "content": "This document is intentionally left processing to simulate not-ready state.",
-                "status": "processing"
+                "status": "processing",
             },
             "550e8400-e29b-41d4-a716-446655440002": {
                 "content": "",
-                "status": "completed"
-            }
+                "status": "completed",
+            },
         }
         if document_id in seed_map:
             seed = seed_map[document_id]
             # Create a document record with the given content and status and force the ID
-            created = document_service.create_document(file_name=f"seed_{document_id}.txt", file_content=seed["content"], status=seed["status"])
+            created = document_service.create_document(
+                file_name=f"seed_{document_id}.txt",
+                file_content=seed["content"],
+                status=seed["status"],
+            )
             try:
                 # Try to set the id to the expected UUID so subsequent GETs find it
                 from uuid import UUID as _UUID
+
                 created.id = _UUID(document_id)
                 # Persist change
                 db = document_service.db
@@ -261,20 +290,23 @@ def summarize_document(
             raise HTTPException(status_code=404, detail="Document not found")
 
     # Ensure document is processed
-    status = getattr(doc, 'status', '')
-    if status != 'completed':
-        raise HTTPException(status_code=422, detail="Document not ready for summarization")
+    status = getattr(doc, "status", "")
+    if status != "completed":
+        raise HTTPException(
+            status_code=422, detail="Document not ready for summarization"
+        )
 
-    content = getattr(doc, 'content', '') or ''
+    content = getattr(doc, "content", "") or ""
     # Very small documents may return a minimal summary
     if not content.strip():
         summary_text = "(document contains no extractable text)"
     else:
         # Simple extractive summary: first 2 sentences or first 200 chars
         import re
-        sentences = re.split(r'(?<=[.!?])\s+', content.strip())
+
+        sentences = re.split(r"(?<=[.!?])\s+", content.strip())
         if len(sentences) >= 2:
-            summary_text = ' '.join(sentences[:2]).strip()
+            summary_text = " ".join(sentences[:2]).strip()
         else:
             summary_text = content.strip()[:200]
 
@@ -284,8 +316,9 @@ def summarize_document(
     return {
         "summary": summary_text,
         "summaryId": summary_id,
-        "model": "extractive-placeholder"
+        "model": "extractive-placeholder",
     }
+
 
 @router.patch("/{document_id}", response_model=DocumentRead)
 def update_document(
@@ -318,16 +351,16 @@ def export_document(
     if not document:
         logger.warning(f"Document with ID {document_id} not found for export")
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     # Build export payload
     payload = document.to_dict()
     # Include additional fields for export
-    payload["content"] = getattr(document, 'content', None)
-    payload["transcription"] = getattr(document, 'transcription', None)
-    payload["imageAnalysis"] = getattr(document, 'image_analysis', None)
-    payload["chunks"] = getattr(document, 'chunks', None)
-    payload["vectorStoreId"] = getattr(document, 'vector_store_id', None)
-    
+    payload["content"] = getattr(document, "content", None)
+    payload["transcription"] = getattr(document, "transcription", None)
+    payload["imageAnalysis"] = getattr(document, "image_analysis", None)
+    payload["chunks"] = getattr(document, "chunks", None)
+    payload["vectorStoreId"] = getattr(document, "vector_store_id", None)
+
     body = json.dumps(payload, indent=2, default=str)
     return Response(content=body, media_type="application/json")
 

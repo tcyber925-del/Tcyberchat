@@ -36,7 +36,11 @@ const Toast: React.FC<ToastProps> = ({ id, message, type, onClose, duration = 50
       role="alert"
     >
       <span>{message}</span>
-      <button onClick={() => onClose(id)} className="ml-4 text-white opacity-75 hover:opacity-100" aria-label="Close toast">
+      <button
+        onClick={() => onClose(id)}
+        className="ml-4 text-white opacity-75 hover:opacity-100"
+        aria-label="Close toast"
+      >
         ✕
       </button>
     </motion.div>

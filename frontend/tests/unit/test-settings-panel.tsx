@@ -149,7 +149,6 @@ describe('SettingsPanel', () => {
     expect(modelSelect).toBeDisabled();
   });
 
-
   it('has proper accessibility attributes', () => {
     renderWithProvider(<SettingsPanel onClose={mockOnClose} />);
 
@@ -179,8 +178,12 @@ describe('SettingsPanel', () => {
     expect(themeSelect).toHaveAttribute('aria-describedby', 'theme-description');
 
     // Check buttons have proper labels
-    expect(screen.getByRole('button', { name: 'Cancel changes and close settings' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save settings and close panel' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Cancel changes and close settings' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Save settings and close panel' }),
+    ).toBeInTheDocument();
   });
 
   it('handles keyboard navigation properly', () => {

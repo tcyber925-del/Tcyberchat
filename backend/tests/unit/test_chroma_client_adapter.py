@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from src.services.rag_adapter import create_vectorstore
 
 
@@ -7,15 +6,15 @@ class DummyCollection:
         self._data = []
 
     def add(self, documents=None, metadatas=None, ids=None, **kwargs):
-        for d, m, i in zip(documents or [], metadatas or [], ids or []):
+        for d, m, i in zip(documents or [], metadatas or [], ids or [], strict=False):
             self._data.append((d, m, i))
 
     def get(self, include=None):
         # return shape similar to Chroma.get()
         return {
-            "documents": [ [d for d, m, i in self._data] ],
-            "metadatas": [ [m for d, m, i in self._data] ],
-            "ids": [ [i for d, m, i in self._data] ],
+            "documents": [[d for d, m, i in self._data]],
+            "metadatas": [[m for d, m, i in self._data]],
+            "ids": [[i for d, m, i in self._data]],
         }
 
     def count(self):
@@ -38,7 +37,7 @@ def test_create_vectorstore_uses_chroma_client():
     vs = create_vectorstore(client=client, collection_name="testcol", embedding=None)
 
     # The adapter should return an object with add_texts/get/count methods
-    assert hasattr(vs, 'add_texts') or hasattr(vs, 'add_documents')
+    assert hasattr(vs, "add_texts") or hasattr(vs, "add_documents")
 
     # Use add_texts and ensure count and get reflect added data
     vs.add_texts(["hello world"], metadatas=[{"document_id": "doc1"}], ids=["doc1"])
@@ -47,4 +46,6 @@ def test_create_vectorstore_uses_chroma_client():
     assert vs.count() == 1
 
     got = vs.get()
-    assert "hello world" in got.get('documents', []) or any("hello world" in d for d in got.get('documents', []))
+    assert "hello world" in got.get("documents", []) or any(
+        "hello world" in d for d in got.get("documents", [])
+    )

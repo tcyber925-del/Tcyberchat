@@ -3,11 +3,12 @@ Contract tests for POST /api/documents/{documentId}/summarize endpoint
 Tests document summarization functionality
 """
 
-import pytest
 from fastapi.testclient import TestClient
+
 from main import app
 
 client = TestClient(app)
+
 
 def test_documents_summarize_success():
     """Test successful document summarization"""
@@ -26,6 +27,7 @@ def test_documents_summarize_success():
     assert isinstance(response_data["summary"], str)
     assert len(response_data["summary"]) > 0
 
+
 def test_documents_summarize_not_found():
     """Test summarization of non-existent document"""
     document_id = "00000000-0000-0000-0000-000000000000"
@@ -35,6 +37,7 @@ def test_documents_summarize_not_found():
     # Should return not found error
     assert response.status_code == 404
 
+
 def test_documents_summarize_invalid_uuid():
     """Test summarization with invalid document ID format"""
     document_id = "invalid-uuid"
@@ -43,6 +46,7 @@ def test_documents_summarize_invalid_uuid():
 
     # Should return validation error
     assert response.status_code == 422
+
 
 def test_documents_summarize_not_ready():
     """Test summarization of document that hasn't finished processing"""
@@ -54,6 +58,7 @@ def test_documents_summarize_not_ready():
     assert response.status_code == 422
     response_data = response.json()
     assert "detail" in response_data
+
 
 def test_documents_summarize_empty_document():
     """Test summarization of empty or very small document"""

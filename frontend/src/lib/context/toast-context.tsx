@@ -5,18 +5,36 @@ import { v4 as uuidv4 } from 'uuid';
 import Toast from '@/components/toast';
 
 interface ToastContextType {
-  showToast: (message: string, type?: 'success' | 'error' | 'info' | 'warning', duration?: number) => void;
+  showToast: (
+    message: string,
+    type?: 'success' | 'error' | 'info' | 'warning',
+    duration?: number,
+  ) => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' | 'warning'; duration?: number }>>([]);
+  const [toasts, setToasts] = useState<
+    Array<{
+      id: string;
+      message: string;
+      type: 'success' | 'error' | 'info' | 'warning';
+      duration?: number;
+    }>
+  >([]);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info', duration?: number) => {
-    const id = uuidv4();
-    setToasts((prev) => [...prev, { id, message, type, duration }]);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      type: 'success' | 'error' | 'info' | 'warning' = 'info',
+      duration?: number,
+    ) => {
+      const id = uuidv4();
+      setToasts((prev) => [...prev, { id, message, type, duration }]);
+    },
+    [],
+  );
 
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));

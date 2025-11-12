@@ -4,6 +4,9 @@ export interface Citation {
   page?: number;
   snippet: string;
   url?: string;
+  title?: string;
+  source?: string;
+  source_type?: string;
 }
 
 export interface Message {

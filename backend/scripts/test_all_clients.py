@@ -1,15 +1,16 @@
-
 import asyncio
 import os
-from dotenv import load_dotenv
 import sys
 
+from dotenv import load_dotenv
+
 # Add backend src to path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from src.clients.gemini_client import GeminiClient
-from src.clients.openrouter_client import OpenRouterClient
 from src.clients.llama_cpp_client import LlamaCppClient
+from src.clients.openrouter_client import OpenRouterClient
+
 
 async def main():
     """
@@ -27,7 +28,9 @@ async def main():
             gemini_client = GeminiClient(api_key=gemini_key)
             prompt = "Hello from the Gemini test script!"
             print(f"Sending prompt: '{prompt}'")
-            response = await asyncio.get_event_loop().run_in_executor(None, lambda: gemini_client.generate(prompt))
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: gemini_client.generate(prompt)
+            )
             print(f"Received response: {response}")
         except Exception as e:
             print(f"Error testing Gemini: {e}")
@@ -42,7 +45,9 @@ async def main():
             openrouter_client = OpenRouterClient(api_key=openrouter_key)
             prompt = "Hello from the OpenRouter test script!"
             print(f"Sending prompt: '{prompt}'")
-            response = await asyncio.get_event_loop().run_in_executor(None, lambda: openrouter_client.chat(prompt))
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: openrouter_client.chat(prompt)
+            )
             print(f"Received response: {response}")
         except Exception as e:
             print(f"Error testing OpenRouter: {e}")

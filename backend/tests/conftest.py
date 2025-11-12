@@ -1,9 +1,12 @@
 import os
+
 import pytest
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "integration: mark test as integration (requires services)")
+    config.addinivalue_line(
+        "markers", "integration: mark test as integration (requires services)"
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -12,7 +15,9 @@ def pytest_collection_modifyitems(config, items):
     if run_integration:
         return
 
-    skip_integration = pytest.mark.skip(reason="Integration tests skipped (set RUN_INTEGRATION_TESTS=1 to enable)")
+    skip_integration = pytest.mark.skip(
+        reason="Integration tests skipped (set RUN_INTEGRATION_TESTS=1 to enable)"
+    )
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip_integration)

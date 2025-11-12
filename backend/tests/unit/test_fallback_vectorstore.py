@@ -1,7 +1,5 @@
-import pytest
-
-from src.services.rag_adapter import create_vectorstore, _FallbackVectorStore
 from src import database
+from src.services.rag_adapter import _FallbackVectorStore
 
 
 def test_fallback_vectorstore_basic_operations():
@@ -11,7 +9,9 @@ def test_fallback_vectorstore_basic_operations():
 
     # Prefer the explicit fallback vectorstore for tests to avoid depending on
     # environment-installed LangChain/Chroma embedding configuration.
-    vs = _FallbackVectorStore(client=None, collection_name="test_vec", embedding_function=None)
+    vs = _FallbackVectorStore(
+        client=None, collection_name="test_vec", embedding_function=None
+    )
     assert vs is not None
 
     # Add texts
@@ -31,4 +31,4 @@ def test_fallback_vectorstore_basic_operations():
     # Search for 'capital' should return relevant docs
     results = vs.get_relevant_documents("capital", k=2)
     assert isinstance(results, list)
-    assert any("capital" in getattr(r, 'page_content', '').lower() for r in results)
+    assert any("capital" in getattr(r, "page_content", "").lower() for r in results)

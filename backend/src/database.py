@@ -2,11 +2,10 @@
 Database configuration and session management for SQLAlchemy and ChromaDB
 """
 
+import os
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
-import os
-import asyncio
-from typing import Optional
 
 # Model imports moved to function to avoid circular imports
 # They will be imported when initialize_database() is called
@@ -22,8 +21,10 @@ os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 # SQLAlchemy setup
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {},
-    echo=False  # Set to True for SQL debugging
+    connect_args={"check_same_thread": False}
+    if DATABASE_URL.startswith("sqlite")
+    else {},
+    echo=False,  # Set to True for SQL debugging
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -31,11 +32,14 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class Base(DeclarativeBase):
     """SQLAlchemy 2.0-style base class for declarative models."""
+
     pass
+
 
 # ChromaDB setup
 chroma_client = None
 vector_store_initialized = False
+
 
 def get_db():
     """Dependency to get database session"""
@@ -45,15 +49,11 @@ def get_db():
     finally:
         db.close()
 
+
 def create_tables():
     """Create all database tables"""
     try:
         # Import models here to avoid circular imports
-        from .models.conversation import Conversation
-        from .models.message import Message
-        from .models.document import Document
-        from .models.summary import Summary
-        from .models.media_content import MediaContent
 
         Base.metadata.create_all(bind=engine)
         print("SQLAlchemy tables created successfully")
@@ -61,6 +61,7 @@ def create_tables():
     except Exception as e:
         print(f"Failed to create tables: {e}")
         return False
+
 
 def drop_tables():
     """Drop all database tables (for testing/reset)"""
@@ -72,6 +73,7 @@ def drop_tables():
         print(f"❌ Failed to drop tables: {e}")
         return False
 
+
 def initialize_chroma():
     """Initialize ChromaDB vector store"""
     global chroma_client, vector_store_initialized
@@ -81,8 +83,7 @@ def initialize_chroma():
         from chromadb.config import Settings
 
         chroma_client = chromadb.PersistentClient(
-            path=CHROMA_PERSIST_DIR,
-            settings=Settings(anonymized_telemetry=False)
+            path=CHROMA_PERSIST_DIR, settings=Settings(anonymized_telemetry=False)
         )
 
         # Test connection by creating/getting a collection
@@ -99,6 +100,7 @@ def initialize_chroma():
     except Exception as e:
         print(f"Failed to initialize ChromaDB: {e}")
         return False
+
 
 def initialize_database():
     """Initialize both SQLAlchemy and ChromaDB"""
@@ -121,18 +123,20 @@ def initialize_database():
 
                 # Define migrations: column name -> SQL fragment to add
                 migrations = {
-                    'is_pinned': "ALTER TABLE conversations ADD COLUMN is_pinned BOOLEAN DEFAULT 0",
-                    'is_archived': "ALTER TABLE conversations ADD COLUMN is_archived BOOLEAN DEFAULT 0",
-                    'metrics': "ALTER TABLE conversations ADD COLUMN metrics JSON",
-                    'participants': "ALTER TABLE conversations ADD COLUMN participants JSON",
-                    'retention_policy': "ALTER TABLE conversations ADD COLUMN retention_policy VARCHAR(100)",
+                    "is_pinned": "ALTER TABLE conversations ADD COLUMN is_pinned BOOLEAN DEFAULT 0",
+                    "is_archived": "ALTER TABLE conversations ADD COLUMN is_archived BOOLEAN DEFAULT 0",
+                    "metrics": "ALTER TABLE conversations ADD COLUMN metrics JSON",
+                    "participants": "ALTER TABLE conversations ADD COLUMN participants JSON",
+                    "retention_policy": "ALTER TABLE conversations ADD COLUMN retention_policy VARCHAR(100)",
                 }
 
                 for col, stmt in migrations.items():
                     if col not in existing:
                         try:
                             conn.execute(text(stmt))
-                            print(f"Added missing column '{col}' to conversations table")
+                            print(
+                                f"Added missing column '{col}' to conversations table"
+                            )
                         except Exception as e:
                             # Non-fatal: log and continue
                             print(f"Failed to add column {col}: {e}")
@@ -151,6 +155,7 @@ def initialize_database():
     else:
         print("Some databases failed to initialize")
         return False
+
 
 def get_database_status():
     """Get status of all database systems"""
@@ -175,14 +180,16 @@ def get_database_status():
     return {
         "sqlalchemy": {
             "status": sql_status,
-            "url": DATABASE_URL.replace(os.path.dirname(DATABASE_URL), "...")  # Hide path for security
+            "url": DATABASE_URL.replace(
+                os.path.dirname(DATABASE_URL), "..."
+            ),  # Hide path for security
         },
-        "chromadb": {
-            "status": chroma_status,
-            "persist_dir": CHROMA_PERSIST_DIR
-        },
-        "overall_status": "healthy" if sql_status == "connected" and "ready" in chroma_status else "degraded"
+        "chromadb": {"status": chroma_status, "persist_dir": CHROMA_PERSIST_DIR},
+        "overall_status": "healthy"
+        if sql_status == "connected" and "ready" in chroma_status
+        else "degraded",
     }
+
 
 # Auto-initialize on import (in development) unless explicitly skipped. This
 # environment variable is set by Alembic env.py to avoid side-effects during

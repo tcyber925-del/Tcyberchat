@@ -24,7 +24,13 @@ interface DocumentManagerProps {
   isLoading: boolean;
 }
 
-const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDocument, onUploadDocument, onDeleteDocument, isLoading }) => {
+const DocumentManager: React.FC<DocumentManagerProps> = ({
+  documents,
+  onSelectDocument,
+  onUploadDocument,
+  onDeleteDocument,
+  isLoading,
+}) => {
   const { renameDocument, shareDocument } = useChat();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,8 +42,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
   const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const filteredDocuments = documents.filter(doc =>
-    doc.filename.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredDocuments = documents.filter((doc) =>
+    doc.filename.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   // Close dropdown menu when clicking outside
@@ -86,15 +92,18 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
     setExpandedMenuId(null);
   }, []);
 
-  const handleShareClick = useCallback(async (e: React.MouseEvent, doc: Document) => {
-    e.stopPropagation();
-    try {
-      await shareDocument(doc.id);
-    } catch (error) {
-      // Error is handled by the context
-    }
-    setExpandedMenuId(null);
-  }, [shareDocument]);
+  const handleShareClick = useCallback(
+    async (e: React.MouseEvent, doc: Document) => {
+      e.stopPropagation();
+      try {
+        await shareDocument(doc.id);
+      } catch (error) {
+        // Error is handled by the context
+      }
+      setExpandedMenuId(null);
+    },
+    [shareDocument],
+  );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (selectedDocument) {
@@ -132,12 +141,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
           >
             Upload
           </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-          />
+          <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
         </div>
         <input
           id="document-search"
@@ -164,9 +168,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
               <li
                 key={`${doc.id}-${index}`}
                 className={cn(
-                  "group relative flex items-center gap-2 p-2 rounded",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "transition-colors"
+                  'group relative flex items-center gap-2 p-2 rounded',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'transition-colors',
                 )}
                 onMouseEnter={() => setHoveredDocumentId(doc.id)}
                 onMouseLeave={() => {
@@ -199,7 +203,10 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
                         <MoreVertical className="h-3 w-3" />
                       </Button>
                       {expandedMenuId === doc.id && (
-                        <div ref={menuRef} className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]">
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]"
+                        >
                           <button
                             onClick={(e) => handleRenameClick(e, doc)}
                             className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent rounded text-left"
@@ -242,7 +249,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
           <DialogHeader>
             <DialogTitle>Delete Document</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{selectedDocument?.filename}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedDocument?.filename}"? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -255,10 +263,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-            >
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
             </Button>
           </DialogFooter>
@@ -270,9 +275,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename Document</DialogTitle>
-            <DialogDescription>
-              Enter a new name for this document.
-            </DialogDescription>
+            <DialogDescription>Enter a new name for this document.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -300,10 +303,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ documents, onSelectDo
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleRenameConfirm}
-              disabled={!renameValue.trim()}
-            >
+            <Button onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
               Save
             </Button>
           </DialogFooter>

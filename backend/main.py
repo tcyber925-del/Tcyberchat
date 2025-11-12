@@ -3,66 +3,68 @@ Local First Chatbot Backend API
 FastAPI application with multi-modal support, RAG, and local AI processing
 """
 
-from fastapi import FastAPI, Request, Response, HTTPException
-from contextlib import asynccontextmanager
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-import uvicorn
-import time
 import logging
 import os
-from typing import Callable
+import time
+from collections.abc import Callable
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Import API routers
 try:
+    from src.api.analyze_image import router as analyze_image_router
     from src.api.chat import router as chat_router
     from src.api.conversations import router as conversations_router
-    from src.api.documents import router as documents_router
-    from src.api.search import router as search_router
     from src.api.data_management import router as data_management_router
-    from src.api.analyze_image import router as analyze_image_router
-    from src.api.transcribe_audio import router as transcribe_audio_router
+    from src.api.documents import router as documents_router
     from src.api.render_content import router as render_content_router
-
-    # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.api.search import router as search_router
+    from src.api.transcribe_audio import router as transcribe_audio_router
+    from src.api.web_tools import router as web_tools_router
 
     # Import database utilities
     from src.database import get_database_status
+
+    # Import AI service
+    from src.services.ai_service import get_ai_service
 except ImportError:
     # Fallback for direct execution
-    import sys
     import os
+    import sys
+
     sys.path.insert(0, os.path.dirname(__file__))
+    from src.api.analyze_image import router as analyze_image_router
     from src.api.chat import router as chat_router
     from src.api.conversations import router as conversations_router
-    from src.api.documents import router as documents_router
-    from src.api.search import router as search_router
     from src.api.data_management import router as data_management_router
-    from src.api.analyze_image import router as analyze_image_router
-    from src.api.transcribe_audio import router as transcribe_audio_router
+    from src.api.documents import router as documents_router
     from src.api.render_content import router as render_content_router
-
-    # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.api.search import router as search_router
+    from src.api.transcribe_audio import router as transcribe_audio_router
+    from src.api.web_tools import router as web_tools_router
 
     # Import database utilities
     from src.database import get_database_status
 
+    # Import AI service
+    from src.services.ai_service import get_ai_service
+
 # Ensure logs directory exists
-os.makedirs('logs', exist_ok=True)
+os.makedirs("logs", exist_ok=True)
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('logs/api.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("logs/api.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,6 +75,7 @@ async def lifespan(app: FastAPI):
     finally:
         # Shutdown
         logger.info("Application shutting down...")
+
 
 # Initialize FastAPI app with enhanced OpenAPI documentation
 app = FastAPI(
@@ -106,47 +109,31 @@ app = FastAPI(
     contact={
         "name": "Local First Chatbot",
         "url": "https://github.com/your-repo/local-chatbot",
-        "email": "support@localchatbot.dev"
+        "email": "support@localchatbot.dev",
     },
-    license_info={
-        "name": "MIT License",
-        "url": "https://opensource.org/licenses/MIT"
-    },
+    license_info={"name": "MIT License", "url": "https://opensource.org/licenses/MIT"},
     openapi_tags=[
-        {
-            "name": "chat",
-            "description": "Conversational AI endpoints with RAG support"
-        },
+        {"name": "chat", "description": "Conversational AI endpoints with RAG support"},
         {
             "name": "documents",
-            "description": "Document upload, management, and processing"
+            "description": "Document upload, management, and processing",
         },
         {
             "name": "search",
-            "description": "Vector search and retrieval across documents"
+            "description": "Vector search and retrieval across documents",
         },
         {
             "name": "data-management",
-            "description": "Data export/import and backup operations"
+            "description": "Data export/import and backup operations",
         },
-        {
-            "name": "analyze-image",
-            "description": "Image analysis and OCR capabilities"
-        },
-        {
-            "name": "transcribe-audio",
-            "description": "Audio transcription and analysis"
-        },
-        {
-            "name": "render-content",
-            "description": "Multi-format content rendering"
-        }
+        {"name": "analyze-image", "description": "Image analysis and OCR capabilities"},
+        {"name": "transcribe-audio", "description": "Audio transcription and analysis"},
+        {"name": "render-content", "description": "Multi-format content rendering"},
     ],
     docs_url="/docs",  # Swagger UI
     redoc_url="/redoc",  # ReDoc documentation
-    openapi_url="/openapi.json"  # OpenAPI JSON schema
-    ,
-    lifespan=lifespan
+    openapi_url="/openapi.json",  # OpenAPI JSON schema
+    lifespan=lifespan,
 )
 
 # Configure CORS for frontend communication
@@ -158,6 +145,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Custom logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next: Callable) -> Response:
@@ -165,7 +153,9 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
     start_time = time.time()
 
     # Log request
-    logger.info(f"Request: {request.method} {request.url.path} from {request.client.host}")
+    logger.info(
+        f"Request: {request.method} {request.url.path} from {request.client.host}"
+    )
 
     try:
         # Process request
@@ -194,6 +184,7 @@ async def log_requests(request: Request, call_next: Callable) -> Response:
         )
         raise
 
+
 # Include API routers under a consistent /api base path to match contract tests
 # Keep health and root endpoints at the top-level
 app.include_router(chat_router, prefix="/api/chat")
@@ -211,6 +202,8 @@ app.include_router(data_management_router, prefix="/api")
 app.include_router(analyze_image_router, prefix="/api")
 app.include_router(transcribe_audio_router, prefix="/api")
 app.include_router(render_content_router, prefix="/api")
+app.include_router(web_tools_router, prefix="/api")
+
 
 # Global exception handlers for graceful error handling
 @app.exception_handler(HTTPException)
@@ -225,14 +218,12 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "error": {
                 "type": "http_exception",
                 "message": exc.detail,
-                "status_code": exc.status_code
+                "status_code": exc.status_code,
             },
-            "request": {
-                "method": request.method,
-                "url": str(request.url)
-            }
-        }
+            "request": {"method": request.method, "url": str(request.url)},
+        },
     )
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -247,6 +238,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         try:
             # attempt a quick JSON-serializable check
             import json as _json
+
             _json.dumps(inp)
             safe_input = inp
         except Exception:
@@ -267,14 +259,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "error": {
                 "type": "validation_error",
                 "message": "Request validation failed",
-                "details": safe_errors
+                "details": safe_errors,
             },
-            "request": {
-                "method": request.method,
-                "url": str(request.url)
-            }
-        }
+            "request": {"method": request.method, "url": str(request.url)},
+        },
     )
+
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
@@ -296,21 +286,21 @@ async def general_exception_handler(request: Request, exc: Exception):
             "error": {
                 "type": "internal_server_error",
                 "message": error_message,
-                "reference_id": f"ERR_{int(time.time())}"  # For support reference
+                "reference_id": f"ERR_{int(time.time())}",  # For support reference
             },
-            "request": {
-                "method": request.method,
-                "url": str(request.url)
-            }
-        }
+            "request": {"method": request.method, "url": str(request.url)},
+        },
     )
 
+
 # Note: FastAPI lifespan handler is used above for startup/shutdown logging.
+
 
 @app.get("/")
 async def root():
     """Health check endpoint"""
     return {"message": "Local First Chatbot API", "status": "running"}
+
 
 @app.get("/health")
 async def health_check():
@@ -323,10 +313,11 @@ async def health_check():
         "services": {
             "database": db_status["sqlalchemy"]["status"],
             "vector_store": db_status["chromadb"]["status"],
-            "ollama": "not_checked"  # TODO: Add Ollama health check
+            "ollama": "not_checked",  # TODO: Add Ollama health check
         },
-        "database_details": db_status
+        "database_details": db_status,
     }
+
 
 @app.get("/api/v1/models")
 async def get_models():
@@ -334,11 +325,6 @@ async def get_models():
     ai_service = await get_ai_service()
     return await ai_service.get_available_models()
 
+
 if __name__ == "__main__":
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

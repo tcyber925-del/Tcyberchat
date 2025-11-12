@@ -102,7 +102,9 @@ describe('Data Management API', () => {
     });
 
     it('should handle files with special characters in name', async () => {
-      const specialFile = new File(['content'], 'test file with spaces.zip', { type: 'application/zip' });
+      const specialFile = new File(['content'], 'test file with spaces.zip', {
+        type: 'application/zip',
+      });
       const mockResponse = { message: 'Import completed successfully' };
 
       mockFetch.mockResolvedValueOnce({

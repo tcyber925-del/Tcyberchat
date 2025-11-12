@@ -1,14 +1,16 @@
 """
 LlamaCppClient for llama.cpp server interactions.
 """
-import httpx
+
 import json
 import logging
-from typing import List, Dict, Any, AsyncGenerator, Optional
-
 import os
+from collections.abc import AsyncGenerator
+
+import httpx
 
 logger = logging.getLogger(__name__)
+
 
 class LlamaCppClient:
     """
@@ -26,7 +28,7 @@ class LlamaCppClient:
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=None)
         logger.info(f"Llama.cpp client initialized for server at {self.base_url}")
 
-    async def get_available_models(self) -> List[str]:
+    async def get_available_models(self) -> list[str]:
         """
         Retrieves the list of available models from the server.
         """
@@ -35,13 +37,18 @@ class LlamaCppClient:
             response.raise_for_status()
             models_data = response.json()
             # The expected format is a dictionary with a 'data' key containing a list of models
-            return [os.path.basename(model["id"]) for model in models_data.get("data", [])]
+            return [
+                os.path.basename(model["id"]) for model in models_data.get("data", [])
+            ]
         except (httpx.RequestError, json.JSONDecodeError) as e:
-            logger.error(f"Failed to get available models from llama.cpp server: {e}", exc_info=True)
+            logger.error(
+                f"Failed to get available models from llama.cpp server: {e}",
+                exc_info=True,
+            )
             return []
 
     async def generate_stream(
-        self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs
+        self, messages: list[dict[str, str]], model: str | None = None, **kwargs
     ) -> AsyncGenerator[str, None]:
         """
         Generate a streaming response from the Llama.cpp server.
@@ -63,31 +70,39 @@ class LlamaCppClient:
             request_body["model"] = model
 
         try:
-            async with self.client.stream("POST", "/v1/chat/completions", json=request_body) as response:
+            async with self.client.stream(
+                "POST", "/v1/chat/completions", json=request_body
+            ) as response:
                 response.raise_for_status()
                 async for line in response.aiter_lines():
                     if line.startswith("data:"):
-                        data_str = line[len("data: "):].strip()
+                        data_str = line[len("data: ") :].strip()
                         if data_str == "[DONE]":
                             break
                         try:
                             chunk = json.loads(data_str)
                             if "choices" in chunk and chunk["choices"]:
-                                content = chunk["choices"][0].get("delta", {}).get("content")
+                                content = (
+                                    chunk["choices"][0].get("delta", {}).get("content")
+                                )
                                 if content:
                                     yield content
                         except json.JSONDecodeError:
-                            logger.warning(f"Failed to decode SSE data chunk: {data_str}")
+                            logger.warning(
+                                f"Failed to decode SSE data chunk: {data_str}"
+                            )
                             continue
         except httpx.RequestError as e:
             logger.error(f"Llama.cpp streaming generation failed: {e}", exc_info=True)
             raise
         except Exception as e:
-            logger.error(f"An unexpected error occurred during streaming: {e}", exc_info=True)
+            logger.error(
+                f"An unexpected error occurred during streaming: {e}", exc_info=True
+            )
             raise
 
     async def generate(
-        self, messages: List[Dict[str, str]], model: Optional[str] = None, **kwargs
+        self, messages: list[dict[str, str]], model: str | None = None, **kwargs
     ) -> str:
         """
         Generate a non-streaming response from the Llama.cpp server.
@@ -114,5 +129,7 @@ class LlamaCppClient:
             completion = response.json()
             return completion["choices"][0]["message"]["content"]
         except (httpx.RequestError, json.JSONDecodeError, KeyError) as e:
-            logger.error(f"Llama.cpp non-streaming generation failed: {e}", exc_info=True)
+            logger.error(
+                f"Llama.cpp non-streaming generation failed: {e}", exc_info=True
+            )
             raise

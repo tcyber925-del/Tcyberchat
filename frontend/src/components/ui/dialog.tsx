@@ -69,7 +69,7 @@ const DialogContent: React.FC<DialogContentProps> = ({ children, className }) =>
       className={cn(
         'bg-background rounded-lg shadow-lg p-6 w-full max-w-md mx-4',
         'border border-border',
-        className
+        className,
       )}
       onClick={(e) => e.stopPropagation()}
     >
@@ -79,11 +79,7 @@ const DialogContent: React.FC<DialogContentProps> = ({ children, className }) =>
 };
 
 const DialogHeader: React.FC<DialogHeaderProps> = ({ children, className }) => {
-  return (
-    <div className={cn('flex flex-col space-y-1.5 mb-4', className)}>
-      {children}
-    </div>
-  );
+  return <div className={cn('flex flex-col space-y-1.5 mb-4', className)}>{children}</div>;
 };
 
 const DialogTitle: React.FC<DialogTitleProps> = ({ children, className }) => {
@@ -95,26 +91,20 @@ const DialogTitle: React.FC<DialogTitleProps> = ({ children, className }) => {
 };
 
 const DialogDescription: React.FC<DialogDescriptionProps> = ({ children, className }) => {
-  return (
-    <p className={cn('text-sm text-muted-foreground', className)}>
-      {children}
-    </p>
-  );
+  return <p className={cn('text-sm text-muted-foreground', className)}>{children}</p>;
 };
 
 const DialogFooter: React.FC<DialogFooterProps> = ({ children, className }) => {
   return (
-    <div className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-6', className)}>
+    <div
+      className={cn(
+        'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 mt-6',
+        className,
+      )}
+    >
       {children}
     </div>
   );
 };
 
 export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter };
-
-
-
-
-
-
-

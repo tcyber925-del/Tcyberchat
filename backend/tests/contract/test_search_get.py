@@ -3,11 +3,12 @@ Contract tests for GET /api/search endpoint
 Tests full-text search across documents and conversations
 """
 
-import pytest
 from fastapi.testclient import TestClient
+
 from main import app
 
 client = TestClient(app)
+
 
 def test_search_success():
     """Test successful search query"""
@@ -27,6 +28,7 @@ def test_search_success():
     assert isinstance(response_data["results"], list)
     assert isinstance(response_data["total"], int)
 
+
 def test_search_with_type_filter():
     """Test search with type filtering"""
     params = {"q": "machine learning", "type": "documents"}
@@ -40,6 +42,7 @@ def test_search_with_type_filter():
     for result in response_data["results"]:
         assert result["type"] == "document"
 
+
 def test_search_with_limit():
     """Test search with result limit"""
     params = {"q": "data", "limit": 5}
@@ -52,6 +55,7 @@ def test_search_with_limit():
     # Should not exceed the limit
     assert len(response_data["results"]) <= 5
 
+
 def test_search_empty_query():
     """Test search with empty query string"""
     params = {"q": ""}
@@ -60,6 +64,7 @@ def test_search_empty_query():
 
     # Should return validation error
     assert response.status_code == 422
+
 
 def test_search_no_matches():
     """Test search query with no expected matches"""
@@ -73,6 +78,7 @@ def test_search_no_matches():
     # Should return empty results
     assert len(response_data["results"]) == 0
     assert response_data["total"] == 0
+
 
 def test_search_result_structure():
     """Test that search results have correct structure"""

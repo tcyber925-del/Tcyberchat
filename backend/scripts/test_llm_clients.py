@@ -4,6 +4,7 @@ It will attempt to import the thin wrappers in `backend/src/clients/` and call
 them if API keys are present in the environment. The script is defensive and
 prints helpful instructions if dependencies or keys are missing.
 """
+
 import os
 import sys
 
