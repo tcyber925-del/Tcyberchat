@@ -3,16 +3,17 @@ Contract tests for POST /api/analyze-image endpoint
 Tests image analysis functionality using multi-modal AI
 """
 
-import pytest
 from fastapi.testclient import TestClient
+
 from main import app
 
 client = TestClient(app)
 
+
 def test_analyze_image_success():
     """Test successful image analysis"""
     # Create a minimal PNG image (1x1 transparent pixel)
-    png_content = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82'
+    png_content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82"
     files = {"image": ("test.png", png_content, "image/png")}
 
     response = client.post("/api/analyze-image", files=files)
@@ -29,9 +30,10 @@ def test_analyze_image_success():
     assert isinstance(response_data["objects"], list)
     assert isinstance(response_data["confidence"], (int, float))
 
+
 def test_analyze_image_with_query():
     """Test image analysis with specific query"""
-    png_content = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82'
+    png_content = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82"
     files = {"image": ("chart.png", png_content, "image/png")}
     data = {"query": "What does this chart show?"}
 
@@ -44,12 +46,14 @@ def test_analyze_image_with_query():
     assert "answer" in response_data
     assert isinstance(response_data["answer"], str)
 
+
 def test_analyze_image_no_file():
     """Test image analysis with no image file"""
     response = client.post("/api/analyze-image")
 
     # Should return validation error
     assert response.status_code == 422
+
 
 def test_analyze_image_unsupported_format():
     """Test image analysis with unsupported file format"""
@@ -62,6 +66,7 @@ def test_analyze_image_unsupported_format():
     # Should return unsupported media type
     assert response.status_code == 415
 
+
 def test_analyze_image_corrupted():
     """Test image analysis with corrupted image data"""
     corrupted_content = b"This is not a valid image"
@@ -71,6 +76,7 @@ def test_analyze_image_corrupted():
 
     # Should return bad request or processing error
     assert response.status_code in [400, 422, 500]
+
 
 def test_analyze_image_too_large():
     """Test image analysis with file exceeding size limit"""

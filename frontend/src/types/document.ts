@@ -4,7 +4,14 @@ export interface Document {
   size: number;
   mimeType: string;
   uploadedAt: Date;
-  status: 'uploading' | 'processing' | 'analyzing' | 'transcribing' | 'embedding' | 'ready' | 'error';
+  status:
+    | 'uploading'
+    | 'processing'
+    | 'analyzing'
+    | 'transcribing'
+    | 'embedding'
+    | 'ready'
+    | 'error';
   hasContent: boolean;
   hasTranscription: boolean;
   hasImageAnalysis: boolean;

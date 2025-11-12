@@ -19,7 +19,9 @@ except Exception:
         # Fallback path if run from a different CWD
         from ..src.database import chroma_client as client
     except Exception:
-        print("Could not import chroma_client from src.database. Make sure you're running this from the backend folder and the venv is active.")
+        print(
+            "Could not import chroma_client from src.database. Make sure you're running this from the backend folder and the venv is active."
+        )
         traceback.print_exc()
         sys.exit(1)
 
@@ -53,7 +55,7 @@ try:
 
     try:
         # Some Chroma collections expose an add() method
-        if hasattr(col, 'add'):
+        if hasattr(col, "add"):
             col.add(documents=texts, metadatas=metadatas, ids=ids)
         else:
             # try add_documents / add
@@ -66,7 +68,7 @@ try:
         traceback.print_exc()
 
     try:
-        if hasattr(col, 'persist'):
+        if hasattr(col, "persist"):
             col.persist()
     except Exception:
         pass

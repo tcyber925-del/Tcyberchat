@@ -11,15 +11,12 @@ const Chat = React.forwardRef<HTMLDivElement, ChatProps>(
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn(
-        'flex flex-col space-y-4 max-h-full overflow-y-auto',
-        className
-      )}
+      className={cn('flex flex-col space-y-4 max-h-full overflow-y-auto', className)}
       {...props}
     >
       {children}
     </div>
-  )
+  ),
 );
 Chat.displayName = 'Chat';
 
@@ -31,18 +28,39 @@ interface ChatMessageProps extends React.ComponentPropsWithoutRef<'div'> {
   timestamp?: Date; // Optional timestamp for the message
   isStreaming?: boolean; // Whether this message is currently streaming
   messageId?: string; // Optional message ID for editing
+  meta?: any; // Optional metadata (e.g., web provider info)
+  citations?: any[]; // Optional citations to render as source cards
 }
 
+import { useSettings } from '@/lib/context/settings-context';
+
 const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
-  ({ className, role, children, content, onCopy, onEdit, timestamp, isStreaming = false, messageId, ...props }, ref) => {
+  (
+    {
+      className,
+      role,
+      children,
+      content,
+      onCopy,
+      onEdit,
+      timestamp,
+      isStreaming = false,
+      messageId,
+      meta,
+      citations,
+      ...props
+    },
+    ref,
+  ) => {
     const isUser = role === 'user';
     const [copied, setCopied] = React.useState(false);
-    
+    const { settings } = useSettings();
+
     // Enhanced bubble classes with better visual distinction
     const bubbleClasses = isUser
       ? 'bg-primary text-primary-foreground'
       : 'bg-card border border-border text-foreground';
-    
+
     // Format timestamp
     const formatTime = React.useCallback((date?: Date) => {
       if (!date) return '';
@@ -79,7 +97,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     const handleCopy = React.useCallback(async () => {
       // Use content prop if available, otherwise try to extract from children
       let textToCopy = content;
-      
+
       if (!textToCopy && children) {
         // Try to extract text from React children
         const childrenArray = React.Children.toArray(children);
@@ -108,7 +126,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
       } else if (textToCopy) {
         textToCopy = extractPlainText(textToCopy);
       }
-      
+
       if (!textToCopy) return;
 
       try {
@@ -148,7 +166,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         className={cn(
           'flex gap-3 mb-6 animate-slide-up group',
           isUser ? 'justify-end' : 'justify-start',
-          className
+          className,
         )}
         {...props}
       >
@@ -158,11 +176,15 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
             <Bot className="h-4 w-4 text-primary" />
           </div>
         )}
-        
-        <div className={cn(
-          'flex flex-col',
-          isUser ? 'items-end max-w-[80%] md:max-w-[70%]' : 'items-start max-w-[80%] md:max-w-[70%]'
-        )}>
+
+        <div
+          className={cn(
+            'flex flex-col',
+            isUser
+              ? 'items-end max-w-[80%] md:max-w-[70%]'
+              : 'items-start max-w-[80%] md:max-w-[70%]',
+          )}
+        >
           {/* Message bubble */}
           <div
             className={cn(
@@ -170,18 +192,18 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
               'hover:shadow-md',
               isStreaming && 'animate-pulse-subtle',
               bubbleClasses,
-              isUser ? 'rounded-br-md' : 'rounded-bl-md'
+              isUser ? 'rounded-br-md' : 'rounded-bl-md',
             )}
           >
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              {children}
-            </div>
-            
+            <div className="prose prose-sm dark:prose-invert max-w-none">{children}</div>
+
             {/* Action buttons - appears on hover */}
-            <div className={cn(
-              'absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1',
-              isUser ? 'right-2' : 'right-2'
-            )}>
+            <div
+              className={cn(
+                'absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1',
+                isUser ? 'right-2' : 'right-2',
+              )}
+            >
               {/* Edit button - only for user messages */}
               {isUser && onEdit && (
                 <Button
@@ -194,7 +216,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                   }}
                   className={cn(
                     'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/20',
-                    'h-7 w-7 p-0'
+                    'h-7 w-7 p-0',
                   )}
                   aria-label="Edit message"
                   title="Edit message"
@@ -202,41 +224,99 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
               )}
-              
+
               {/* Copy button */}
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={handleCopy}
                 className={cn(
-                  isUser 
-                    ? 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/20' 
+                  isUser
+                    ? 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/20'
                     : 'text-muted-foreground/70 hover:text-foreground hover:bg-accent',
-                  'h-7 w-7 p-0'
+                  'h-7 w-7 p-0',
                 )}
                 aria-label={copied ? 'Copied!' : 'Copy message'}
                 title={copied ? 'Copied!' : 'Copy message'}
               >
-                {copied ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </Button>
             </div>
           </div>
-          
+
+          {/* Dev-only web badge under assistant messages */}
+          {!isUser &&
+            meta &&
+            process.env.NODE_ENV !== 'production' &&
+            settings?.showWebDebugBadges && (
+              <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                  Web
+                </span>
+                <span className="px-1 py-0.5 rounded bg-accent/60">
+                  {meta?.webProvider ?? 'n/a'}
+                </span>
+                <span className="px-1 py-0.5 rounded bg-accent/40">
+                  {meta?.webImpl ?? 'custom'}
+                </span>
+                <span className="px-1 py-0.5 rounded bg-accent/20">
+                  {typeof meta?.webSearchResultsCount === 'number'
+                    ? `#${meta.webSearchResultsCount}`
+                    : '#0'}
+                </span>
+              </div>
+            )}
+
+          {/* Source cards */}
+          {!isUser &&
+            settings?.showSourcesPanel &&
+            Array.isArray(citations) &&
+            citations.length > 0 && (
+              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+                {citations.slice(0, 4).map((c: any, idx: number) => {
+                  const url: string = c.url || '';
+                  let host = '';
+                  try {
+                    host = url ? new URL(url).hostname.replace('www.', '') : '';
+                  } catch {}
+                  const title = c.title || host || 'Source';
+                  const snippet = (c.snippet || '').slice(0, 140);
+                  return (
+                    <a
+                      key={idx}
+                      href={url || '#'}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block border border-border rounded-md p-2 hover:bg-accent transition-colors"
+                    >
+                      <div className="text-xs font-medium text-foreground line-clamp-1">
+                        {title}
+                      </div>
+                      {host && <div className="text-[10px] text-muted-foreground">{host}</div>}
+                      {snippet && (
+                        <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+                          {snippet}
+                        </div>
+                      )}
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+
           {/* Timestamp */}
           {timestamp && (
-            <span className={cn(
-              'text-xs text-muted-foreground mt-1 px-1',
-              isUser ? 'text-right' : 'text-left'
-            )}>
+            <span
+              className={cn(
+                'text-xs text-muted-foreground mt-1 px-1',
+                isUser ? 'text-right' : 'text-left',
+              )}
+            >
               {formatTime(timestamp)}
             </span>
           )}
         </div>
-        
+
         {/* Avatar - only show for user messages */}
         {isUser && (
           <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center mt-1">
@@ -245,7 +325,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         )}
       </div>
     );
-  }
+  },
 );
 ChatMessage.displayName = 'ChatMessage';
 
@@ -259,11 +339,11 @@ const ChatInput = React.forwardRef<HTMLTextAreaElement, ChatInputProps>(
       ref={ref}
       className={cn(
         'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-        className
+        className,
       )}
       {...props}
     />
-  )
+  ),
 );
 ChatInput.displayName = 'ChatInput';
 

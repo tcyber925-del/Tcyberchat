@@ -2,16 +2,17 @@
 Unit tests for backend service layer validation
 """
 
-import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+
 from sqlalchemy.orm import Session
+
 
 # Test basic service imports and instantiation
 def test_service_imports():
     """Test that all services can be imported and instantiated"""
+    from src.services.ai_service import get_ai_service
     from src.services.chat_service import get_chat_service
     from src.services.document_service import get_document_service
-    from src.services.ai_service import get_ai_service
     from src.services.rag_service import get_rag_service
 
     # Test that services can be instantiated (FastAPI dependency injection pattern)
@@ -24,11 +25,12 @@ def test_service_imports():
     assert doc_svc1 is not doc_svc2  # Different instances (dependency injection)
 
     # Test that services have required methods
-    assert hasattr(chat_svc1, 'add_message')
-    assert hasattr(chat_svc1, 'get_conversations')
-    assert hasattr(doc_svc1, 'validate_file')
-    assert hasattr(get_ai_service(), 'generate_response')
-    assert hasattr(get_rag_service(), 'search_relevant_chunks')
+    assert hasattr(chat_svc1, "add_message")
+    assert hasattr(chat_svc1, "get_conversations")
+    assert hasattr(doc_svc1, "validate_file")
+    assert hasattr(get_ai_service(), "generate_response")
+    assert hasattr(get_rag_service(), "search_relevant_chunks")
+
 
 def test_chat_service_basic():
     """Test basic ChatService functionality"""
@@ -42,8 +44,9 @@ def test_chat_service_basic():
 
     # Test basic attributes
     assert chat_service.db == mock_db
-    assert hasattr(chat_service, 'add_message')
-    assert hasattr(chat_service, 'get_conversation_messages')
+    assert hasattr(chat_service, "add_message")
+    assert hasattr(chat_service, "get_conversation_messages")
+
 
 def test_document_service_validation():
     """Test DocumentService file validation"""
@@ -56,14 +59,15 @@ def test_document_service_validation():
     doc_service = DocumentService(mock_db)
 
     # Test supported file types
-    assert 'application/pdf' in doc_service.SUPPORTED_TEXT_TYPES
-    assert 'image/jpeg' in doc_service.SUPPORTED_IMAGE_TYPES
-    assert 'audio/mpeg' in doc_service.SUPPORTED_AUDIO_TYPES
+    assert "application/pdf" in doc_service.SUPPORTED_TEXT_TYPES
+    assert "image/jpeg" in doc_service.SUPPORTED_IMAGE_TYPES
+    assert "audio/mpeg" in doc_service.SUPPORTED_AUDIO_TYPES
 
     # Test file size limits
     assert doc_service.MAX_FILE_SIZE == 50 * 1024 * 1024  # 50MB
     assert doc_service.MAX_IMAGE_SIZE == 10 * 1024 * 1024  # 10MB
     assert doc_service.MAX_AUDIO_SIZE == 10 * 1024 * 1024  # 10MB
+
 
 def test_ai_service_basic():
     """Test basic AIService functionality"""
@@ -72,9 +76,10 @@ def test_ai_service_basic():
     ai_service = AIService()
 
     # Test basic attributes
-    assert hasattr(ai_service, 'generate_response')
-    assert hasattr(ai_service, 'generate_summary')
-    assert hasattr(ai_service, 'embed_text')
+    assert hasattr(ai_service, "generate_response")
+    assert hasattr(ai_service, "generate_summary")
+    assert hasattr(ai_service, "embed_text")
+
 
 def test_rag_service_basic():
     """Test basic RAGService functionality"""
@@ -84,9 +89,10 @@ def test_rag_service_basic():
     rag_service = RAGService()
 
     # Test basic attributes
-    assert hasattr(rag_service, 'add_document_chunks')
-    assert hasattr(rag_service, 'search_relevant_chunks')
-    assert hasattr(rag_service, 'generate_rag_response')
+    assert hasattr(rag_service, "add_document_chunks")
+    assert hasattr(rag_service, "search_relevant_chunks")
+    assert hasattr(rag_service, "generate_rag_response")
+
 
 def test_chat_service_add_message():
     """Test ChatService message addition"""
@@ -104,7 +110,9 @@ def test_chat_service_add_message():
     mock_db.add.return_value = None
     mock_db.commit.return_value = None
     mock_db.refresh.return_value = None
-    mock_db.query.return_value.filter.return_value.first.return_value = mock_conversation
+    mock_db.query.return_value.filter.return_value.first.return_value = (
+        mock_conversation
+    )
 
     chat_service = ChatService(mock_db)
 
@@ -118,9 +126,10 @@ def test_chat_service_add_message():
 
     # Verify result is a Message object with correct data
     assert result is not None
-    assert hasattr(result, 'conversation_id')
-    assert hasattr(result, 'content')
-    assert hasattr(result, 'type')
+    assert hasattr(result, "conversation_id")
+    assert hasattr(result, "content")
+    assert hasattr(result, "type")
+
 
 def test_document_service_validate_file():
     """Test DocumentService file validation"""
@@ -146,6 +155,7 @@ def test_document_service_validate_file():
     assert is_valid is False
     assert "Unsupported file type" in error_msg
 
+
 def test_document_service_file_size_limits():
     """Test DocumentService file size validation"""
     from src.services.document_service import DocumentService
@@ -162,6 +172,7 @@ def test_document_service_file_size_limits():
     is_valid, error_msg = doc_service.validate_file(mock_file)
     assert is_valid is False
     assert "File too large" in error_msg
+
 
 if __name__ == "__main__":
     # Run basic tests

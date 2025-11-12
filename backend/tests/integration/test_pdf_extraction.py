@@ -1,9 +1,8 @@
 import pytest
-import asyncio
-from pathlib import Path
 
 try:
     import fitz  # PyMuPDF
+
     HAS_FITZ = True
 except Exception:
     HAS_FITZ = False

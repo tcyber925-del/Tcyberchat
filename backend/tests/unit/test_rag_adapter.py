@@ -1,6 +1,10 @@
-import pytest
-
-from src.services.rag_adapter import create_memory, create_splitter, create_embeddings, create_vectorstore, AIServiceLLMAdapter
+from src.services.rag_adapter import (
+    AIServiceLLMAdapter,
+    create_embeddings,
+    create_memory,
+    create_splitter,
+    create_vectorstore,
+)
 
 
 class DummyAI:
@@ -23,10 +27,10 @@ def test_adapter_memory_and_splitter_basic():
 def test_embeddings_and_vectorstore_stubs():
     emb = create_embeddings()
     # In test env, langchain likely not present; emb should be None or an object
-    assert emb is None or hasattr(emb, 'embed')
+    assert emb is None or hasattr(emb, "embed")
 
     vs = create_vectorstore(client=None)
-    assert vs is None or hasattr(vs, 'get')
+    assert vs is None or hasattr(vs, "get")
 
 
 def test_ai_service_llm_adapter():

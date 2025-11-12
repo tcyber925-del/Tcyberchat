@@ -12,18 +12,18 @@ interface DocumentIndicatorProps {
   className?: string;
 }
 
-export function DocumentIndicator({ 
-  documentId, 
-  documentName, 
+export function DocumentIndicator({
+  documentId,
+  documentName,
   onRemove,
-  className 
+  className,
 }: DocumentIndicatorProps) {
   return (
     <div
       className={cn(
         'flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-md text-sm',
         'transition-all duration-200',
-        className
+        className,
       )}
       role="status"
       aria-label={`Selected document: ${documentName}`}
@@ -46,4 +46,3 @@ export function DocumentIndicator({
     </div>
   );
 }
-

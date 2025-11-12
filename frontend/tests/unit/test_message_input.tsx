@@ -54,18 +54,14 @@ global.MediaRecorder = class MockMediaRecorder {
 global.navigator.mediaDevices = {
   getUserMedia: jest.fn(() =>
     Promise.resolve({
-      getTracks: () => [{ stop: jest.fn() }]
-    })
-  )
+      getTracks: () => [{ stop: jest.fn() }],
+    }),
+  ),
 };
 
 const renderWithProvider = (component, settings = {}) => {
   mockUseSettings.mockReturnValue(settings);
-  return render(
-    <SettingsProvider>
-      {component}
-    </SettingsProvider>
-  );
+  return render(<SettingsProvider>{component}</SettingsProvider>);
 };
 
 describe('MessageInput Component', () => {
@@ -126,7 +122,7 @@ describe('MessageInput Component', () => {
 
       await waitFor(() => {
         expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith({
-          audio: { echoCancellation: true, noiseSuppression: true }
+          audio: { echoCancellation: true, noiseSuppression: true },
         });
       });
 

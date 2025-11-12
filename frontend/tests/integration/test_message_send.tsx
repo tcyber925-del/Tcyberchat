@@ -5,7 +5,11 @@ import { ChatProvider } from '../../src/lib/context/chat-context';
 
 describe('Message Sending Integration', () => {
   it('should allow typing a message and clicking the send button', () => {
-    render(<ChatProvider><Home /></ChatProvider>);
+    render(
+      <ChatProvider>
+        <Home />
+      </ChatProvider>,
+    );
     // This test will pass once a message input field and send button are implemented.
     // For now, it serves as a placeholder and will fail if these elements are not found.
     const messageInput = screen.queryByRole('textbox', { name: /message/i }); // Assuming an accessible name for the input

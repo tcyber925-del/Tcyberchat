@@ -12,10 +12,13 @@ interface ChatHistoryDrawerProps {
 const ChatHistoryDrawer: React.FC<ChatHistoryDrawerProps> = ({ isOpen, onClose }) => {
   const { sessions, selectSession } = useChat();
 
-  const handleSelectSession = useCallback((sessionId: string) => {
-    selectSession(sessionId);
-    onClose(); // Close drawer after selecting a session
-  }, [selectSession, onClose]);
+  const handleSelectSession = useCallback(
+    (sessionId: string) => {
+      selectSession(sessionId);
+      onClose(); // Close drawer after selecting a session
+    },
+    [selectSession, onClose],
+  );
 
   const handleNewChat = useCallback(() => {
     selectSession(null); // Start a new chat by clearing current session
@@ -35,9 +38,18 @@ const ChatHistoryDrawer: React.FC<ChatHistoryDrawerProps> = ({ isOpen, onClose }
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Chat History</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Close chat history">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            aria-label="Close chat history"
+          >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

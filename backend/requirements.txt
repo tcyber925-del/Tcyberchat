@@ -12,7 +12,7 @@ alembic
 chromadb
 
 # AI/ML dependencies
-langchain
+langchain==1.0
 langchain-community
 langchain-core
 langchain-text-splitters
@@ -58,3 +58,5 @@ ruff
 pre-commit
 tavily-python
 duckduckgo-search
+google-search-results
+ddgs      

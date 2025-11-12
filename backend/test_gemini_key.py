@@ -1,4 +1,5 @@
 import os
+
 import google.generativeai as genai
 
 # IMPORTANT: Replace 'YOUR_API_KEY_HERE' with your actual Gemini API key.
@@ -6,7 +7,9 @@ import google.generativeai as genai
 API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAzxyrTis09q3mHKEznBbzvWz_uAb6DWfo")
 
 if API_KEY == "YOUR_API_KEY_HERE":
-    print("ERROR: Please replace 'YOUR_API_KEY_HERE' with your actual Gemini API key or set the GEMINI_API_KEY environment variable.")
+    print(
+        "ERROR: Please replace 'YOUR_API_KEY_HERE' with your actual Gemini API key or set the GEMINI_API_KEY environment variable."
+    )
 else:
     try:
         genai.configure(api_key=API_KEY)
@@ -22,4 +25,6 @@ else:
             print("\nYour API key appears to be valid and models are listed above.")
     except Exception as e:
         print(f"Error: {e}")
-        print("Your API key might be invalid or there's a connection issue. Please double-check your key.")
+        print(
+            "Your API key might be invalid or there's a connection issue. Please double-check your key."
+        )

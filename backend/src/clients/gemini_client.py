@@ -1,6 +1,6 @@
-import os
-from typing import Optional, AsyncGenerator
 import logging
+import os
+from collections.abc import AsyncGenerator
 
 try:
     import google.generativeai as genai
@@ -8,6 +8,7 @@ except Exception:  # pragma: no cover - import may not be installed in CI
     genai = None
 
 logger = logging.getLogger(__name__)
+
 
 class GeminiClient:
     """Minimal wrapper around Google Gemini (google-genai).
@@ -20,7 +21,9 @@ class GeminiClient:
     error if it's not installed.
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "models/gemini-2.5-flash"):
+    def __init__(
+        self, api_key: str | None = None, model: str = "models/gemini-2.0-flash-exp"
+    ):
         self.model_name = model
         self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
 
@@ -33,15 +36,28 @@ class GeminiClient:
                 raise RuntimeError("GEMINI_API_KEY not set")
             self.model_client = genai.GenerativeModel(self.model_name)
 
-    def generate(self, prompt: str, **kwargs) -> str:
-        """Generate text for the given prompt.
+    def generate(self, prompt: str, enable_grounding: bool = False, **kwargs) -> str:
+        """Generate text for the given prompt with optional Google Search grounding.
 
-        Returns the textual content (response.text) when available.
+        Args:
+            prompt: The text prompt to generate from
+            enable_grounding: If True and using Gemini 2.0, enables Google Search grounding
+            **kwargs: Additional parameters passed to generate_content
+
+        Returns:
+            The generated text response
         """
         if self.model_client is None:
-            raise RuntimeError("google-genai is not installed or client not configured (set GEMINI_API_KEY)")
+            raise RuntimeError(
+                "google-genai is not installed or client not configured (set GEMINI_API_KEY)"
+            )
 
         try:
+            # Enable Google Search grounding for Gemini 2.0 models
+            if enable_grounding and "gemini-2.0" in self.model_name:
+                logger.info(f"Enabling Google Search grounding for {self.model_name}")
+                kwargs["tools"] = "google_search_retrieval"
+
             response = self.model_client.generate_content(contents=prompt, **kwargs)
             if hasattr(response, "text"):
                 return response.text
@@ -50,16 +66,35 @@ class GeminiClient:
             logger.error(f"Gemini generate failed: {e}", exc_info=True)
             raise
 
-    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming text for the given prompt.
+    async def generate_stream(
+        self, prompt: str, enable_grounding: bool = False, **kwargs
+    ) -> AsyncGenerator[str, None]:
+        """Generate streaming text for the given prompt with optional Google Search grounding.
 
-        Yields textual content chunks.
+        Args:
+            prompt: The text prompt to generate from
+            enable_grounding: If True and using Gemini 2.0, enables Google Search grounding
+            **kwargs: Additional parameters passed to generate_content
+
+        Yields:
+            Text chunks from the streaming response
         """
         if self.model_client is None:
-            raise RuntimeError("google-genai is not installed or client not configured (set GEMINI_API_KEY)")
+            raise RuntimeError(
+                "google-genai is not installed or client not configured (set GEMINI_API_KEY)"
+            )
 
         try:
-            response = self.model_client.generate_content(contents=prompt, stream=True, **kwargs)
+            # Enable Google Search grounding for Gemini 2.0 models
+            if enable_grounding and "gemini-2.0" in self.model_name:
+                logger.info(
+                    f"Enabling Google Search grounding for streaming with {self.model_name}"
+                )
+                kwargs["tools"] = "google_search_retrieval"
+
+            response = self.model_client.generate_content(
+                contents=prompt, stream=True, **kwargs
+            )
             for chunk in response:
                 if hasattr(chunk, "text"):
                     yield chunk.text
@@ -72,4 +107,8 @@ class GeminiClient:
         if genai is None:
             raise RuntimeError("google-genai is not installed")
         models = genai.list_models()
-        return [m.name for m in models if "generateContent" in m.supported_generation_methods]
+        return [
+            m.name
+            for m in models
+            if "generateContent" in m.supported_generation_methods
+        ]

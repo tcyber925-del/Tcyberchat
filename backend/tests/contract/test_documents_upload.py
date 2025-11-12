@@ -3,11 +3,12 @@ Contract tests for POST /api/documents endpoint
 Tests document upload functionality
 """
 
-import pytest
 from fastapi.testclient import TestClient
+
 from main import app
 
 client = TestClient(app)
+
 
 def test_documents_upload_success():
     """Test successful document upload"""
@@ -30,6 +31,7 @@ def test_documents_upload_success():
     assert response_data["size"] == len(file_content)
     assert response_data["status"] == "processing"
 
+
 def test_documents_upload_pdf():
     """Test PDF document upload"""
     # Mock PDF content (simplified)
@@ -45,12 +47,14 @@ def test_documents_upload_pdf():
     assert response_data["filename"] == "test.pdf"
     assert response_data["status"] == "processing"
 
+
 def test_documents_upload_no_file():
     """Test upload request with no file"""
     response = client.post("/api/documents")
 
     # Should return validation error
     assert response.status_code == 422
+
 
 def test_documents_upload_unsupported_format():
     """Test upload of unsupported file format"""
@@ -61,6 +65,7 @@ def test_documents_upload_unsupported_format():
 
     # Should reject unsupported format
     assert response.status_code == 415  # Unsupported Media Type
+
 
 def test_documents_upload_file_too_large():
     """Test upload of file exceeding size limit"""
