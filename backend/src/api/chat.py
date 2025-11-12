@@ -65,6 +65,7 @@ class ChatRequest(BaseModel):
     conversationId: Optional[UUID] = None
     documentId: Optional[UUID] = None
     model: Optional[str] = None
+    enableWebSearch: Optional[bool] = False  # NEW: Optional web search flag (defaults to False)
 
 
 router = APIRouter(tags=["chat"])
@@ -133,16 +134,30 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
             citations = []
             # normalize document id to string when passing to services
             doc_id = str(request.documentId) if request.documentId else None
+            # Get web search flag (optional, defaults to False)
+            use_web_search = getattr(request, 'enableWebSearch', False) or False
             if hasattr(rag_service, "generate_rag_response"):
                 try:
-                    rag_result = await rag_service.generate_rag_response(query=request.message, document_id=doc_id, model_name=request.model)
+                    rag_result = await rag_service.generate_rag_response(
+                        query=request.message, 
+                        document_id=doc_id, 
+                        model_name=request.model,
+                        use_web_search=use_web_search  # NEW: Pass web search flag
+                    )
                     response_text = rag_result.get("response", "") if isinstance(rag_result, dict) else str(rag_result)
                     citations = rag_result.get("citations", []) if isinstance(rag_result, dict) else []
                 except Exception:
                     # Fall back to streaming generator if available
                     if hasattr(rag_service, "generate_rag_streaming_response"):
                         full = []
-                        async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[], model_name=request.model):
+                        async for chunk in rag_service.generate_rag_streaming_response(
+                            query=request.message, 
+                            document_id=doc_id, 
+                            conversational=False, 
+                            chat_history=[], 
+                            model_name=request.model,
+                            use_web_search=use_web_search  # NEW: Pass web search flag
+                        ):
                             c = chunk.get("content") if isinstance(chunk, dict) else None
                             if c:
                                 full.append(str(c))
@@ -151,7 +166,16 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                         response_text = "".join(full)
             elif hasattr(rag_service, "generate_rag_streaming_response"):
                 full = []
-                async for chunk in rag_service.generate_rag_streaming_response(query=request.message, document_id=doc_id, conversational=False, chat_history=[], model_name=request.model):
+                # Get web search flag (optional, defaults to False)
+                use_web_search = getattr(request, 'enableWebSearch', False) or False
+                async for chunk in rag_service.generate_rag_streaming_response(
+                    query=request.message, 
+                    document_id=doc_id, 
+                    conversational=False, 
+                    chat_history=[], 
+                    model_name=request.model,
+                    use_web_search=use_web_search  # NEW: Pass web search flag
+                ):
                     c = chunk.get("content") if isinstance(chunk, dict) else None
                     if c:
                         full.append(str(c))
@@ -297,8 +321,15 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                 try:
                     # Convert document_id to string (RAG service expects string, not UUID)
                     doc_id = str(request.documentId) if request.documentId else None
+                    # Get web search flag (optional, defaults to False)
+                    use_web_search = getattr(request, 'enableWebSearch', False) or False
                     async for chunk_data in rag_service.generate_rag_streaming_response(
-                        query=request.message, document_id=doc_id, conversational=True, chat_history=[], model_name=request.model
+                        query=request.message, 
+                        document_id=doc_id, 
+                        conversational=True, 
+                        chat_history=[], 
+                        model_name=request.model,
+                        use_web_search=use_web_search  # NEW: Pass web search flag
                     ):
                         # chunk_data may be dicts with 'content' or final dict with 'citations'
                         content_piece = None
@@ -325,17 +356,34 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                             # Final chunk - citations already captured above
                             pass
 
+                    # Extract web search metadata from citations
+                    web_search_used = False
+                    web_search_results_count = 0
+                    if citations:
+                        web_search_citations = [c for c in citations if c.get("source") == "web_search"]
+                        web_search_used = len(web_search_citations) > 0
+                        web_search_results_count = len(web_search_citations)
+                    
                     # finalize placeholder with enhanced metadata
                     processing_metadata = {
                         "streaming": True,
                         "rag_enabled": True,
                         "model_used": request.model,
                         "document_id": str(request.documentId) if request.documentId else None,
+                        "web_search_used": web_search_used,  # NEW: Include web search metadata
+                        "web_search_results_count": web_search_results_count,  # NEW: Include web search count
                     }
                     updated = chat_service.update_message(
                         str(placeholder.id), content=full_response, citations=citations, processing_metadata=processing_metadata, placeholder=False
                     )
-                    yield {"event": "message", "data": json.dumps({"content": full_response, "done": True, "messageId": str(updated.id if updated else placeholder.id), "citations": citations})}
+                    yield {"event": "message", "data": json.dumps({
+                        "content": full_response, 
+                        "done": True, 
+                        "messageId": str(updated.id if updated else placeholder.id), 
+                        "citations": citations,
+                        "webSearchUsed": web_search_used,  # NEW: Include web search flag
+                        "webSearchResultsCount": web_search_results_count  # NEW: Include web search count
+                    })}
                 except Exception as e:
                     logger.exception("Streaming RAG error")
                     yield {"event": "error", "data": json.dumps({"error": str(e), "done": True})}

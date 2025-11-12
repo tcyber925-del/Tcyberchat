@@ -46,9 +46,15 @@ opencv-python
 python-dotenv
 httpx
 
+# Web Search (optional - install providers as needed)
+duckduckgo-search>=5.0.0
+tavily-python>=0.3.0
+
 # Development dependencies
 pytest
 pytest-asyncio
 black
 ruff
 pre-commit
+tavily-python
+duckduckgo-search

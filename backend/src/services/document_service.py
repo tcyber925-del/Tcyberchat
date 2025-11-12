@@ -139,7 +139,7 @@ class DocumentService:
 
         return str(file_path)
 
-    def create_document(self, file_name: str, file_content: str, status: str = "processing") -> Document:
+    def create_document(self, file_name: str, file_content: str, status: str = "processing", mime_type: str = None) -> Document:
         """Create a new document, save its content, and create a database record."""
         # For simplicity, let's save the content to a temporary file
         # In a real application, you might store content in a dedicated storage
@@ -148,11 +148,23 @@ class DocumentService:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(file_content)
 
+        # Auto-detect MIME type from extension if not provided
+        if mime_type is None:
+            filename_lower = file_name.lower()
+            if filename_lower.endswith(('.md', '.markdown')):
+                mime_type = 'text/markdown'
+            elif filename_lower.endswith('.txt'):
+                mime_type = 'text/plain'
+            elif filename_lower.endswith('.pdf'):
+                mime_type = 'application/pdf'
+            else:
+                mime_type = 'text/plain'  # Default for text files
+
         document = Document(
             filename=file_name,
+            mime_type=mime_type,
             path=str(file_path),
             size=len(file_content.encode('utf-8')),
-            mime_type="text/plain",  # Assuming text content for now
             content=file_content,
             status=status
         )
@@ -279,13 +291,32 @@ class DocumentService:
         try:
             content = ""
             mime = getattr(document, 'mime_type', '') or ''
+            
+            # Check if content is already in memory (from direct upload)
+            existing_content = getattr(document, 'content', None)
+            file_path = str(getattr(document, 'path', ''))
 
             if mime == 'application/pdf':
-                content = await self._extract_pdf_content(str(getattr(document, 'path', '')))
-            elif mime in ['text/plain', 'text/markdown']:
-                content = await self._extract_text_file_content(str(getattr(document, 'path', '')))
+                if existing_content:
+                    # PDF content already extracted, use it
+                    content = existing_content
+                else:
+                    content = await self._extract_pdf_content(file_path)
+            elif mime == 'text/markdown':
+                if existing_content:
+                    # Markdown content already in memory, process it directly
+                    content = self._process_markdown_content(existing_content)
+                else:
+                    # Read from file and process
+                    content = await self._extract_markdown_content(file_path)
+            elif mime == 'text/plain':
+                if existing_content:
+                    # Plain text already in memory, use it
+                    content = existing_content
+                else:
+                    content = await self._extract_text_file_content(file_path)
             elif mime == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-                content = await self._extract_docx_content(str(getattr(document, 'path', '')))
+                content = await self._extract_docx_content(file_path)
             else:
                 content = f"Unsupported text format: {mime}"
 
@@ -423,6 +454,56 @@ class DocumentService:
                 return f"Error reading text file: {str(e)}"
         except Exception as e:
             return f"Error reading text file: {str(e)}"
+
+    def _process_markdown_content(self, content: str) -> str:
+        """Process markdown content (frontmatter parsing) - works with content already in memory"""
+        # Parse frontmatter if present (YAML frontmatter between --- markers)
+        frontmatter = {}
+        body = content
+        
+        if content.startswith('---'):
+            try:
+                # Split frontmatter from body
+                parts = content.split('---', 2)
+                if len(parts) >= 3:
+                    frontmatter_text = parts[1].strip()
+                    body = parts[2].strip()
+                    
+                    # Simple YAML frontmatter parsing (basic key-value pairs)
+                    # For more complex YAML, we'd need PyYAML, but keeping it simple for now
+                    for line in frontmatter_text.split('\n'):
+                        if ':' in line:
+                            key, value = line.split(':', 1)
+                            frontmatter[key.strip()] = value.strip().strip('"').strip("'")
+            except Exception:
+                # If frontmatter parsing fails, use entire content as body
+                pass
+
+        # Return content with frontmatter metadata preserved in a comment if present
+        # This ensures frontmatter data is available for RAG but doesn't interfere with markdown structure
+        if frontmatter:
+            frontmatter_comment = f"<!-- Frontmatter: {str(frontmatter)} -->\n\n"
+            return frontmatter_comment + body
+        
+        return body
+
+    async def _extract_markdown_content(self, file_path: str) -> str:
+        """Extract and process markdown content from file, including frontmatter parsing"""
+        try:
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+        except UnicodeDecodeError:
+            # Try with different encoding
+            try:
+                async with aiofiles.open(file_path, 'r', encoding='latin-1') as f:
+                    content = await f.read()
+            except Exception as e:
+                return f"Error reading markdown file: {str(e)}"
+        except Exception as e:
+            return f"Error reading markdown file: {str(e)}"
+
+        # Use the shared processing method
+        return self._process_markdown_content(content)
 
     async def _extract_docx_content(self, file_path: str) -> str:
         """Extract text content from Word document"""

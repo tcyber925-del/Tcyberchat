@@ -4,6 +4,7 @@ export async function sendMessageStreaming(
   conversationId?: string,
   model?: string,
   documentId?: string,
+  enableWebSearch?: boolean,
   onChunk?: (chunk: string) => void,
   onComplete?: (finalMessage: { content: string; messageId?: string; citations?: any[] }) => void,
   onError?: (err: Error) => void
@@ -13,7 +14,7 @@ export async function sendMessageStreaming(
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ message, conversationId, documentId, model }),
+    body: JSON.stringify({ message, conversationId, documentId, model, enableWebSearch }),
   });
 
   if (!response.ok) {
