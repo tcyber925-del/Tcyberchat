@@ -137,8 +137,15 @@ class TavilyProvider(WebSearchProvider):
                 self._available = False
         return self._available
     
-    async def search(self, query: str, max_results: int = 5) -> List[SearchResult]:
-        """Search using Tavily"""
+    async def search(self, query: str, max_results: int = 5, search_depth: str = "advanced", **kwargs) -> List[SearchResult]:
+        """Search using Tavily
+        
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            search_depth: Search depth ("basic" or "advanced") - advanced gets fresher results
+            **kwargs: Additional arguments (ignored for compatibility)
+        """
         if not self.is_available():
             raise RuntimeError("Tavily provider not available (API key not configured)")
         
@@ -147,12 +154,64 @@ class TavilyProvider(WebSearchProvider):
             
             client = TavilyClient(api_key=self.api_key)
             
+            # Build search parameters
+            # Note: Free/dev API keys may have limited parameters
+            search_params = {
+                "query": query,
+                "max_results": max_results,
+            }
+            
+            # Add optional parameters (may not be available on all plans)
+            # For free/dev keys, these might cause ForbiddenError
+            # We'll try with them first, and fall back if needed
+            if search_depth and search_depth != "basic":
+                search_params["search_depth"] = search_depth
+            
+            # include_answer may not be available on all plans
+            # search_params["include_answer"] = True  # Commented out for compatibility
+            
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: client.search(query=query, max_results=max_results)
-            )
+            try:
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: client.search(**search_params)
+                )
+            except Exception as e:
+                error_msg = str(e)
+                # Check if it's a ForbiddenError (API key issue)
+                if "Forbidden" in error_msg or "403" in error_msg:
+                    logger.error(
+                        f"Tavily API access forbidden. This might indicate: "
+                        f"1) Invalid API key, 2) API key doesn't have required permissions, "
+                        f"3) Rate limit exceeded, or 4) Dev API key restrictions. "
+                        f"Error: {error_msg}"
+                    )
+                    # Try with minimal parameters as last resort
+                    if "search_depth" in search_params or len(search_params) > 2:
+                        logger.info("Attempting search with minimal parameters...")
+                        minimal_params = {
+                            "query": query,
+                            "max_results": min(max_results, 3),  # Limit results for dev keys
+                        }
+                        try:
+                            response = await loop.run_in_executor(
+                                None,
+                                lambda: client.search(**minimal_params)
+                            )
+                        except Exception as e2:
+                            raise RuntimeError(
+                                f"Tavily API error: {error_msg}. "
+                                f"Please verify your API key is valid and has the required permissions. "
+                                f"Dev API keys may have restrictions. Get a production key from https://tavily.com"
+                            ) from e2
+                    else:
+                        raise RuntimeError(
+                            f"Tavily API error: {error_msg}. "
+                            f"Please verify your API key is valid and has the required permissions."
+                        ) from e
+                else:
+                    raise
             
             search_results = []
             for i, result in enumerate(response.get('results', [])):
@@ -324,7 +383,8 @@ class WebSearchService:
         self,
         query: str,
         max_results: int = 5,
-        use_cache: bool = True
+        use_cache: bool = True,
+        force_fresh: bool = False
     ) -> List[SearchResult]:
         """
         Perform web search with caching and rate limiting
@@ -333,6 +393,7 @@ class WebSearchService:
             query: Search query string
             max_results: Maximum number of results to return
             use_cache: Whether to use cached results
+            force_fresh: Force fresh results (skip cache) - useful for time-sensitive queries
             
         Returns:
             List of SearchResult objects
@@ -433,7 +494,10 @@ class WebSearchService:
                 "Install duckduckgo-search or configure TAVILY_API_KEY"
             )
         
-        logger.error("All web search providers failed")
+        logger.error(
+            f"All web search providers failed for query: '{search_query[:50]}'. "
+            f"Primary: {self.primary_provider is not None}, Fallback: {self.fallback_provider is not None}"
+        )
         return []
     
     async def search_with_sources(
@@ -487,7 +551,17 @@ def get_web_search_service() -> WebSearchService:
     global _web_search_service_instance
     
     if _web_search_service_instance is None:
-        provider = os.getenv('WEB_SEARCH_PROVIDER', 'duckduckgo').lower()
+        # Auto-detect provider: prefer Tavily if API key is set
+        provider = os.getenv('WEB_SEARCH_PROVIDER', '').lower()
+        if not provider:
+            # Check if Tavily API key is available
+            if os.getenv('TAVILY_API_KEY'):
+                provider = 'tavily'
+                logger.info("Tavily API key detected, using Tavily as primary provider")
+            else:
+                provider = 'duckduckgo'
+                logger.info("No Tavily API key found, using DuckDuckGo as primary provider")
+        
         cache_ttl = int(os.getenv('WEB_SEARCH_CACHE_TTL', '3600'))
         rate_limit = int(os.getenv('WEB_SEARCH_RATE_LIMIT', '10'))
         enable_cache = os.getenv('WEB_SEARCH_ENABLE_CACHE', 'true').lower() == 'true'

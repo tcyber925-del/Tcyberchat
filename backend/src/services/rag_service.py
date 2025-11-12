@@ -4,7 +4,10 @@ RAGService for retrieval-augmented generation using comprehensive LangChain feat
 
 from typing import List, Dict, Optional, Any, Tuple, AsyncGenerator
 import asyncio
+import logging
 from uuid import uuid4
+
+logger = logging.getLogger(__name__)
 
 # Use the adapter to centralize LangChain usage and provide stable fallbacks
 from .rag_adapter import (
@@ -551,15 +554,19 @@ class RAGService:
 You are a helpful AI assistant that answers questions based on the provided context.
 Use the following pieces of context to answer the question at the end.
 
+CRITICAL INSTRUCTIONS:
+- ALWAYS prioritize information from "=== Web Search Results (Most Recent Information) ===" section if it exists
+- If the query asks for "latest", "recent", "news", or "current" information, you MUST use the web search results as your primary source
+- When using web search information, explicitly state "According to recent web search..." or "Based on the latest information from web sources..."
+- Include URLs from web search results in your citations
+- If web search results are present, they represent the MOST CURRENT information available - use them over older document content
+
 Guidelines:
 - If you don't know the answer based on the context, say so clearly
 - Provide specific references to the source material when possible (include URLs for web sources)
 - Be concise but comprehensive
 - Use citations when referencing specific information
 - Clearly distinguish between document sources and web sources in citations
-- If "Web Search Results" section is provided, prioritize information from it if it is more recent or directly addresses the query
-- If the query asks for "latest" or "recent" information, ensure your answer reflects the most up-to-date data available in the context
-- When using information from "Web Search Results", explicitly state "According to web search..." or similar, and include the provided URLs in citations
 - If you cannot find recent information in the provided context, state that clearly
 
 Context:
@@ -616,14 +623,18 @@ Standalone question:""")
                 ("system", """
 You are a helpful AI assistant with access to document knowledge and web search. Use the provided context and conversation history to answer questions.
 
+CRITICAL INSTRUCTIONS:
+- ALWAYS prioritize information from "=== Web Search Results (Most Recent Information) ===" section if it exists
+- If the query asks for "latest", "recent", "news", or "current" information, you MUST use the web search results as your primary source
+- When using web search information, explicitly state "According to recent web search..." or "Based on the latest information from web sources..."
+- Include URLs from web search results in your citations
+- If web search results are present, they represent the MOST CURRENT information available - use them over older document content
+
 Guidelines:
 - Use both the retrieved context and conversation history
 - Maintain coherence across the conversation
 - Cite sources when providing specific information (include URLs for web sources)
 - Ask for clarification if needed
-- If "Web Search Results" section is provided, prioritize information from it if it is more recent or directly addresses the query
-- If the query asks for "latest" or "recent" information, ensure your answer reflects the most up-to-date data available in the context
-- When using information from "Web Search Results", explicitly state "According to web search..." or similar, and include the provided URLs in citations
 - Clearly distinguish between document sources and web sources in citations
 - If you cannot find recent information in the provided context, state that clearly
 
@@ -922,10 +933,12 @@ Conversation History: {chat_history}
                         self.base_retriever = base_retriever
                         self.web_search_context = web_search_context
                         self.is_time_sensitive = is_time_sensitive
+                        logger.info(f"WebSearchContextRetriever initialized with web_search_context length: {len(web_search_context) if web_search_context else 0}")
                     
                     def get_relevant_documents(self, query: str, k: int = 5):
                         """Get documents from base retriever and prepend web search context"""
                         docs = self.base_retriever.get_relevant_documents(query, k)
+                        logger.debug(f"Base retriever returned {len(docs)} documents for query: '{query[:50]}'")
                         
                         # If web search context exists, create a document from it and prepend
                         if self.web_search_context:
@@ -937,11 +950,16 @@ Conversation History: {chat_history}
                                     "is_time_sensitive": self.is_time_sensitive
                                 }
                             )
+                            logger.info(f"Adding web search document to context (time_sensitive={self.is_time_sensitive}, context_preview={self.web_search_context[:100]}...)")
                             # For time-sensitive queries, web search comes first
                             if self.is_time_sensitive:
-                                return [web_doc] + docs
+                                result = [web_doc] + docs
+                                logger.info(f"Web search document PREPENDED: total {len(result)} documents (web search is first)")
+                                return result
                             else:
-                                return docs + [web_doc]
+                                result = docs + [web_doc]
+                                logger.info(f"Web search document APPENDED: total {len(result)} documents")
+                                return result
                         return docs
                     
                     async def aget_relevant_documents(self, query: str, k: int = 5):
@@ -950,6 +968,7 @@ Conversation History: {chat_history}
                             docs = await self.base_retriever.aget_relevant_documents(query, k)
                         else:
                             docs = self.base_retriever.get_relevant_documents(query, k)
+                        logger.debug(f"Base retriever (async) returned {len(docs)} documents for query: '{query[:50]}'")
                         
                         # If web search context exists, create a document from it and prepend
                         if self.web_search_context:
@@ -961,11 +980,16 @@ Conversation History: {chat_history}
                                     "is_time_sensitive": self.is_time_sensitive
                                 }
                             )
+                            logger.info(f"Adding web search document to context (async, time_sensitive={self.is_time_sensitive}, context_preview={self.web_search_context[:100]}...)")
                             # For time-sensitive queries, web search comes first
                             if self.is_time_sensitive:
-                                return [web_doc] + docs
+                                result = [web_doc] + docs
+                                logger.info(f"Web search document PREPENDED (async): total {len(result)} documents (web search is first)")
+                                return result
                             else:
-                                return docs + [web_doc]
+                                result = docs + [web_doc]
+                                logger.info(f"Web search document APPENDED (async): total {len(result)} documents")
+                                return result
                         return docs
                 
                 # Wrap the retriever to include web search context
@@ -974,6 +998,13 @@ Conversation History: {chat_history}
                     web_search_context, 
                     is_time_sensitive
                 ) if web_search_context else retriever
+                
+                # Log web search integration
+                if web_search_context:
+                    logger.info(
+                        f"Using WebSearchContextRetriever for query: '{query[:50]}' "
+                        f"(time_sensitive={is_time_sensitive}, web_context_length={len(web_search_context)})"
+                    )
                 
                 async for chunk in self.rag_chain.astream(
                     {"input": query},  # Use original query, web search is in context now
@@ -985,10 +1016,14 @@ Conversation History: {chat_history}
                     if "context" in chunk:
                         # Extract citations from source documents
                         source_docs = chunk.get('context', [])
+                        logger.info(f"Retrieved {len(source_docs)} documents from chain (including web search if present)")
+                        
                         for i, doc in enumerate(source_docs):
                             if hasattr(doc, 'metadata'):
                                 # Check if this is a web search document
                                 if doc.metadata.get("source_type") == "web" or doc.metadata.get("source") == "web_search":
+                                    # Verify web search document is present
+                                    logger.info(f"Web search document found in context at index {i}")
                                     # This is already in web_search_citations, skip
                                     continue
                                 
@@ -1863,10 +1898,12 @@ Answer:"""
                         self.base_retriever = base_retriever
                         self.web_search_context = web_search_context
                         self.is_time_sensitive = is_time_sensitive
+                        logger.info(f"WebSearchContextRetriever initialized with web_search_context length: {len(web_search_context) if web_search_context else 0}")
                     
                     def get_relevant_documents(self, query: str, k: int = 5):
                         """Get documents from base retriever and prepend web search context"""
                         docs = self.base_retriever.get_relevant_documents(query, k)
+                        logger.debug(f"Base retriever returned {len(docs)} documents for query: '{query[:50]}'")
                         
                         # If web search context exists, create a document from it and prepend
                         if self.web_search_context:
@@ -1878,11 +1915,16 @@ Answer:"""
                                     "is_time_sensitive": self.is_time_sensitive
                                 }
                             )
+                            logger.info(f"Adding web search document to context (time_sensitive={self.is_time_sensitive}, context_preview={self.web_search_context[:100]}...)")
                             # For time-sensitive queries, web search comes first
                             if self.is_time_sensitive:
-                                return [web_doc] + docs
+                                result = [web_doc] + docs
+                                logger.info(f"Web search document PREPENDED: total {len(result)} documents (web search is first)")
+                                return result
                             else:
-                                return docs + [web_doc]
+                                result = docs + [web_doc]
+                                logger.info(f"Web search document APPENDED: total {len(result)} documents")
+                                return result
                         return docs
                     
                     async def aget_relevant_documents(self, query: str, k: int = 5):
@@ -1891,6 +1933,7 @@ Answer:"""
                             docs = await self.base_retriever.aget_relevant_documents(query, k)
                         else:
                             docs = self.base_retriever.get_relevant_documents(query, k)
+                        logger.debug(f"Base retriever (async) returned {len(docs)} documents for query: '{query[:50]}'")
                         
                         # If web search context exists, create a document from it and prepend
                         if self.web_search_context:
@@ -1902,11 +1945,16 @@ Answer:"""
                                     "is_time_sensitive": self.is_time_sensitive
                                 }
                             )
+                            logger.info(f"Adding web search document to context (async, time_sensitive={self.is_time_sensitive}, context_preview={self.web_search_context[:100]}...)")
                             # For time-sensitive queries, web search comes first
                             if self.is_time_sensitive:
-                                return [web_doc] + docs
+                                result = [web_doc] + docs
+                                logger.info(f"Web search document PREPENDED (async): total {len(result)} documents (web search is first)")
+                                return result
                             else:
-                                return docs + [web_doc]
+                                result = docs + [web_doc]
+                                logger.info(f"Web search document APPENDED (async): total {len(result)} documents")
+                                return result
                         return docs
                 
                 wrapped_retriever = WebSearchContextRetriever(
