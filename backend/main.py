@@ -26,6 +26,7 @@ try:
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -47,6 +48,7 @@ except ImportError:
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -213,6 +215,7 @@ app.include_router(analyze_image_router, prefix="/api")
 app.include_router(transcribe_audio_router, prefix="/api")
 app.include_router(render_content_router, prefix="/api")
 app.include_router(web_tools_router, prefix="/api")
+app.include_router(integrations_mcp_router, prefix="/api")
 
 
 # Global exception handlers for graceful error handling
