@@ -117,6 +117,26 @@ class WebResearchOrchestrator:
         top_urls = [r.url for r in results[:max_fetch] if r.url]
         enriched = await self.web_fetch.fetch_multiple(top_urls) if top_urls else []
 
+        # Optional: rerank results before packaging evidence
+        def _simple_overlap_score(text: str, query: str) -> float:
+            q_tokens = {t for t in query.lower().split() if len(t) > 2}
+            if not text:
+                return 0.0
+            hits = sum(1 for t in q_tokens if t in text.lower())
+            return hits / max(1, len(q_tokens))
+
+        rerank_enabled = os.getenv("WEB_RERANK_ENABLED", "false").lower() == "true"
+        if rerank_enabled:
+            # Rank by a mix of provider relevance and query overlap on fetched content/snippet
+            scored: list[tuple[float, SearchResult]] = []
+            for r in results[:max_fetch]:
+                fr = next((f for f in enriched if f.url == r.url or f.canonical_url == r.url), None)
+                basis = (fr.content if fr and fr.content else (r.snippet or ""))
+                s = 0.7 * _simple_overlap_score(basis, query) + 0.3 * float(r.relevance_score or 0.0)
+                scored.append((s, r))
+            scored.sort(key=lambda x: x[0], reverse=True)
+            results = [r for _, r in scored] + results[max_fetch:]
+
         evidence_pack: list[Evidence] = []
         for r in results[:max_fetch]:
             # find matching fetch result
@@ -208,9 +228,30 @@ class WebResearchOrchestrator:
         result = await ai_service.generate_response(prompt, context=None)
         text = result.get("response", "") if isinstance(result, dict) else str(result)
 
-        # 5) Build citations mapping
+        # 5) Build citations mapping with optional quotes and trust
+        def _extract_quotes(text: str, query: str, max_quotes: int = 2) -> list[str]:
+            if not text:
+                return []
+            sentences = [s.strip() for s in text.split(". ") if s.strip()]
+            scores = []
+            for s in sentences:
+                score = _simple_overlap_score(s, query)
+                scores.append((score, s))
+            scores.sort(key=lambda x: x[0], reverse=True)
+            return [s for sc, s in scores[:max_quotes] if sc > 0]
+
+        # Build a quick lookup to fetch trust metadata if available
+        trust_map: dict[str, dict[str, Any]] = {}
+        for fr in enriched:
+            trust_map[fr.canonical_url or fr.url] = {
+                "trust_score": getattr(fr, "trust_score", 0.5),
+                "is_suspicious": getattr(fr, "is_suspicious", False),
+                "domain": getattr(fr, "domain", None),
+            }
+
         citations: list[dict[str, Any]] = []
         for idx, ev in enumerate(evidence_pack, 1):
+            tm = trust_map.get(ev.url, {})
             citations.append(
                 {
                     "id": idx,
@@ -219,6 +260,10 @@ class WebResearchOrchestrator:
                     "snippet": ev.content[:200],
                     "source": "web_search",
                     "source_type": "web",
+                    "quotes": _extract_quotes(ev.content, query),
+                    "trust": tm.get("trust_score"),
+                    "suspicious": tm.get("is_suspicious"),
+                    "domain": tm.get("domain"),
                 }
             )
 

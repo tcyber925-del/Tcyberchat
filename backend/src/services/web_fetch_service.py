@@ -28,6 +28,55 @@ class FetchResult:
     extracted_at: datetime
     tokens_estimate: int
     error: str | None = None
+    # Enhancements
+    domain: str | None = None
+    trust_score: float = 0.5
+    is_suspicious: bool = False
+
+
+def sanitize_web_content(text: str) -> tuple[str, bool]:
+    """Basic prompt injection sanitization.
+    Returns (sanitized_text, is_suspicious).
+    """
+    if not text:
+        return text, False
+    suspicious_patterns = [
+        "ignore previous instructions",
+        "disregard prior",
+        "system prompt",
+        "hidden instruction",
+        "override",
+        "do not follow",
+    ]
+    is_suspicious = any(pat in text.lower() for pat in suspicious_patterns)
+    if not is_suspicious:
+        return text, False
+    # Remove lines that contain suspicious patterns
+    lines = text.splitlines()
+    clean_lines: list[str] = []
+    for line in lines:
+        ll = line.lower()
+        if any(pat in ll for pat in suspicious_patterns):
+            continue
+        clean_lines.append(line)
+    return "\n".join(clean_lines), True
+
+
+def compute_trust_score(url: str, content: str | None, allowlist: set[str] | None, blocklist: set[str]) -> float:
+    """Compute a simple trust score in [0,1] based on domain lists and heuristics."""
+    try:
+        domain = urlparse(url).netloc
+    except Exception:
+        domain = ""
+    score = 0.5
+    if allowlist and domain in allowlist:
+        score = 0.9
+    if domain in blocklist:
+        score = min(score, 0.2)
+    # Penalize extremely short content
+    if content and len(content) < 200:
+        score -= 0.1
+    return max(0.0, min(1.0, score))
 
 
 class WebFetchService:
@@ -582,11 +631,20 @@ class WebFetchService:
                     # Create result
                     tokens_estimate = self._estimate_tokens(content) if content else 0
 
+                    # Sanitize + trust
+                    sanitized_content, is_suspicious = sanitize_web_content(content or "")
+                    trust = compute_trust_score(
+                        canonical_url,
+                        sanitized_content,
+                        self.allowlist_domains,
+                        self.blocklist_domains,
+                    )
+
                     result = FetchResult(
                         url=url,
                         canonical_url=canonical_url,
-                        content=content[:10000]
-                        if content
+                        content=sanitized_content[:10000]
+                        if sanitized_content
                         else None,  # Cap at 10k chars for safety
                         content_type=content_type,
                         title=title,
@@ -595,7 +653,10 @@ class WebFetchService:
                         tokens_estimate=min(
                             tokens_estimate, 3000
                         ),  # Cap token estimate
-                        error=None if content else "No content extracted",
+                        error=None if sanitized_content else "No content extracted",
+                        domain=self._get_domain(canonical_url),
+                        trust_score=trust,
+                        is_suspicious=is_suspicious,
                     )
 
                     # Update stats
@@ -641,6 +702,9 @@ class WebFetchService:
                 extracted_at=datetime.now(),
                 tokens_estimate=0,
                 error=error,
+                domain=self._get_domain(canonical_url),
+                trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                is_suspicious=False,
             )
 
     async def fetch_multiple(self, urls: list[str]) -> list[FetchResult]:
@@ -665,6 +729,9 @@ class WebFetchService:
                     extracted_at=datetime.now(),
                     tokens_estimate=0,
                     error="Web fetch disabled",
+                    domain=self._get_domain(url),
+                    trust_score=compute_trust_score(url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
                 )
                 for url in urls
             ]
