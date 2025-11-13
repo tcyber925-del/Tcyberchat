@@ -1,14 +1,12 @@
 """
-MCP Server skeleton for TcyberChatbot.
-Provides stdio and ws runners and defines tool handlers wrapping existing services.
-This is a placeholder to be completed with the official MCP SDK (list_tools/call_tool).
+MCP Server (hybrid): uses official SDK if available, else prints guidance.
+Exposes tools: web_search, deep_research.
 """
 from __future__ import annotations
 
-import os
 from typing import Any, Dict
 
-# Tool handlers (stubs)
+# Tool handlers
 async def tool_web_search(params: Dict[str, Any]) -> Dict[str, Any]:
     from ..services.web_search_service import get_web_search_service
     q = str(params.get("q", "")).strip()
@@ -25,11 +23,39 @@ async def tool_deep_research(params: Dict[str, Any], emit=None) -> Dict[str, Any
     res = await run_deep_research(query=query, model_name=model, max_iterations=iters)
     return res
 
-# Runners (placeholders)
+# Runners
 async def run_stdio() -> None:  # pragma: no cover
-    # TODO: integrate the MCP SDK stdio server here.
-    print("MCP stdio server not implemented. Use official SDK to wire JSON-RPC over stdio.")
+    try:
+        from mcp.server import Server  # type: ignore
+    except Exception:
+        print("Install the MCP server SDK to run stdio mode.")
+        return
+    server = Server(name="tcyber-chatbot")
+
+    @server.tool(name="web_search", description="Search the web")
+    async def _t1(params: Dict[str, Any]):
+        return await tool_web_search(params)
+
+    @server.tool(name="deep_research", description="Run multi-step deep research")
+    async def _t2(params: Dict[str, Any]):
+        return await tool_deep_research(params)
+
+    await server.run_stdio()
 
 async def run_ws(host: str = "0.0.0.0", port: int = 8765, token: str | None = None) -> None:  # pragma: no cover
-    # TODO: integrate the MCP SDK websocket server here.
-    print(f"MCP ws server not implemented. Configure SDK to listen on ws://{host}:{port}")
+    try:
+        from mcp.server import Server  # type: ignore
+    except Exception:
+        print("Install the MCP server SDK to run websocket mode.")
+        return
+    server = Server(name="tcyber-chatbot")
+
+    @server.tool(name="web_search", description="Search the web")
+    async def _t1(params: Dict[str, Any]):
+        return await tool_web_search(params)
+
+    @server.tool(name="deep_research", description="Run multi-step deep research")
+    async def _t2(params: Dict[str, Any]):
+        return await tool_deep_research(params)
+
+    await server.run_ws(host=host, port=port, token=token)

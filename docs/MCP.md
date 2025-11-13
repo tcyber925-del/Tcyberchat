@@ -60,14 +60,14 @@ Body example for fetch-doc:
 
 Response includes sanitized `content` and a normalized `citation` object compatible with the UI’s Sources panel.
 
-## Server (skeleton)
+## Server (hybrid)
 
-A minimal MCP server skeleton is provided at `backend/src/mcp/server.py` with stubs for:
-- `tool_web_search`
-- `tool_deep_research`
-- `run_stdio()` / `run_ws()`
+A minimal MCP server is provided at `backend/src/mcp/server.py`.
+- If the official MCP server SDK is installed, `run_stdio()` / `run_ws()` will start a real server.
+- Otherwise, it prints guidance to install the SDK.
+- Tools exposed: `web_search`, `deep_research` (extend with `fetch_url`, etc.).
 
-Hook these up using the official MCP SDK to expose tools with JSON Schemas and streaming.
+When wiring the SDK, add JSON Schemas to each tool and validate with the MCP Inspector.
 
 ## Notes
 
