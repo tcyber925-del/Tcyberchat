@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ sync/full-workspace-2025-10-26 ]
   pull_request:
-    branches: [ main ]
+    branches: [ sync/full-workspace-2025-10-26 ]
   workflow_dispatch:
     inputs:
       run_integration:
@@ -59,8 +59,10 @@ jobs:
             ${{ runner.os }}-pnpm-store-
       - name: Install frontend dependencies
         run: pnpm install
-      - name: Run frontend tests
-        run: pnpm test
+      - name: Run frontend tests (CI)
+        env:
+          CI: 'true'
+        run: pnpm test -- --ci --watchAll=false
 
   backend-unit-tests:
     runs-on: ubuntu-latest
