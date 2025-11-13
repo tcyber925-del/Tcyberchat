@@ -291,6 +291,21 @@ export async function deepResearch(
   return res.json();
 }
 
+// deepResearchStream - SSE stream for deep research steps
+export function deepResearchStream(
+  query: string,
+  model?: string,
+  maxIterations: number = 2,
+) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const url = new URL(`${API_BASE_URL}/api/tools/web-search/deep-research/stream`);
+  url.searchParams.set('query', query);
+  if (model) url.searchParams.set('model', model);
+  url.searchParams.set('maxIterations', String(maxIterations));
+  const es = new EventSource(url.toString());
+  return es;
+}
+
 // deleteConversation - deletes a conversation
 export async function deleteConversation(conversationId: string): Promise<void> {
   if (!conversationId || typeof conversationId !== 'string') {
