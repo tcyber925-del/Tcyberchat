@@ -114,6 +114,8 @@ jobs:
           nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
           sleep 6
       - name: Run integration tests
+        env:
+          RUN_INTEGRATION_TESTS: '1'
         run: |
           mkdir -p reports
           pytest tests/integration -q --junitxml=reports/integration-junit.xml
