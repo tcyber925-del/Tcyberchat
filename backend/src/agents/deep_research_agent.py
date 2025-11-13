@@ -439,6 +439,77 @@ async def run_deep_research(
         }
 
 
+# Streaming variant (sequential execution for instrumentation)
+async def run_deep_research_stream(
+    query: str,
+    model_name: Optional[str] = None,
+    max_iterations: int = 2,
+):
+    enabled = os.getenv("DEEP_RESEARCH_ENABLED", "false").lower() == "true"
+    if not enabled:
+        yield {"event": "error", "data": {"error": "Feature disabled"}}
+        return
+    
+    # Build initial state (same as non-stream)
+    state: ResearchState = {
+        "query": query,
+        "plan": None,
+        "investigations": [],
+        "draft_answer": None,
+        "critique": None,
+        "final_answer": None,
+        "citations": [],
+        "metadata": {"model": model_name or "default"},
+        "iteration": 0,
+        "max_iterations": max_iterations,
+    }
+    try:
+        yield {"event": "step", "data": {"step": "plan"}}
+        upd = await plan_research(state)
+        state.update(upd)
+        yield {"event": "progress", "data": {"plan": state.get("plan")}}
+        
+        while True:
+            yield {"event": "step", "data": {"step": "investigate", "iteration": state["iteration"]}}
+            upd = await investigate_parallel(state)
+            state["investigations"] = upd.get("investigations", [])
+            state["citations"].extend(upd.get("citations", []))
+            
+            yield {"event": "step", "data": {"step": "synthesize"}}
+            upd = await synthesize_findings(state)
+            state["draft_answer"] = upd.get("draft_answer")
+            
+            yield {"event": "step", "data": {"step": "critique"}}
+            upd = await critique_answer(state)
+            state["critique"] = upd.get("critique")
+            
+            if state["critique"] and state["critique"].get("needs_refinement") and state["iteration"] < state["max_iterations"] - 1:
+                yield {"event": "step", "data": {"step": "refine", "gaps": state["critique"].get("gaps", [])}}
+                upd = await refine_research(state)
+                state["iteration"] = upd.get("iteration", state["iteration"] + 1)
+                state["investigations"] = upd.get("investigations", state["investigations"])
+                state["citations"].extend(upd.get("citations", []))
+                continue
+            else:
+                breakn        
+        yield {"event": "step", "data": {"step": "finalize"}}
+        upd = await finalize_report(state)
+        state["final_answer"] = upd.get("final_answer")
+        state["citations"] = upd.get("citations", state["citations"])  # deduped
+        state["metadata"] = {**state.get("metadata", {}), **upd.get("metadata", {})}
+        
+        yield {"event": "final", "data": {
+            "answer": state["final_answer"],
+            "citations": state["citations"],
+            "metadata": state["metadata"],
+        }}
+    except asyncio.CancelledError:
+        yield {"event": "error", "data": {"error": "cancelled"}}
+    except Exception as e:
+        logger.error(f"Deep research stream failed: {e}", exc_info=True)
+        yield {"event": "error", "data": {"error": str(e)}}
+
+
 # Fallback for when LangGraph is not available
 async def run_deep_research_fallback(query: str, model_name: Optional[str] = None) -> Dict[str, Any]:
     """Simplified fallback when LangGraph not installed."""

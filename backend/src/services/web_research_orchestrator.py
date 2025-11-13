@@ -15,6 +15,12 @@ from .web_search_service import SearchResult, get_web_search_service
 # Simple in-memory synthesis cache: key -> (timestamp, result)
 _SYNTH_CACHE: dict[str, tuple] = {}
 
+# Optional Redis cache
+try:
+    from .redis_client import get_redis
+except Exception:
+    get_redis = lambda: None  # type: ignore
+
 
 # Lazy import AI service to avoid cycles
 async def _get_ai_service(model_name: str | None):
@@ -71,6 +77,18 @@ class WebResearchOrchestrator:
         # Check synthesis cache for non-time-sensitive queries
         cache_ttl = int(os.getenv("WEB_SYNTH_CACHE_TTL", "300"))
         cache_key = f"{(model_name or 'default')}:::{query.strip()}"
+        # Redis first
+        if not time_sensitive and cache_ttl > 0:
+            r = get_redis()
+            if r is not None:
+                try:
+                    cached = r.get(f"synth:{cache_key}")
+                    if cached:
+                        import json
+                        return json.loads(cached)
+                except Exception:
+                    pass
+        # In-memory fallback
         if not time_sensitive and cache_ttl > 0 and cache_key in _SYNTH_CACHE:
             ts, cached = _SYNTH_CACHE[cache_key]
             if (datetime.now() - ts).total_seconds() <= cache_ttl:
@@ -277,6 +295,14 @@ class WebResearchOrchestrator:
 
         # Store in synthesis cache for non-time-sensitive queries
         if not time_sensitive and cache_ttl > 0:
+            # Redis write
+            r = get_redis()
+            if r is not None:
+                try:
+                    import json
+                    r.setex(f"synth:{cache_key}", cache_ttl, json.dumps(final))
+                except Exception:
+                    pass
             _SYNTH_CACHE[cache_key] = (datetime.now(), final)
 
         return final

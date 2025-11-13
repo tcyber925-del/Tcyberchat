@@ -202,3 +202,63 @@ async def deep_research(body: dict = Body(...), request: Request = None, dep: No
     except Exception as e:
         log_event("deep_research_error", trace_id, {"error": str(e)})
         raise
+
+
+# Streaming deep research (SSE)
+try:
+    from sse_starlette.sse import EventSourceResponse
+except Exception:  # pragma: no cover
+    EventSourceResponse = None  # type: ignore
+
+@router.get("/deep-research/stream")
+async def deep_research_stream(request: Request, query: str, model: str | None = None, maxIterations: int = 2, dep: None = Depends(lambda request: rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5"))))):
+    enabled = os.getenv("DEEP_RESEARCH_ENABLED", "false").lower() == "true"
+    if not enabled:
+        return {"error": "Deep research feature is disabled. Set DEEP_RESEARCH_ENABLED=true to enable."}
+    if EventSourceResponse is None:
+        return {"error": "SSE not available on server"}
+    
+    from ..agents.deep_research_agent import run_deep_research_stream
+
+    async def gen():
+        async for evt in run_deep_research_stream(query=query, model_name=model, max_iterations=int(maxIterations)):
+            # Abort if client disconnects
+            if await request.is_disconnected():
+                break
+            yield {"event": evt.get("event", "message"), "data": evt.get("data", {})}
+
+    return EventSourceResponse(gen())
+
+
+# Background job endpoints for deep research
+from ..services.job_queue import get_job_queue
+
+@router.post("/deep-research/jobs")
+async def create_deep_research_job(body: dict = Body(...), request: Request = None, dep: None = Depends(lambda request: rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5"))))):
+    query = str(body.get("query", "")).strip()
+    if not query:
+        return {"error": "missing 'query'"}
+    model = body.get("model")
+    max_iterations = int(body.get("maxIterations", 2))
+    jq = get_job_queue()
+    job = jq.enqueue(query, model, max_iterations)
+    return job.to_dict()
+
+
+@router.get("/deep-research/jobs/{job_id}")
+async def get_deep_research_job(job_id: str):
+    jq = get_job_queue()
+    job = jq.get(job_id)
+    if not job:
+        return {"error": "not found"}
+    resp = job.to_dict()
+    if job.status == "done" and job.result:
+        resp["result"] = job.result
+    return resp
+
+
+@router.delete("/deep-research/jobs/{job_id}")
+async def cancel_deep_research_job(job_id: str):
+    jq = get_job_queue()
+    ok = jq.cancel(job_id)
+    return {"cancelled": bool(ok)}

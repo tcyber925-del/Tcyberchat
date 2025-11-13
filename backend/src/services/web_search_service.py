@@ -437,6 +437,9 @@ class WebSearchService:
 
         # Cache: query -> (results, timestamp)
         self._cache: dict[str, tuple] = {}
+        # Circuit breaker state per provider
+        self._cb_failures: dict[str, int] = {}
+        self._cb_open_until: dict[str, float] = {}
 
         # Rate limiting: track requests per minute
         self._rate_limit_tracker: dict[str, list[float]] = defaultdict(list)
@@ -673,6 +676,24 @@ class WebSearchService:
 
         return enriched_results
 
+    def _cb_allowed(self, name: str) -> bool:
+        import time
+        cool = int(os.getenv("WEB_PROVIDER_CB_COOLDOWN", "60"))
+        until = self._cb_open_until.get(name, 0)
+        return time.time() >= until
+
+    def _cb_record_failure(self, name: str):
+        import time
+        thr = int(os.getenv("WEB_PROVIDER_CB_THRESHOLD", "3"))
+        cool = int(os.getenv("WEB_PROVIDER_CB_COOLDOWN", "60"))
+        self._cb_failures[name] = self._cb_failures.get(name, 0) + 1
+        if self._cb_failures[name] >= thr:
+            self._cb_open_until[name] = time.time() + cool
+
+    def _cb_record_success(self, name: str):
+        self._cb_failures[name] = 0
+        self._cb_open_until[name] = 0
+
     async def search(
         self,
         query: str,
@@ -748,8 +769,8 @@ class WebSearchService:
             f"max_results={max_results}"
         )
 
-        # Try primary provider
-        if self.primary_provider:
+        # Try primary provider (respect circuit breaker)
+        if self.primary_provider and self._cb_allowed(self.provider_name):
             try:
                 # Pass search_depth for Tavily provider (SerpAPI doesn't need this)
                 if isinstance(self.primary_provider, TavilyProvider):
@@ -774,16 +795,22 @@ class WebSearchService:
                     # Only cache if not time-sensitive
                     if not is_time_sensitive and use_cache:
                         self._cache_result(search_query, results)
+                    self._cb_record_success(self.provider_name)
                     return results
             except Exception as e:
                 logger.warning(
                     f"Primary provider ({self.provider_name}) failed: {e}",
                     exc_info=True,
                 )
+                self._cb_record_failure(self.provider_name)
 
-        # Try fallback provider
+        # Try fallback provider (respect circuit breaker)
         if self.fallback_provider:
-            try:
+            fb_name = getattr(self.fallback_provider, "name", "fallback")
+            if not self._cb_allowed(fb_name):
+                logger.warning(f"Circuit open for fallback provider '{fb_name}', skipping")
+            else:
+                try:
                 logger.info(f"Using fallback provider for query: {search_query[:50]}")
                 if isinstance(self.fallback_provider, TavilyProvider):
                     search_depth = "advanced" if is_time_sensitive else "basic"
@@ -806,9 +833,11 @@ class WebSearchService:
                     # Only cache if not time-sensitive
                     if not is_time_sensitive and use_cache:
                         self._cache_result(search_query, results)
+                    self._cb_record_success(fb_name)
                     return results
-            except Exception as e:
-                logger.warning(f"Fallback provider also failed: {e}", exc_info=True)
+                except Exception as e:
+                    logger.warning(f"Fallback provider also failed: {e}", exc_info=True)
+                    self._cb_record_failure(fb_name)
 
         # If LangChain impl failed, try custom providers as a last resort
         if self.impl == "langchain":
