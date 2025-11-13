@@ -20,7 +20,42 @@ router = APIRouter(prefix="/integrations/mcp", tags=["integrations-mcp"])
 @router.get("/servers")
 async def list_servers():
     client = get_multi_mcp_client()
-    return {"servers": client.list_servers()}
+    # Try to enrich with cached capabilities from Redis
+    from ..services.redis_client import get_redis
+    import json
+    servers = client.list_servers()
+    r = get_redis()
+    if r is not None:
+        for s in servers:
+            try:
+                raw = r.get(f"mcp:server:capabilities:{s.get('id')}")
+                if raw:
+                    caps = json.loads(raw)
+                    s["cached_capabilities"] = caps
+            except Exception:
+                continue
+    return {"servers": servers}
+
+
+@router.post("/servers")
+async def upsert_server(body: Dict[str, Any] = Body(...)):
+    client = get_multi_mcp_client()
+    client.upsert_server(body)
+    return {"ok": True}
+
+
+@router.delete("/servers/{server_id}")
+async def disable_server(server_id: str):
+    client = get_multi_mcp_client()
+    client.disable_server(server_id)
+    return {"ok": True}
+
+
+@router.post("/warm-connect")
+async def warm_connect():
+    client = get_multi_mcp_client()
+    await client.warm_connect()
+    return {"ok": True, "servers": client.list_servers()}
 
 
 @router.post("/fetch-doc")

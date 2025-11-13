@@ -117,6 +117,20 @@ class MultiMcpClient:
                 st.connected = True
                 st.healthy = True
                 st.last_error = None
+                # Cache capabilities in Redis
+                r = get_redis()
+                if r is not None:
+                    try:
+                        import json
+                        caps = {
+                            "id": st.config.id,
+                            "transport": st.config.transport,
+                            "tags": st.config.tags,
+                            "tools": [{"name": t.name, "description": t.description} for t in st.tools],
+                        }
+                        r.setex(f"mcp:server:capabilities:{st.config.id}", 3600, json.dumps(caps))
+                    except Exception:
+                        pass
             except Exception as e:
                 st.connected = False
                 st.healthy = False
