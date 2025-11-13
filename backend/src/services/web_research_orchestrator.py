@@ -145,15 +145,35 @@ class WebResearchOrchestrator:
 
         rerank_enabled = os.getenv("WEB_RERANK_ENABLED", "false").lower() == "true"
         if rerank_enabled:
-            # Rank by a mix of provider relevance and query overlap on fetched content/snippet
-            scored: list[tuple[float, SearchResult]] = []
-            for r in results[:max_fetch]:
+            # Try local cross-encoder first
+            try:
+                from .reranker import score_pairs
+            except Exception:
+                score_pairs = None  # type: ignore
+            candidates = results[: max_fetch * 2]
+            passages = []
+            for r in candidates:
                 fr = next((f for f in enriched if f.url == r.url or f.canonical_url == r.url), None)
-                basis = (fr.content if fr and fr.content else (r.snippet or ""))
-                s = 0.7 * _simple_overlap_score(basis, query) + 0.3 * float(r.relevance_score or 0.0)
-                scored.append((s, r))
-            scored.sort(key=lambda x: x[0], reverse=True)
-            results = [r for _, r in scored] + results[max_fetch:]
+                passages.append((fr.content if fr and fr.content else (r.snippet or "")) or "")
+            ce_scores = None
+            if score_pairs is not None and os.getenv("WEB_RERANK_MODEL"):
+                try:
+                    ce_scores = score_pairs(query, passages)
+                except Exception:
+                    ce_scores = None
+            if ce_scores and len(ce_scores) == len(candidates):
+                ranked = sorted(zip(ce_scores, candidates), key=lambda x: x[0], reverse=True)
+                results = [r for _, r in ranked] + results[len(candidates):]
+            else:
+                # Fallback heuristic mix of overlap + provider relevance
+                scored: list[tuple[float, SearchResult]] = []
+                for r in results[:max_fetch]:
+                    fr = next((f for f in enriched if f.url == r.url or f.canonical_url == r.url), None)
+                    basis = (fr.content if fr and fr.content else (r.snippet or ""))
+                    s = 0.7 * _simple_overlap_score(basis, query) + 0.3 * float(r.relevance_score or 0.0)
+                    scored.append((s, r))
+                scored.sort(key=lambda x: x[0], reverse=True)
+                results = [r for _, r in scored] + results[max_fetch:]
 
         evidence_pack: list[Evidence] = []
         for r in results[:max_fetch]:
