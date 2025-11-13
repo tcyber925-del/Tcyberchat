@@ -4,14 +4,33 @@ Web search tools endpoints for health and test
 
 import os
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Request, Depends, HTTPException, status
 
 from ..services.web_research_orchestrator import WebResearchOrchestrator
 from ..services.web_search_service import (
     get_web_search_service,
 )
 
-router = APIRouter(prefix="/tools/web-search", tags=["tools-web-search"])
+router = APIRouter(prefix="/tools/web-search", tags=["tools-web-search"]) 
+
+# --- Rate limiting helpers ---
+from ..services.rate_limit import get_rate_limiter
+
+def _client_ip(request: Request) -> str:
+    # Best-effort; in production consider X-Forwarded-For with care
+    try:
+        return request.client.host or "unknown"
+    except Exception:
+        return "unknown"
+
+async def rate_limit_dep(request: Request, key: str, per_min: int) -> None:
+    limiter = get_rate_limiter()
+    ok = await limiter.allow(f"{key}:{_client_ip(request)}", per_min, 60)
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded. Please retry later.",
+        )
 
 
 @router.get("/health")
@@ -67,7 +86,7 @@ class TestBody:
 
 
 @router.post("/test")
-async def test_query(body: dict = Body(...)):
+async def test_query(body: dict = Body(...), request: Request = None, dep: None = Depends(lambda request: rate_limit_dep(request, "web_test", int(os.getenv("WEB_TOOLS_RATE_PER_MIN", "30"))))):
     q = str(body.get("q", "")).strip()
     max_results = int(body.get("maxResults", 3))
     if not q:
@@ -118,7 +137,7 @@ async def test_query(body: dict = Body(...)):
 
 
 @router.post("/research")
-async def research(body: dict = Body(...)):
+async def research(body: dict = Body(...), request: Request = None, dep: None = Depends(lambda request: rate_limit_dep(request, "web_research", int(os.getenv("WEB_RESEARCH_RATE_PER_MIN", "20"))))):
     q = str(body.get("q", "")).strip()
     model = body.get("model")
     max_results = int(body.get("maxResults", 5))
@@ -133,7 +152,7 @@ async def research(body: dict = Body(...)):
 
 
 @router.post("/deep-research")
-async def deep_research(body: dict = Body(...)):
+async def deep_research(body: dict = Body(...), request: Request = None, dep: None = Depends(lambda request: rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5"))))):
     """
     Deep Research endpoint: multi-step agentic workflow using LangGraph.
     
@@ -161,12 +180,25 @@ async def deep_research(body: dict = Body(...)):
             "error": "Deep research feature is disabled. Set DEEP_RESEARCH_ENABLED=true to enable."
         }
     
+    # Telemetry trace
+    from ..services.telemetry import new_trace_id, log_event, time_block
+    trace_id = new_trace_id()
+    done = time_block()
+    log_event("deep_research_start", trace_id, {"query": query, "model": model, "max_iterations": max_iterations})
+
     from ..agents.deep_research_agent import run_deep_research
-    
-    result = await run_deep_research(
-        query=query,
-        model_name=model,
-        max_iterations=max_iterations,
-    )
-    
-    return result
+
+    try:
+        result = await run_deep_research(
+            query=query,
+            model_name=model,
+            max_iterations=max_iterations,
+        )
+        dur = done()
+        log_event("deep_research_end", trace_id, {"duration_sec": dur, "citations": len(result.get("citations", []))})
+        # attach trace id for client correlation
+        result["metadata"] = {**result.get("metadata", {}), "trace_id": trace_id, "duration_sec": dur}
+        return result
+    except Exception as e:
+        log_event("deep_research_error", trace_id, {"error": str(e)})
+        raise
