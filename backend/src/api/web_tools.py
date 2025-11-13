@@ -130,3 +130,43 @@ async def research(body: dict = Body(...)):
         q, model_name=model, max_results=max_results, max_fetch=max_fetch
     )
     return data
+
+
+@router.post("/deep-research")
+async def deep_research(body: dict = Body(...)):
+    """
+    Deep Research endpoint: multi-step agentic workflow using LangGraph.
+    
+    Body:
+        - query: research question (required)
+        - model: AI model name (optional)
+        - maxIterations: max refinement loops (optional, default 2)
+    
+    Returns:
+        - answer: final markdown report with citations
+        - citations: list of sources [{id, title, url, snippet, tokens}]
+        - metadata: {duration_seconds, iterations, started_at, finalized_at}
+    """
+    query = str(body.get("query", "")).strip()
+    if not query:
+        return {"error": "missing 'query' field"}
+    
+    model = body.get("model")
+    max_iterations = int(body.get("maxIterations", 2))
+    
+    # Feature gate check
+    enabled = os.getenv("DEEP_RESEARCH_ENABLED", "false").lower() == "true"
+    if not enabled:
+        return {
+            "error": "Deep research feature is disabled. Set DEEP_RESEARCH_ENABLED=true to enable."
+        }
+    
+    from ..agents.deep_research_agent import run_deep_research
+    
+    result = await run_deep_research(
+        query=query,
+        model_name=model,
+        max_iterations=max_iterations,
+    )
+    
+    return result
