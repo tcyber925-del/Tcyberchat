@@ -292,12 +292,45 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                       <div className="text-xs font-medium text-foreground line-clamp-1">
                         {title}
                       </div>
-                      {host && <div className="text-[10px] text-muted-foreground">{host}</div>}
-                      {snippet && (
-                        <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
-                          {snippet}
-                        </div>
-                      )}
+{/* Trust and domain badges */}
+{typeof c.trust === 'number' || host ? (
+  <div className="mt-1 flex items-center gap-1">
+    {typeof c.trust === 'number' && (
+      <span
+        className={cn(
+          'text-[10px] px-1 py-0.5 rounded',
+          c.trust >= 0.75
+            ? 'bg-green-100 text-green-700'
+            : c.trust >= 0.5
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-red-100 text-red-700',
+        )}
+        title={`Trust score: ${(c.trust * 100).toFixed(0)}%`}
+      >
+        {c.trust >= 0.75 ? 'High' : c.trust >= 0.5 ? 'Med' : 'Low'} trust
+      </span>
+    )}
+    {c.suspicious && (
+      <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700" title="Possible prompt injection filtered">
+        suspicious
+      </span>
+    )}
+    {host && (
+      <span className="text-[10px] px-1 py-0.5 rounded bg-accent/40 text-muted-foreground">
+        {host}
+      </span>
+    )}
+  </div>
+) : null}
+{snippet && (
+  <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+    {snippet}
+  </div>
+)}
+{/* Show a top quote if available */}
+{Array.isArray(c.quotes) && c.quotes.length > 0 && (
+  <div className="text-[11px] text-foreground mt-1 italic line-clamp-2">“{c.quotes[0]}”</div>
+)}
                     </a>
                   );
                 })}

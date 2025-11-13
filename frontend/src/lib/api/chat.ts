@@ -270,6 +270,27 @@ export async function getConversationMessages(conversationId: string): Promise<a
   }
 }
 
+// deepResearch - calls backend Deep Research API and returns full answer with citations
+export async function deepResearch(
+  query: string,
+  model?: string,
+  maxIterations: number = 2,
+  signal?: AbortSignal,
+) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, model, maxIterations }),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || res.statusText);
+  }
+  return res.json();
+}
+
 // deleteConversation - deletes a conversation
 export async function deleteConversation(conversationId: string): Promise<void> {
   if (!conversationId || typeof conversationId !== 'string') {
