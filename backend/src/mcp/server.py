@@ -6,6 +6,26 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+# JSON Schemas for tool inputs
+WEB_SEARCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "q": {"type": "string", "minLength": 1, "description": "Search query"},
+        "maxResults": {"type": "integer", "minimum": 1, "maximum": 10, "default": 5}
+    },
+    "required": ["q"],
+}
+
+DEEP_RESEARCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "query": {"type": "string", "minLength": 1, "description": "Research question"},
+        "model": {"type": "string"},
+        "maxIterations": {"type": "integer", "minimum": 1, "maximum": 5, "default": 2}
+    },
+    "required": ["query"],
+}
+
 # Tool handlers
 async def tool_web_search(params: Dict[str, Any]) -> Dict[str, Any]:
     from ..services.web_search_service import get_web_search_service
@@ -32,11 +52,11 @@ async def run_stdio() -> None:  # pragma: no cover
         return
     server = Server(name="tcyber-chatbot")
 
-    @server.tool(name="web_search", description="Search the web")
+    @server.tool(name="web_search", description="Search the web", input_schema=WEB_SEARCH_SCHEMA)
     async def _t1(params: Dict[str, Any]):
         return await tool_web_search(params)
 
-    @server.tool(name="deep_research", description="Run multi-step deep research")
+    @server.tool(name="deep_research", description="Run multi-step deep research", input_schema=DEEP_RESEARCH_SCHEMA)
     async def _t2(params: Dict[str, Any]):
         return await tool_deep_research(params)
 
@@ -50,11 +70,11 @@ async def run_ws(host: str = "0.0.0.0", port: int = 8765, token: str | None = No
         return
     server = Server(name="tcyber-chatbot")
 
-    @server.tool(name="web_search", description="Search the web")
+    @server.tool(name="web_search", description="Search the web", input_schema=WEB_SEARCH_SCHEMA)
     async def _t1(params: Dict[str, Any]):
         return await tool_web_search(params)
 
-    @server.tool(name="deep_research", description="Run multi-step deep research")
+    @server.tool(name="deep_research", description="Run multi-step deep research", input_schema=DEEP_RESEARCH_SCHEMA)
     async def _t2(params: Dict[str, Any]):
         return await tool_deep_research(params)
 

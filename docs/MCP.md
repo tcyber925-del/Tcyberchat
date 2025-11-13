@@ -66,8 +66,25 @@ A minimal MCP server is provided at `backend/src/mcp/server.py`.
 - If the official MCP server SDK is installed, `run_stdio()` / `run_ws()` will start a real server.
 - Otherwise, it prints guidance to install the SDK.
 - Tools exposed: `web_search`, `deep_research` (extend with `fetch_url`, etc.).
+- Tool input JSON Schemas are included (q/maxResults, query/model/maxIterations).
 
-When wiring the SDK, add JSON Schemas to each tool and validate with the MCP Inspector.
+### Validating with MCP Inspector
+
+1) Install the official MCP packages and Inspector.
+2) Run the server in stdio or ws mode (see env below).
+3) Open MCP Inspector and connect to the server.
+4) Verify `list_tools` shows `web_search` and `deep_research` with the schemas.
+5) Invoke tools and ensure responses match the schemas.
+
+### Env / running
+
+- Stdio mode (example):
+  - Ensure SDK is installed
+  - Run a small launcher (custom) that calls `backend.src.mcp.server.run_stdio()`
+- WS mode:
+  - Set a token and call `run_ws(host, port, token)` via a launcher
+
+When wiring the SDK, validate with MCP Inspector and add JSON Schemas to any additional tools.
 
 ## Notes
 
