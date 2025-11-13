@@ -70,6 +70,16 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Application starting up...")
+    # Optional warm-load of reranker model to reduce first-request latency
+    try:
+        if os.getenv("WEB_RERANK_WARMLOAD", "false").lower() == "true":
+            from src.services.reranker import get_reranker
+
+            if os.getenv("WEB_RERANK_MODEL"):
+                _ = get_reranker()
+                logger.info("Reranker warm-loaded")
+    except Exception as e:
+        logger.warning(f"Reranker warm-load skipped: {e}")
     try:
         yield
     finally:

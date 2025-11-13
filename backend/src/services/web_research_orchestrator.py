@@ -7,7 +7,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, List
 
 from .web_fetch_service import get_web_fetch_service
 from .web_search_service import SearchResult, get_web_search_service
@@ -48,6 +48,25 @@ def _is_time_sensitive(q: str) -> bool:
             "2025",
         ]
     )
+
+
+def _chunk_text(text: str, max_chars: int = 600, overlap: int = 60) -> List[str]:
+    if not text:
+        return []
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text]
+    chunks: List[str] = []
+    start = 0
+    while start < len(text):
+        end = min(len(text), start + max_chars)
+        chunks.append(text[start:end])
+        if end >= len(text):
+            break
+        start = end - overlap
+        if start < 0:
+            start = 0
+    return chunks
 
 
 @dataclass
@@ -151,19 +170,40 @@ class WebResearchOrchestrator:
             except Exception:
                 score_pairs = None  # type: ignore
             candidates = results[: max_fetch * 2]
-            passages = []
+            # Build chunked passages
+            passage_records: list[tuple[SearchResult, str]] = []
+            max_chars = int(os.getenv("WEB_RERANK_PASSAGE_CHARS", "600"))
+            overlap = int(os.getenv("WEB_RERANK_PASSAGE_OVERLAP", "60"))
             for r in candidates:
                 fr = next((f for f in enriched if f.url == r.url or f.canonical_url == r.url), None)
-                passages.append((fr.content if fr and fr.content else (r.snippet or "")) or "")
+                base = (fr.content if fr and fr.content else (r.snippet or "")) or ""
+                for chunk in _chunk_text(base, max_chars=max_chars, overlap=overlap):
+                    passage_records.append((r, chunk))
             ce_scores = None
             if score_pairs is not None and os.getenv("WEB_RERANK_MODEL"):
                 try:
-                    ce_scores = score_pairs(query, passages)
+                    ce_scores = score_pairs(query, [p for _, p in passage_records])
                 except Exception:
                     ce_scores = None
-            if ce_scores and len(ce_scores) == len(candidates):
-                ranked = sorted(zip(ce_scores, candidates), key=lambda x: x[0], reverse=True)
-                results = [r for _, r in ranked] + results[len(candidates):]
+            if ce_scores and len(ce_scores) == len(passage_records):
+                ranked_chunks = sorted(zip(ce_scores, passage_records), key=lambda x: x[0], reverse=True)
+                top_k = int(os.getenv("WEB_RERANK_TOP_CHUNKS", str(max_fetch)))
+                # Select top chunks ensuring we don't exceed content size
+                selected: list[tuple[SearchResult, str]] = []
+                for score, (r, chunk) in ranked_chunks:
+                    selected.append((r, chunk))
+                    if len(selected) >= top_k:
+                        break
+                # Rebuild results order based on selected chunk parent results
+                ordered = []
+                seen = set()
+                for r, _ in selected:
+                    if r.url not in seen:
+                        ordered.append(r)
+                        seen.add(r.url)
+                results = ordered + [r for r in results if r.url not in seen]
+                # Replace evidence_pack later using selected chunks
+                selected_chunks = selected
             else:
                 # Fallback heuristic mix of overlap + provider relevance
                 scored: list[tuple[float, SearchResult]] = []
@@ -174,25 +214,42 @@ class WebResearchOrchestrator:
                     scored.append((s, r))
                 scored.sort(key=lambda x: x[0], reverse=True)
                 results = [r for _, r in scored] + results[max_fetch:]
+                selected_chunks = None
 
         evidence_pack: list[Evidence] = []
-        for r in results[:max_fetch]:
-            # find matching fetch result
-            fr = next(
-                (f for f in enriched if f.url == r.url or f.canonical_url == r.url),
-                None,
-            )
-            content = fr.content if fr and fr.content else (r.snippet or "")
-            tokens = fr.tokens_estimate if fr and fr.tokens_estimate else 0
-            evidence_pack.append(
-                Evidence(
-                    title=r.title or (fr.title if fr else r.title) or "Untitled",
-                    url=fr.canonical_url if fr and fr.canonical_url else r.url,
-                    content=content[:8000],
-                    tokens=tokens,
-                    published_at=fr.published_at if fr else None,
+        if rerank_enabled and 'selected_chunks' in locals() and selected_chunks:
+            # Build evidence from selected chunks
+            for r, chunk in selected_chunks[:max_fetch]:
+                fr = next((f for f in enriched if f.url == r.url or f.canonical_url == r.url), None)
+                # Simple token estimate
+                tokens = int(len(chunk.split()) * 1.3)
+                evidence_pack.append(
+                    Evidence(
+                        title=r.title or (fr.title if fr else r.title) or "Untitled",
+                        url=fr.canonical_url if fr and fr.canonical_url else r.url,
+                        content=chunk[:8000],
+                        tokens=tokens,
+                        published_at=fr.published_at if fr else None,
+                    )
                 )
-            )
+        else:
+            for r in results[:max_fetch]:
+                # find matching fetch result
+                fr = next(
+                    (f for f in enriched if f.url == r.url or f.canonical_url == r.url),
+                    None,
+                )
+                content = fr.content if fr and fr.content else (r.snippet or "")
+                tokens = fr.tokens_estimate if fr and fr.tokens_estimate else 0
+                evidence_pack.append(
+                    Evidence(
+                        title=r.title or (fr.title if fr else r.title) or "Untitled",
+                        url=fr.canonical_url if fr and fr.canonical_url else r.url,
+                        content=content[:8000],
+                        tokens=tokens,
+                        published_at=fr.published_at if fr else None,
+                    )
+                )
 
         # 3) Build synthesis prompt
         def build_prompt(evidence: list[Evidence]) -> str:

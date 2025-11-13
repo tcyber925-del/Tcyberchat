@@ -811,30 +811,30 @@ class WebSearchService:
                 logger.warning(f"Circuit open for fallback provider '{fb_name}', skipping")
             else:
                 try:
-                logger.info(f"Using fallback provider for query: {search_query[:50]}")
-                if isinstance(self.fallback_provider, TavilyProvider):
-                    search_depth = "advanced" if is_time_sensitive else "basic"
-                    results = await asyncio.wait_for(
-                        self.fallback_provider.search(
-                            search_query, max_results, search_depth=search_depth
-                        ),
-                        timeout=self.timeout_sec,
-                    )
-                else:
-                    results = await asyncio.wait_for(
-                        self.fallback_provider.search(search_query, max_results),
-                        timeout=self.timeout_sec,
-                    )
+                    logger.info(f"Using fallback provider for query: {search_query[:50]}")
+                    if isinstance(self.fallback_provider, TavilyProvider):
+                        search_depth = "advanced" if is_time_sensitive else "basic"
+                        results = await asyncio.wait_for(
+                            self.fallback_provider.search(
+                                search_query, max_results, search_depth=search_depth
+                            ),
+                            timeout=self.timeout_sec,
+                        )
+                    else:
+                        results = await asyncio.wait_for(
+                            self.fallback_provider.search(search_query, max_results),
+                            timeout=self.timeout_sec,
+                        )
 
-                if results:
-                    logger.info(
-                        f"Fallback web search returned {len(results)} results for query: '{search_query[:50]}'"
-                    )
-                    # Only cache if not time-sensitive
-                    if not is_time_sensitive and use_cache:
-                        self._cache_result(search_query, results)
-                    self._cb_record_success(fb_name)
-                    return results
+                    if results:
+                        logger.info(
+                            f"Fallback web search returned {len(results)} results for query: '{search_query[:50]}'"
+                        )
+                        # Only cache if not time-sensitive
+                        if not is_time_sensitive and use_cache:
+                            self._cache_result(search_query, results)
+                        self._cb_record_success(fb_name)
+                        return results
                 except Exception as e:
                     logger.warning(f"Fallback provider also failed: {e}", exc_info=True)
                     self._cb_record_failure(fb_name)

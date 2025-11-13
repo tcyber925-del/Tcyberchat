@@ -491,7 +491,8 @@ async def run_deep_research_stream(
                 state["citations"].extend(upd.get("citations", []))
                 continue
             else:
-                breakn        
+                break
+        
         yield {"event": "step", "data": {"step": "finalize"}}
         upd = await finalize_report(state)
         state["final_answer"] = upd.get("final_answer")
