@@ -14,6 +14,25 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Expose provider symbols at module level for tests/monkeypatching
+try:
+    from ddgs import DDGS  # type: ignore
+except Exception:
+    try:
+        from duckduckgo_search import DDGS  # type: ignore
+    except Exception:  # pragma: no cover
+        DDGS = None  # type: ignore
+
+try:
+    from serpapi import GoogleSearch  # type: ignore
+except Exception:  # pragma: no cover
+    GoogleSearch = None  # type: ignore
+
+try:
+    from tavily import TavilyClient  # type: ignore
+except Exception:  # pragma: no cover
+    TavilyClient = None  # type: ignore
+
 
 @dataclass
 class SearchResult:
@@ -106,12 +125,9 @@ class DuckDuckGoProvider(WebSearchProvider):
             raise RuntimeError("DuckDuckGo provider not available")
 
         try:
-            # Try the renamed package first, then fall back to the legacy one
-            try:
-                from ddgs import DDGS  # type: ignore
-            except Exception:
-                from duckduckgo_search import DDGS  # type: ignore
-
+            # Use module-level DDGS reference to allow tests to monkeypatch
+            if DDGS is None:
+                raise RuntimeError("DDGS not available")
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
@@ -156,13 +172,12 @@ class SerpAPIProvider(WebSearchProvider):
 
     def is_available(self) -> bool:
         """Check if SerpAPI is available (API key configured)"""
+        if not self.api_key:
+            self._available = False
+            return False
         if self._available is None:
-            if not self.api_key:
-                self._available = False
-                return False
             try:
-                import serpapi
-
+                import serpapi  # noqa: F401
                 self._available = True
             except ImportError:
                 logger.warning(
@@ -187,22 +202,23 @@ class SerpAPIProvider(WebSearchProvider):
             )
 
         try:
-            from serpapi import GoogleSearch
+            # Use serpapi.Client to match test expectations
+            import serpapi
 
             # Build search parameters
             params = {
                 "q": query,
                 "num": max_results,
                 "engine": "google",
-                "api_key": self.api_key,
             }
 
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             try:
-                response = await loop.run_in_executor(
-                    None, lambda: GoogleSearch(params).get_dict()
-                )
+                def _call():
+                    client = serpapi.Client(api_key=self.api_key)
+                    return client.search(params)
+                response = await loop.run_in_executor(None, _call)
             except Exception as e:
                 error_msg = str(e)
                 if "Invalid API key" in error_msg or "401" in error_msg:
@@ -258,13 +274,12 @@ class TavilyProvider(WebSearchProvider):
 
     def is_available(self) -> bool:
         """Check if Tavily is available (API key configured)"""
+        if not self.api_key:
+            self._available = False
+            return False
         if self._available is None:
-            if not self.api_key:
-                self._available = False
-                return False
             try:
-                import tavily
-
+                import tavily  # noqa: F401
                 self._available = True
             except ImportError:
                 logger.warning(
@@ -288,9 +303,12 @@ class TavilyProvider(WebSearchProvider):
             raise RuntimeError("Tavily provider not available (API key not configured)")
 
         try:
-            from tavily import TavilyClient
+            # Use module-level TavilyClient reference to allow tests to monkeypatch
+            TavilyClient_local = TavilyClient
+            if TavilyClient_local is None:
+                raise RuntimeError("Tavily client not available")
 
-            client = TavilyClient(api_key=self.api_key)
+            client = TavilyClient_local(api_key=self.api_key)
 
             # Build search parameters
             # Note: Free/dev API keys may have limited parameters

@@ -182,8 +182,8 @@ class MultiMcpClient:
         strategy: str = "auto",  # auto | broadcast_first
     ) -> Dict[str, Any]:
         """Call a tool on a specific or auto-selected server.
-        This scaffold implements only a special-case for http.get/fetch_url: it will perform a direct HTTP fetch as a
-        placeholder when no SDK is wired, caching the content. Replace with a real MCP call.
+        Prefer a real MCP call through the configured connection when available.
+        For http.get/fetch_url, fall back to a direct HTTP fetch as a placeholder if no working MCP server is available.
         """
         # Resolve server(s)
         if strategy == "broadcast_first":
@@ -197,29 +197,36 @@ class MultiMcpClient:
             else:
                 st = self._servers.get(server_id_or_auto)
             servers = [st] if st else []
-        # If not found or tool unsupported, attempt a fallback for docs fetch
-        if tool_name in ("http.get", "fetch_url") and os.getenv("MCP_PLACEHOLDER_ONLY", "false").lower() != "true":
-            # If we have a real connection and tool, try it
-            for s in servers:
-                if not s:
+
+        # First try real MCP calls via connection for any tool
+        last_err = None
+        for s in servers:
+            if not s:
+                continue
+            key = f"{s.config.id}:{tool_name}"
+            if not self._cb_allowed(key):
+                continue
+            conn = getattr(s, "_conn", None)
+            if conn:
+                try:
+                    res = await conn.call_tool(tool_name, params, stream=stream)
+                    if not res.get("error"):
+                        self._cb_ok(key)
+                        return {"serverId": s.config.id, **res}
+                    else:
+                        last_err = res.get("error")
+                        self._cb_fail(key)
+                except Exception as e:
+                    last_err = str(e)
+                    self._cb_fail(key)
                     continue
-                conn = getattr(s, "_conn", None)
-                if conn:
-                    try:
-                        res = await conn.call_tool(tool_name, params, stream=stream)
-                        if not res.get("error"):
-                            self._cb_ok(f"{s.config.id}:{tool_name}")
-                            return {"serverId": s.config.id, **res}
-                    except Exception as e:
-                        self._cb_fail(f"{s.config.id}:{tool_name}")
-                        last_err = str(e)
-                        continue
+
+        # Fallback path for docs fetch when using http.get / fetch_url
         if tool_name in ("http.get", "fetch_url"):
             url = str(params.get("url", "")).strip()
             if not url:
                 return {"error": "missing url"}
             # Attempt servers in order; on success, cache and return
-            last_err = None
             for s in servers:
                 if not s:
                     continue
@@ -237,7 +244,7 @@ class MultiMcpClient:
                             return {"serverId": s.config.id, "tool": tool_name, "url": url, "content": cached}
                     except Exception:
                         pass
-                # Placeholder for real MCP invoke
+                # Placeholder direct HTTP fetch
                 try:
                     import httpx
                     timeout = httpx.Timeout(15.0)
@@ -258,8 +265,9 @@ class MultiMcpClient:
                     self._cb_fail(key)
                     continue
             return {"error": last_err or "no server available"}
-        # Default unsupported
-        return {"error": f"tool '{tool_name}' not supported by scaffold"}
+
+        # Default unsupported if no servers handled it
+        return {"error": last_err or f"tool '{tool_name}' not supported or no server available"}
 
 
 # Singleton access

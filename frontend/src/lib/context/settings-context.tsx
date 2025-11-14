@@ -16,6 +16,9 @@ export interface UserSettings {
   showWebDebugBadges: boolean; // Dev-only inline badge toggle
   showSourcesPanel: boolean; // Show Sources cards under assistant messages
 
+  // Deep research defaults
+  deepResearchDefaultIterations?: number;
+
   // Version for migrations
   version: number;
 }
@@ -37,7 +40,8 @@ const DEFAULT_SETTINGS: UserSettings = {
   multimodalEnabled: true,
   showWebDebugBadges: false,
   showSourcesPanel: true,
-  version: 3,
+  deepResearchDefaultIterations: 2,
+  version: 4,
 };
 
 // Storage key
@@ -45,7 +49,7 @@ const SETTINGS_STORAGE_KEY = 'tcyber-chatbot-settings';
 
 // Migration functions
 const migrateSettings = (stored: any): UserSettings => {
-  const currentVersion = 3;
+  const currentVersion = 4;
 
   if (!stored || typeof stored !== 'object') {
     return DEFAULT_SETTINGS;
@@ -58,6 +62,10 @@ const migrateSettings = (stored: any): UserSettings => {
   // v2 -> v3: add showSourcesPanel default true
   if (!stored.version || stored.version < 3) {
     stored.showSourcesPanel = true;
+  }
+  // v3 -> v4: add deepResearchDefaultIterations default 2
+  if (!stored.version || stored.version < 4) {
+    stored.deepResearchDefaultIterations = 2;
   }
 
   return { ...DEFAULT_SETTINGS, ...stored, version: currentVersion };

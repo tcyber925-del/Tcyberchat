@@ -201,6 +201,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             />
             <span className="text-sm">Show web debug badges (dev-only)</span>
           </label>
+          <div className="flex items-center gap-2">
+            <label className="text-sm w-56" htmlFor="deepResearchDefaultIterations">
+              Deep Research default iterations
+            </label>
+            <input
+              id="deepResearchDefaultIterations"
+              name="deepResearchDefaultIterations"
+              type="number"
+              min={1}
+              max={5}
+              value={localSettings.deepResearchDefaultIterations ?? 2}
+              onChange={handleChange}
+              className="w-20 px-2 py-1 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
         </div>
       </fieldset>
 

@@ -32,7 +32,7 @@ try:
     from src.database import get_database_status
 
     # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.services.ai_service import aget_ai_service as get_ai_service
 except ImportError:
     # Fallback for direct execution
     import os
@@ -54,7 +54,7 @@ except ImportError:
     from src.database import get_database_status
 
     # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.services.ai_service import aget_ai_service as get_ai_service
 
 # Ensure logs directory exists
 os.makedirs("logs", exist_ok=True)

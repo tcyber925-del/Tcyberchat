@@ -3,7 +3,7 @@
 This project integrates the Model Context Protocol (MCP) in two roles:
 
 - MultiMcpClient (consumer): connect to multiple MCP servers (local stdio and remote WSS) to fetch docs/tools/resources.
-- MCP Server (producer): expose the chatbot’s tools (web_search, deep_research, fetch_url) to MCP clients. (coming next)
+- MCP Server (producer): expose the chatbot’s tools (web_search, deep_research, fetch_url) to MCP clients. (SDK-wired)
 
 ## Configuration
 
@@ -47,7 +47,7 @@ Rate limits / circuit breaker (env):
 - `POST /api/integrations/mcp/servers` — upsert one server config (JSON body)
 - `DELETE /api/integrations/mcp/servers/{server_id}` — disable server
 - `POST /api/integrations/mcp/warm-connect` — connect and discover tools (scaffold)
-- `POST /api/integrations/mcp/fetch-doc` — fetch a doc via MCP (scaffold; placeholder direct HTTP until SDK wired)
+- `POST /api/integrations/mcp/fetch-doc` — fetch a doc via MCP (uses SDK when a server with `http.get` is connected; falls back to direct HTTP if none)
 
 Body example for fetch-doc:
 ```
@@ -60,13 +60,16 @@ Body example for fetch-doc:
 
 Response includes sanitized `content` and a normalized `citation` object compatible with the UI’s Sources panel.
 
-## Server (hybrid)
+## Server
 
-A minimal MCP server is provided at `backend/src/mcp/server.py`.
-- If the official MCP server SDK is installed, `run_stdio()` / `run_ws()` will start a real server.
-- Otherwise, it prints guidance to install the SDK.
-- Tools exposed: `web_search`, `deep_research` (extend with `fetch_url`, etc.).
-- Tool input JSON Schemas are included (q/maxResults, query/model/maxIterations).
+A minimal MCP server is provided at `backend/src/mcp/server.py` and uses the official SDK (FastMCP). Tools exposed: `web_search`, `deep_research`. JSON Schemas are included.
+
+### Running the server
+
+- Stdio mode:
+  - python -m scripts.mcp_server --mode stdio
+- WebSocket mode:
+  - python -m scripts.mcp_server --mode ws --host 0.0.0.0 --port 8765 --token "${TOKEN}"
 
 ### Validating with MCP Inspector
 
@@ -88,6 +91,6 @@ When wiring the SDK, validate with MCP Inspector and add JSON Schemas to any add
 
 ## Notes
 
-- This is a scaffold. Actual MCP SDK calls (handshake, list_tools, call_tool with streaming) will replace the HTTP placeholder soon.
+- SDK-backed list_tools and call_tool are wired for ws/stdio clients; http.get has a safe HTTP fallback when no server is available.
 - Security: store tokens server-side only; never expose to frontend. Enforce SSRF protection when incorporating fetched content.
-- Use MCP Inspector to validate your own MCP server once implemented.
+- Use MCP Inspector to validate your own MCP server.

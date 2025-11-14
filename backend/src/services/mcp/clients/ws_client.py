@@ -1,7 +1,5 @@
 """
-WebSocket MCP connection (hybrid):
-- If an official MCP SDK is available, use it for connect/list/call.
-- Otherwise, gracefully fall back to a stub that reports not implemented.
+WebSocket MCP connection using the official MCP SDK.
 """
 from __future__ import annotations
 
@@ -9,59 +7,74 @@ from typing import Any, Dict, List, Optional
 
 
 class WsMcpConnection:
+    """WebSocket-based MCP client connection."""
+
     def __init__(self, url: str, headers: Optional[Dict[str, str]] = None, connect_timeout: float = 3.0) -> None:
         self._url = url
         self._headers = headers or {}
         self._connect_timeout = connect_timeout
-        self._cli = None  # SDK client when available
+        self._session = None
+        self._client = None
 
     async def start(self) -> None:
+        """Connect to the MCP server via WebSocket."""
         try:
-            # Example API – adjust when wiring the official SDK
-            from mcp.client import Client  # type: ignore
-            self._cli = await Client.connect_ws(self._url, headers=self._headers, timeout=self._connect_timeout)
-        except Exception:
-            # SDK not available or failed to connect
-            self._cli = None
+            from mcp.client.session import ClientSession
+            from mcp.client.websocket import websocket_client
+
+            # Create websocket transport and session
+            async with websocket_client(self._url, headers=self._headers or {}) as (read, write):
+                self._session = ClientSession(read, write)
+                await self._session.initialize()
+                # Keep session alive – in production, manage lifecycle properly
+                self._client = self._session
+        except Exception as e:
+            # Failed to connect or SDK not available
+            self._session = None
+            self._client = None
+            raise RuntimeError(f"Failed to start WS MCP connection: {e}") from e
 
     async def stop(self) -> None:
-        try:
-            if self._cli is not None:
-                await self._cli.close()
-        except Exception:
-            pass
+        """Close the MCP client session."""
+        if self._session is not None:
+            try:
+                # MCP SDK sessions may not have explicit close; context manager handles it
+                self._session = None
+                self._client = None
+            except Exception:
+                pass
 
     async def list_tools(self) -> List[Dict[str, Any]]:
-        if self._cli is None:
+        """List available tools from the MCP server."""
+        if self._client is None:
             return []
         try:
-            tools = await self._cli.list_tools()
-            # Normalize to list[{name, description, input_schema?}]
+            result = await self._client.list_tools()
             out: List[Dict[str, Any]] = []
-            for t in tools or []:
-                name = getattr(t, "name", None) or (t.get("name") if isinstance(t, dict) else None)
-                desc = getattr(t, "description", None) or (t.get("description") if isinstance(t, dict) else None)
-                if name:
-                    out.append({"name": name, "description": desc})
+            for tool in result.tools:
+                out.append({
+                    "name": tool.name,
+                    "description": tool.description,
+                    "inputSchema": tool.inputSchema if hasattr(tool, "inputSchema") else None,
+                })
             return out
         except Exception:
             return []
 
     async def call_tool(self, name: str, params: Dict[str, Any], stream: bool = False) -> Dict[str, Any]:
-        if self._cli is None:
+        """Call a tool on the MCP server."""
+        if self._client is None:
             return {"error": "ws mcp client not available"}
         try:
-            if stream:
-                # Example streaming interface – adapt to SDK
-                result_chunks = []
-                async for evt in self._cli.call_tool_stream(name, params):
-                    result_chunks.append(evt)
-                return {"events": result_chunks}
-            else:
-                res = await self._cli.call_tool(name, params)
-                # Normalize known shapes (e.g., http.get)
-                if isinstance(res, dict):
-                    return res
-                return {"result": res}
+            result = await self._client.call_tool(name, params)
+            # MCP SDK returns CallToolResult with content list
+            if hasattr(result, "content"):
+                # Combine content blocks
+                content_text = ""
+                for block in result.content:
+                    if hasattr(block, "text"):
+                        content_text += block.text
+                return {"content": content_text, "isError": getattr(result, "isError", False)}
+            return {"result": str(result)}
         except Exception as e:
             return {"error": str(e)}

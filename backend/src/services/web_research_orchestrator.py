@@ -154,6 +154,55 @@ class WebResearchOrchestrator:
         top_urls = [r.url for r in results[:max_fetch] if r.url]
         enriched = await self.web_fetch.fetch_multiple(top_urls) if top_urls else []
 
+        # Optionally supplement with MCP-fetched docs when configured
+        mcp_enabled = os.getenv("WEB_MCP_ENABLED", "false").lower() == "true"
+        if mcp_enabled:
+            try:
+                from .mcp.multi_client import get_multi_mcp_client
+                from .web_fetch_service import sanitize_web_content
+
+                client = get_multi_mcp_client()
+                # Best-effort warm connect (idempotent)
+                await client.warm_connect()
+                # Prefer candidates not yet fetched
+                existing_urls = {r.url for r in results[:max_fetch] if r.url}
+                mcp_candidates = [r.url for r in results if r.url and r.url not in existing_urls]
+                added = 0
+                max_mcp = int(os.getenv("WEB_MCP_MAX_DOCS", "2"))
+                for url in mcp_candidates:
+                    if added >= max_mcp:
+                        break
+                    try:
+                        res = await client.call_tool(
+                            "auto",
+                            "http.get",
+                            {"url": url},
+                            preferred_tags=["docs", "official"],
+                        )
+                        if not res.get("error") and res.get("content"):
+                            text = str(res.get("content") or "")
+                            clean, _susp = sanitize_web_content(text)
+                            # Create a light-weight enrichment-like record by appending to evidence later
+                            # Store temporarily in enriched-like structure using a tiny shim via Evidence later
+                            # For now, we just append a marker in enriched list for trust map (optional)
+                            enriched.append(type("Shim", (), {
+                                "url": url,
+                                "canonical_url": url,
+                                "content": clean[:10000],
+                                "title": None,
+                                "published_at": None,
+                                "tokens_estimate": int(len(clean.split()) * 1.3),
+                                "domain": None,
+                                "trust_score": 0.7,
+                                "is_suspicious": False,
+                            }))
+                            added += 1
+                    except Exception:
+                        continue
+            except Exception:
+                # MCP optional path; ignore failures gracefully
+                pass
+
         # Optional: rerank results before packaging evidence
         def _simple_overlap_score(text: str, query: str) -> float:
             q_tokens = {t for t in query.lower().split() if len(t) > 2}
@@ -250,6 +299,40 @@ class WebResearchOrchestrator:
                         published_at=fr.published_at if fr else None,
                     )
                 )
+
+        # If MCP docs are available, add a few as supplemental evidence (beyond top fetch)
+        if mcp_enabled:
+            try:
+                existing_urls_ev = {ev.url for ev in evidence_pack}
+                added_mcp = 0
+                max_mcp = int(os.getenv("WEB_MCP_MAX_DOCS", "2"))
+                for fr in enriched:
+                    try:
+                        url = getattr(fr, "canonical_url", None) or getattr(fr, "url", None)
+                        if not url or url in existing_urls_ev:
+                            continue
+                        content = getattr(fr, "content", None)
+                        if not content:
+                            continue
+                        title = getattr(fr, "title", None) or "Untitled"
+                        tokens = getattr(fr, "tokens_estimate", 0) or int(len(content.split()) * 1.3)
+                        evidence_pack.append(
+                            Evidence(
+                                title=title,
+                                url=url,
+                                content=str(content)[:8000],
+                                tokens=tokens,
+                                published_at=getattr(fr, "published_at", None),
+                            )
+                        )
+                        existing_urls_ev.add(url)
+                        added_mcp += 1
+                        if added_mcp >= max_mcp:
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
 
         # 3) Build synthesis prompt
         def build_prompt(evidence: list[Evidence]) -> str:

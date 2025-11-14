@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
+# Optional httpx at module scope for consistent patching in tests
+try:
+    import httpx  # type: ignore
+except Exception:  # pragma: no cover
+    httpx = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -161,12 +167,7 @@ class WebFetchService:
 
     def _check_httpx(self) -> bool:
         """Check if httpx is available"""
-        try:
-            import httpx
-
-            return True
-        except ImportError:
-            return False
+        return httpx is not None
 
     def _check_extraction_libs(self) -> dict[str, bool]:
         """Check which extraction libraries are available"""
@@ -561,7 +562,8 @@ class WebFetchService:
                 pass
 
             try:
-                import httpx
+                if httpx is None:
+                    raise ImportError("httpx not available")
 
                 headers = {
                     "User-Agent": self.user_agent,
@@ -681,31 +683,60 @@ class WebFetchService:
                 logger.debug(error)
                 self._stats["failures"] += 1
                 self._stats["failures_by_reason"]["timeout"] += 1
+                return FetchResult(
+                    url=url,
+                    canonical_url=canonical_url,
+                    content=None,
+                    content_type=None,
+                    title=None,
+                    published_at=None,
+                    extracted_at=datetime.now(),
+                    tokens_estimate=0,
+                    error=error,
+                    domain=self._get_domain(canonical_url),
+                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
+                )
             except httpx.HTTPStatusError as e:
-                error = f"HTTP error {e.response.status_code}: {url}"
+                status = getattr(e.response, "status_code", None)
+                error = f"HTTP error {status if status is not None else ''}: {url}"
                 logger.debug(error)
                 self._stats["failures"] += 1
-                self._stats["failures_by_reason"][f"http_{e.response.status_code}"] += 1
+                if status is not None:
+                    self._stats["failures_by_reason"][f"http_{status}"] += 1
+                return FetchResult(
+                    url=url,
+                    canonical_url=canonical_url,
+                    content=None,
+                    content_type=None,
+                    title=None,
+                    published_at=None,
+                    extracted_at=datetime.now(),
+                    tokens_estimate=0,
+                    error=error,
+                    domain=self._get_domain(canonical_url),
+                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
+                )
             except Exception as e:
                 error = f"Error fetching URL: {str(e)}"
                 logger.debug(error)
                 self._stats["failures"] += 1
                 self._stats["failures_by_reason"]["other"] += 1
-
-            return FetchResult(
-                url=url,
-                canonical_url=canonical_url,
-                content=None,
-                content_type=None,
-                title=None,
-                published_at=None,
-                extracted_at=datetime.now(),
-                tokens_estimate=0,
-                error=error,
-                domain=self._get_domain(canonical_url),
-                trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
-                is_suspicious=False,
-            )
+                return FetchResult(
+                    url=url,
+                    canonical_url=canonical_url,
+                    content=None,
+                    content_type=None,
+                    title=None,
+                    published_at=None,
+                    extracted_at=datetime.now(),
+                    tokens_estimate=0,
+                    error=error,
+                    domain=self._get_domain(canonical_url),
+                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
+                )
 
     async def fetch_multiple(self, urls: list[str]) -> list[FetchResult]:
         """

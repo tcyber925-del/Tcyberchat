@@ -1,6 +1,5 @@
 """
-MCP Server (hybrid): uses official SDK if available, else prints guidance.
-Exposes tools: web_search, deep_research.
+MCP Server using the official SDK, exposing tools: web_search, deep_research.
 """
 from __future__ import annotations
 
@@ -45,12 +44,9 @@ async def tool_deep_research(params: Dict[str, Any], emit=None) -> Dict[str, Any
 
 # Runners
 async def run_stdio() -> None:  # pragma: no cover
-    try:
-        from mcp.server import Server  # type: ignore
-    except Exception:
-        print("Install the MCP server SDK to run stdio mode.")
-        return
-    server = Server(name="tcyber-chatbot")
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("tcyber-chatbot")
 
     @server.tool(name="web_search", description="Search the web", input_schema=WEB_SEARCH_SCHEMA)
     async def _t1(params: Dict[str, Any]):
@@ -63,12 +59,9 @@ async def run_stdio() -> None:  # pragma: no cover
     await server.run_stdio()
 
 async def run_ws(host: str = "0.0.0.0", port: int = 8765, token: str | None = None) -> None:  # pragma: no cover
-    try:
-        from mcp.server import Server  # type: ignore
-    except Exception:
-        print("Install the MCP server SDK to run websocket mode.")
-        return
-    server = Server(name="tcyber-chatbot")
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("tcyber-chatbot")
 
     @server.tool(name="web_search", description="Search the web", input_schema=WEB_SEARCH_SCHEMA)
     async def _t1(params: Dict[str, Any]):

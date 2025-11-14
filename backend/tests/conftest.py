@@ -1,6 +1,45 @@
 import os
-
+import sys
 import pytest
+
+# Ensure backend package is importable when running from repo root
+backend_root = os.path.join(os.getcwd(), "backend")
+if backend_root not in sys.path:
+    sys.path.insert(0, backend_root)
+
+# Safe defaults for tests to avoid external calls
+os.environ.setdefault("WEB_FETCH_ENABLED", "false")
+os.environ.setdefault("RUN_INTEGRATION_TESTS", "0")
+# Ensure provider API keys are not set during unit tests
+os.environ.pop("TAVILY_API_KEY", None)
+os.environ.pop("SERPAPI_API_KEY", None)
+# Force empty values to override any inherited environment on some systems
+os.environ["TAVILY_API_KEY"] = ""
+os.environ["SERPAPI_API_KEY"] = ""
+
+# Ensure an event loop exists for tests that use get_event_loop()
+import asyncio  # noqa: E402
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    except Exception:
+        pass
+
+import os
+
+
+@pytest.fixture(autouse=True)
+def ensure_event_loop():
+    import asyncio
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    yield
 
 
 def pytest_configure(config):

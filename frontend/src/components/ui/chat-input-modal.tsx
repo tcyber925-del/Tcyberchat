@@ -11,6 +11,7 @@ interface ChatInputModalProps {
   onFileAttach: () => void;
   onWebSearchToggle: () => void;
   webSearchEnabled: boolean;
+  onDeepResearch?: () => void; // New: trigger deep research
 }
 
 export const ChatInputModal: React.FC<ChatInputModalProps> = ({
@@ -19,6 +20,7 @@ export const ChatInputModal: React.FC<ChatInputModalProps> = ({
   onFileAttach,
   onWebSearchToggle,
   webSearchEnabled,
+  onDeepResearch,
 }) => {
   if (!isOpen) return null;
 
@@ -68,6 +70,26 @@ export const ChatInputModal: React.FC<ChatInputModalProps> = ({
             </span>
           )}
         </button>
+
+        {/* Deep Research Button */}
+        {onDeepResearch && (
+          <button
+            type="button"
+            onClick={() => {
+              onDeepResearch?.();
+              onClose();
+            }}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-md',
+              'text-sm font-medium transition-colors',
+              'bg-primary text-primary-foreground hover:bg-primary/90',
+              'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+            )}
+            title="Run Deep Research"
+          >
+            <span>Deep Research</span>
+          </button>
+        )}
 
         {/* Close Button */}
         <button

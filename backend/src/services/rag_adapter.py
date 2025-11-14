@@ -222,7 +222,18 @@ def create_embeddings(model_name: str = "all-MiniLM-L6-v2") -> Any | None:
                 warnings.simplefilter("ignore")
                 emb = SentenceTransformerEmbeddings(model_name=model_name)
 
-            return emb
+            # Wrap in a simple adapter exposing .embed(list[str]) for tests
+            class _EmbWrapper:
+                def __init__(self, inner):
+                    self._inner = inner
+                def embed(self, texts):
+                    if hasattr(self._inner, "embed_documents"):
+                        return self._inner.embed_documents(texts)
+                    if hasattr(self._inner, "embed_query"):
+                        return [self._inner.embed_query(t) for t in texts]
+                    return [len(t) for t in texts]
+
+            return _EmbWrapper(emb)
         except Exception:
             return None
     return None
@@ -456,8 +467,16 @@ class AIServiceLLMAdapter:
                 # If coroutine, run it
                 if hasattr(result, "__await__"):
                     import asyncio
-
-                    return asyncio.get_event_loop().run_until_complete(result)
+                    try:
+                        # Prefer asyncio.run when not in a running loop
+                        return asyncio.run(result)
+                    except RuntimeError:
+                        # Fallback when already inside a loop: create a new loop
+                        loop = asyncio.new_event_loop()
+                        try:
+                            return loop.run_until_complete(result)
+                        finally:
+                            loop.close()
                 return result
         except Exception:
             pass

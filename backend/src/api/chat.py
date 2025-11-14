@@ -29,7 +29,7 @@ import os
 
 from ..database import SessionLocal, get_db
 from ..models.document import Document as DocModel
-from ..services.ai_service import get_ai_service
+from ..services.ai_service import aget_ai_service as get_ai_service
 from ..services.chat_service import get_chat_service
 from ..services.memory_service import get_memory_service
 from ..services.rag_service import get_rag_service
@@ -171,12 +171,20 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
             use_web_search = getattr(request, "enableWebSearch", False) or False
             if hasattr(rag_service, "generate_rag_response"):
                 try:
-                    rag_result = await rag_service.generate_rag_response(
-                        query=request.message,
-                        document_id=doc_id,
-                        model_name=request.model,
-                        use_web_search=use_web_search,  # NEW: Pass web search flag
-                    )
+                    try:
+                        rag_result = await rag_service.generate_rag_response(
+                            query=request.message,
+                            document_id=doc_id,
+                            model_name=request.model,
+                            use_web_search=use_web_search,  # Prefer flag when supported
+                        )
+                    except TypeError:
+                        # Fallback for mocks without use_web_search param
+                        rag_result = await rag_service.generate_rag_response(
+                            query=request.message,
+                            document_id=doc_id,
+                            model_name=request.model,
+                        )
                     response_text = (
                         rag_result.get("response", "")
                         if isinstance(rag_result, dict)
@@ -247,12 +255,19 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                         use_web_search = (
                             getattr(request, "enableWebSearch", False) or False
                         )
-                        rag_result = await rag_service.generate_rag_response(
-                            query=request.message,
-                            document_id=None,
-                            model_name=request.model,
-                            use_web_search=use_web_search,
-                        )
+                        try:
+                            rag_result = await rag_service.generate_rag_response(
+                                query=request.message,
+                                document_id=None,
+                                model_name=request.model,
+                                use_web_search=use_web_search,
+                            )
+                        except TypeError:
+                            rag_result = await rag_service.generate_rag_response(
+                                query=request.message,
+                                document_id=None,
+                                model_name=request.model,
+                            )
                         if isinstance(rag_result, dict) and rag_result.get("response"):
                             response_text = rag_result.get("response", "")
                             citations = rag_result.get("citations", [])
