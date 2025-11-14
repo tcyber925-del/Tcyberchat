@@ -562,7 +562,17 @@ class WebFetchService:
                 pass
 
             try:
-                if httpx is None:
+                # Resolve httpx locally to avoid interference from external monkeypatching
+                local_httpx = httpx
+                if local_httpx is None:
+                    try:
+                        import importlib
+
+                        local_httpx = importlib.import_module("httpx")  # type: ignore
+                    except Exception:
+                        local_httpx = None  # type: ignore
+
+                if local_httpx is None:
                     raise ImportError("httpx not available")
 
                 headers = {
@@ -571,7 +581,7 @@ class WebFetchService:
                     "Accept-Language": "en-US,en;q=0.9",
                 }
 
-                async with httpx.AsyncClient(
+                async with local_httpx.AsyncClient(
                     timeout=self.timeout, follow_redirects=True
                 ) as client:
                     response = await client.get(url, headers=headers)
@@ -678,47 +688,63 @@ class WebFetchService:
 
                     return result
 
-            except httpx.TimeoutException:
-                error = f"Timeout fetching URL: {url}"
-                logger.debug(error)
-                self._stats["failures"] += 1
-                self._stats["failures_by_reason"]["timeout"] += 1
-                return FetchResult(
-                    url=url,
-                    canonical_url=canonical_url,
-                    content=None,
-                    content_type=None,
-                    title=None,
-                    published_at=None,
-                    extracted_at=datetime.now(),
-                    tokens_estimate=0,
-                    error=error,
-                    domain=self._get_domain(canonical_url),
-                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
-                    is_suspicious=False,
-                )
-            except httpx.HTTPStatusError as e:
-                status = getattr(e.response, "status_code", None)
-                error = f"HTTP error {status if status is not None else ''}: {url}"
-                logger.debug(error)
-                self._stats["failures"] += 1
-                if status is not None:
-                    self._stats["failures_by_reason"][f"http_{status}"] += 1
-                return FetchResult(
-                    url=url,
-                    canonical_url=canonical_url,
-                    content=None,
-                    content_type=None,
-                    title=None,
-                    published_at=None,
-                    extracted_at=datetime.now(),
-                    tokens_estimate=0,
-                    error=error,
-                    domain=self._get_domain(canonical_url),
-                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
-                    is_suspicious=False,
-                )
             except Exception as e:
+                # Classify common httpx errors robustly even if module-level symbol was mutated
+                try:
+                    import importlib
+
+                    local_httpx = httpx or importlib.import_module("httpx")  # type: ignore
+                except Exception:
+                    local_httpx = None  # type: ignore
+
+                # Timeout classification
+                if (
+                    (local_httpx is not None and isinstance(e, getattr(local_httpx, "TimeoutException", tuple())))
+                    or ("timeout" in str(e).lower() or "timed out" in str(e).lower())
+                ):
+                    error = f"Timeout fetching URL: {url}"
+                    logger.debug(error)
+                    self._stats["failures"] += 1
+                    self._stats["failures_by_reason"]["timeout"] += 1
+                    return FetchResult(
+                        url=url,
+                        canonical_url=canonical_url,
+                        content=None,
+                        content_type=None,
+                        title=None,
+                        published_at=None,
+                        extracted_at=datetime.now(),
+                        tokens_estimate=0,
+                        error=error,
+                        domain=self._get_domain(canonical_url),
+                        trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                        is_suspicious=False,
+                    )
+
+                # HTTP status error classification
+                if local_httpx is not None and isinstance(e, getattr(local_httpx, "HTTPStatusError", tuple())):
+                    status = getattr(getattr(e, "response", None), "status_code", None)
+                    error = f"HTTP error {status if status is not None else ''}: {url}"
+                    logger.debug(error)
+                    self._stats["failures"] += 1
+                    if status is not None:
+                        self._stats["failures_by_reason"][f"http_{status}"] += 1
+                    return FetchResult(
+                        url=url,
+                        canonical_url=canonical_url,
+                        content=None,
+                        content_type=None,
+                        title=None,
+                        published_at=None,
+                        extracted_at=datetime.now(),
+                        tokens_estimate=0,
+                        error=error,
+                        domain=self._get_domain(canonical_url),
+                        trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                        is_suspicious=False,
+                    )
+
+                # Generic error fallback
                 error = f"Error fetching URL: {str(e)}"
                 logger.debug(error)
                 self._stats["failures"] += 1
