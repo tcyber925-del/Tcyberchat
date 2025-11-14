@@ -100,6 +100,7 @@ class WebFetchService:
         blocklist_domains: list[str] | None = None,
         allowlist_domains: list[str] | None = None,
         max_fetch: int = 3,
+        prefer_impl: str = "custom",  # "custom" (httpx) or "langchain"
     ):
         """
         Initialize web fetch service
@@ -128,6 +129,7 @@ class WebFetchService:
             set(allowlist_domains or []) if allowlist_domains else None
         )
         self.max_fetch = max_fetch
+        self.prefer_impl = prefer_impl
 
         # Cache: canonical_url -> (FetchResult, timestamp)
         self._cache: dict[str, tuple[FetchResult, datetime]] = {}
@@ -533,7 +535,7 @@ class WebFetchService:
 
             # Optional LangChain backend (feature-flagged)
             try:
-                if os.getenv("WEB_FETCH_IMPL", "custom").lower() == "langchain":
+                if (self.prefer_impl or os.getenv("WEB_FETCH_IMPL", "custom")).lower() == "langchain":
                     from .web_fetch_lc_loader import LangChainWebLoader
 
                     lc = LangChainWebLoader()
@@ -904,6 +906,7 @@ def get_web_fetch_service() -> WebFetchService:
             blocklist_domains=blocklist,
             allowlist_domains=allowlist,
             max_fetch=max_fetch,
+            prefer_impl=os.getenv("WEB_FETCH_IMPL", "custom"),
         )
 
     return _web_fetch_service_instance
