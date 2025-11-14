@@ -258,11 +258,16 @@ def create_vectorstore(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 try:
-                    mod = importlib.import_module("langchain_community.vectorstores")
+                    # Prefer dedicated package to avoid deprecation warnings
+                    mod = importlib.import_module("langchain_chroma")
                     Chroma = mod.Chroma
                 except Exception:
-                    mod = importlib.import_module("langchain.vectorstores")
-                    Chroma = mod.Chroma
+                    try:
+                        mod = importlib.import_module("langchain_community.vectorstores")
+                        Chroma = mod.Chroma
+                    except Exception:
+                        mod = importlib.import_module("langchain.vectorstores")
+                        Chroma = mod.Chroma
 
             # Pass the existing client if available
             return Chroma(

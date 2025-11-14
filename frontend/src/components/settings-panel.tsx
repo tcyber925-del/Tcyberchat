@@ -34,7 +34,8 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
-  const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true });
+  const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true, headers: {} });
+  const [newServerHeadersText, setNewServerHeadersText] = useState<string>(JSON.stringify({}));
   const [testFetchUrl, setTestFetchUrl] = useState('');
   const [testFetchServer, setTestFetchServer] = useState<string>('auto');
   const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
@@ -303,16 +304,42 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             ) : (
               <ul className="space-y-2">
                 {mcpServers.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between border border-muted rounded px-2 py-1">
-                    <div className="text-sm">
-                      <div>
-                        <span className="font-medium">{s.id}</span> — {s.transport}
-                        {s.enabled ? '' : ' (disabled)'}
+                  <li key={s.id} className="flex items-center justify-between border border-muted rounded px-2 py-2">
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.id}</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-muted">
+                          {s.transport}
+                        </span>
+                        {!s.enabled && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900">
+                            disabled
+                          </span>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {s.connected ? 'connected' : 'disconnected'} • {s.healthy ? 'healthy' : 'unhealthy'}
-                        {s.tools && s.tools.length > 0 ? ` • tools: ${s.tools.join(', ')}` : ''}
-                        {s.last_error ? ` • error: ${s.last_error}` : ''}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] ${s.connected ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                          {s.connected ? 'connected' : 'disconnected'}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] ${s.healthy ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                          {s.healthy ? 'healthy' : 'unhealthy'}
+                        </span>
+                        {s.tools && s.tools.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            tools:
+                          </span>
+                        )}
+                        {s.tools && s.tools.slice(0, 6).map((t) => (
+                          <span key={t} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-muted">
+                            {t}
+                          </span>
+                        ))}
+                        {s.tools && s.tools.length > 6 && (
+                          <span className="text-[10px] text-muted-foreground">+{s.tools.length - 6} more</span>
+                        )}
+                        {s.last_error && (
+                          <span className="text-[10px] text-rose-700">error: {s.last_error}</span>
+                        )}
                       </div>
                     </div>
                     <button
@@ -384,19 +411,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs mb-1">Headers (JSON object)</label>
-                    <input
-                      className="w-full px-2 py-1 border border-input bg-background rounded font-mono"
-                      value={JSON.stringify(newServer.headers || {})}
-                      onChange={(e) => {
-                        try {
-                          const val = JSON.parse(e.target.value || '{}');
-                          setNewServer((p) => ({ ...p, headers: val }));
-                        } catch {
-                          // ignore JSON parse errors in UI
-                        }
-                      }}
+                    <textarea
+                      className="w-full px-2 py-1 border border-input bg-background rounded font-mono min-h-20"
+                      value={newServerHeadersText}
+                      onChange={(e) => setNewServerHeadersText(e.target.value)}
                       placeholder='{"Authorization":"Bearer ..."}'
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Provide a JSON object. Validation occurs on save.</p>
                   </div>
                 </>
               ) : (
@@ -458,7 +479,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   setMcpError(null);
                   try {
                     if (!newServer.id) throw new Error('Server id is required');
-                    await upsertMcpServer({ ...newServer });
+                    const payload = { ...newServer };
+                    if (payload.transport === 'wss') {
+                      try {
+                        payload.headers = newServerHeadersText ? JSON.parse(newServerHeadersText) : {};
+                      } catch (err: any) {
+                        throw new Error('Headers must be valid JSON');
+                      }
+                    }
+                    await upsertMcpServer(payload);
                     const data = await listMcpServers();
                     setMcpServers(data.servers || []);
                   } catch (e: any) {

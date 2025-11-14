@@ -9,8 +9,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Use the adapter to centralize LangChain usage and provide stable fallbacks
-from langchain_community.embeddings import SentenceTransformerEmbeddings
+# Embeddings: prefer langchain-huggingface (avoids deprecation warnings), fallback to community
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings as LCEmbeddings  # type: ignore
+except Exception:
+    try:
+        from langchain_community.embeddings import (
+            SentenceTransformerEmbeddings as LCEmbeddings,  # type: ignore
+        )
+    except Exception:
+        LCEmbeddings = None  # type: ignore
 
 from .rag_adapter import (
     LANGCHAIN_PRESENT,
@@ -272,9 +280,10 @@ class RAGService:
             # Initialize embeddings, vectorstore, splitter and memory through the adapter
             # Adapter will try to use LangChain components when available, otherwise
             # return safe None/stubs so tests and CI remain stable.
-            self.embeddings = SentenceTransformerEmbeddings(
-                model_name="all-MiniLM-L6-v2"
-            )
+            # Initialize embeddings with preferred package
+            if LCEmbeddings is None:
+                raise RuntimeError("Embeddings package not available")
+            self.embeddings = LCEmbeddings(model_name="all-MiniLM-L6-v2")
 
             # Use shared ChromaDB client via adapter (adapter will lazily resolve chroma client).
             self.vectorstore = create_vectorstore(
