@@ -45,6 +45,11 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [testFetchTags, setTestFetchTags] = useState<string>('');
   const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string } | null>(null);
 
+  const isSettingsDirty = useMemo(
+    () => JSON.stringify(localSettings) !== JSON.stringify(settings),
+    [localSettings, settings]
+  );
+
   const providerType = useMemo(() => {
     const currentModel = availableModels.find((m) => m.name === localSettings.selectedModel);
     return currentModel?.provider === 'ollama' ? 'ollama' : 'cloud';
@@ -118,7 +123,13 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const handleSave = () => {
     updateSettings(localSettings);
     showToast({ variant: 'success', title: 'Settings saved' });
-    onClose?.();
+  };
+
+  const handleCancelChanges = () => {
+    setLocalSettings(settings);
+    setNewServer({ id: '', transport: 'wss', enabled: true, headers: {} });
+    setEditing(false);
+    showToast({ variant: 'warning', title: 'Changes discarded' });
   };
 
   const ollamaModels = availableModels.filter((m) => m.provider === 'ollama');
@@ -658,21 +669,54 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
         </div>
       </fieldset>
 
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary rounded-md hover:bg-secondary/80"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90"
-        >
-          Save Settings
-        </button>
-      </div>
+      <div className="h-10" />
+      {/* Sticky dirty-state footer */}
+      {(isSettingsDirty || editing) && (
+        <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
+          <div className="text-xs text-muted-foreground flex-1">
+            You have unsaved changes{editing ? ' (MCP server form)' : ''}.
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+              onClick={handleCancelChanges}
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleSave}
+              disabled={!isSettingsDirty}
+            >
+              Save Settings
+            </button>
+            {editing && (
+              <button
+                type="button"
+                className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={async () => {
+                  try {
+                    if (!newServer.id) throw new Error('Server id is required');
+                    const payload = { ...newServer };
+                    await upsertMcpServer(payload);
+                    const data = await listMcpServers();
+                    setMcpServers(data.servers || []);
+                    setEditing(false);
+                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
+                  } catch (e: any) {
+                    setMcpError(e?.message || 'Upsert failed');
+                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
+                  }
+                }}
+              >
+                Save Server
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </form>
   );
 };
