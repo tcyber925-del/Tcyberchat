@@ -38,6 +38,20 @@ def ensure_event_loop():
     yield
 
 
+@pytest.fixture
+def event_loop():
+    """Provide and close an event loop for asyncio tests (pytest-asyncio)."""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "integration: mark test as integration (requires services)")
 
