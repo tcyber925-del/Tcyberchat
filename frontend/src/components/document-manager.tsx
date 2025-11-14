@@ -45,6 +45,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
   const filteredDocuments = documents.filter((doc) =>
     doc.filename.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const [visibleCount, setVisibleCount] = useState(50);
+  useEffect(() => { setVisibleCount(50); }, [searchQuery, documents.length]);
+  const visibleDocuments = filteredDocuments.slice(0, visibleCount);
 
   // Close dropdown menu when clicking outside
   useEffect(() => {
@@ -155,7 +158,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
         <span id="document-search-help" className="sr-only">
           Type to filter your documents by name or content
         </span>
-        <ul role="listbox" aria-label="Document list" className="space-y-1">
+        <ul role="listbox" aria-label="Document list" className="space-y-1 overflow-auto max-h-[50vh] pr-1">
           {isLoading ? (
             // Loading skeleton
             Array.from({ length: 3 }).map((_, index) => (
@@ -164,7 +167,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
               </li>
             ))
           ) : filteredDocuments.length > 0 ? (
-            filteredDocuments.map((doc, index) => (
+            visibleDocuments.map((doc, index) => (
               <li
                 key={`${doc.id}-${index}`}
                 className={cn(
@@ -180,7 +183,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
               >
                 <div
                   onClick={() => onSelectDocument(doc.id)}
-                  className="flex-1 cursor-pointer truncate min-w-0"
+                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectDocument(doc.id); }}
+                  tabIndex={0}
+                  className="flex-1 cursor-pointer truncate min-w-0 focus:outline-none focus:ring-2 focus:ring-ring rounded"
                   role="option"
                   aria-selected="false"
                   title={doc.filename}
@@ -241,6 +246,15 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({
             </li>
           )}
         </ul>
+        {filteredDocuments.length > visibleCount && (
+          <button
+            className="mt-2 w-full text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+            onClick={() => setVisibleCount((c) => c + 50)}
+            aria-label="Load more documents"
+          >
+            Load more ({filteredDocuments.length - visibleCount} remaining)
+          </button>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}
