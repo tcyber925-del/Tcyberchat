@@ -12,6 +12,8 @@ import {
   type McpServer,
   type McpServerUpsert,
 } from '@/lib/api/integrations-mcp';
+import { KeyValueEditor } from '@/components/ui/KeyValueEditor';
+import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -23,8 +25,9 @@ function formatModelSize(bytes: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
+const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const { settings, updateSettings } = useSettings();
+  const { showToast } = useToast();
   const [localSettings, setLocalSettings] = useState(settings);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
@@ -35,7 +38,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [mcpLoading, setMcpLoading] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true, headers: {} });
-  const [newServerHeadersText, setNewServerHeadersText] = useState<string>(JSON.stringify({}));
+  const [editing, setEditing] = useState(false);
   const [testFetchUrl, setTestFetchUrl] = useState('');
   const [testFetchServer, setTestFetchServer] = useState<string>('auto');
   const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
@@ -88,6 +91,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     fetchMcp();
   }, [settings.selectedModel]);
 
+  // Poll MCP status periodically
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const data = await listMcpServers();
+        setMcpServers(data.servers || []);
+      } catch {}
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleProviderChange = (newProvider: 'ollama' | 'cloud') => {
     const newModelList = newProvider === 'ollama' ? ollamaModels : cloudModels;
     if (newModelList.length > 0) {
@@ -103,6 +117,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
   const handleSave = () => {
     updateSettings(localSettings);
+    showToast({ variant: 'success', title: 'Settings saved' });
     onClose?.();
   };
 
@@ -260,14 +275,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={async () => {
+                onClick={async () => {
                 setMcpLoading(true);
                 try {
                   await warmConnect();
                   const data = await listMcpServers();
                   setMcpServers(data.servers || []);
+                  showToast({ variant: 'success', title: 'Warm connect completed' });
                 } catch (e: any) {
                   setMcpError(e?.message || 'Warm connect failed');
+                  showToast({ variant: 'error', title: 'Warm connect failed', description: String(e?.message || '') });
                 } finally {
                   setMcpLoading(false);
                 }
@@ -342,21 +359,71 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                         )}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await disableMcpServer(s.id);
-                          const data = await listMcpServers();
-                          setMcpServers(data.servers || []);
-                        } catch (e: any) {
-                          setMcpError(e?.message || 'Disable failed');
-                        }
-                      }}
-                      className="text-xs px-2 py-1 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Disable
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await warmConnect();
+                            const data = await listMcpServers();
+                            setMcpServers(data.servers || []);
+                            showToast({ variant: 'success', title: `Warm connected: ${s.id}` });
+                          } catch (e: any) {
+                            showToast({ variant: 'error', title: `Warm connect failed: ${s.id}`, description: String(e?.message || '') });
+                          }
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+                      >
+                        Warm Connect
+                      </button>
+                      {!s.enabled ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await upsertMcpServer({ id: s.id, transport: s.transport as any, enabled: true });
+                              const data = await listMcpServers();
+                              setMcpServers(data.servers || []);
+                              showToast({ variant: 'success', title: `Enabled ${s.id}` });
+                            } catch (e: any) {
+                              setMcpError(e?.message || 'Enable failed');
+                              showToast({ variant: 'error', title: `Enable failed: ${s.id}` });
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
+                        >
+                          Enable
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await disableMcpServer(s.id);
+                              const data = await listMcpServers();
+                              setMcpServers(data.servers || []);
+                              showToast({ variant: 'success', title: `Disabled ${s.id}` });
+                            } catch (e: any) {
+                              setMcpError(e?.message || 'Disable failed');
+                              showToast({ variant: 'error', title: `Disable failed: ${s.id}` });
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Disable
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {} });
+                          setEditing(true);
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80"
+                      >
+                        Edit
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -405,19 +472,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.url || ''}
-                      onChange={(e) => setNewServer((p) => ({ ...p, url: e.target.value }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
                       placeholder="wss://..."
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-xs mb-1">Headers (JSON object)</label>
-                    <textarea
-                      className="w-full px-2 py-1 border border-input bg-background rounded font-mono min-h-20"
-                      value={newServerHeadersText}
-                      onChange={(e) => setNewServerHeadersText(e.target.value)}
-                      placeholder='{"Authorization":"Bearer ..."}'
+                    <label className="block text-xs mb-1">Headers</label>
+                    <KeyValueEditor
+                      value={(newServer.headers as Record<string, string>) || {}}
+                      onChange={(next) => {
+                        setNewServer((p) => ({ ...p, headers: next }));
+                        setEditing(true);
+                      }}
+                      addLabel="Add header"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Provide a JSON object. Validation occurs on save.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Sent as additional request headers when connecting.</p>
                   </div>
                 </>
               ) : (
@@ -427,7 +496,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.command || ''}
-                      onChange={(e) => setNewServer((p) => ({ ...p, command: e.target.value }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
                       placeholder="node"
                     />
                   </div>
@@ -436,7 +505,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={(newServer.args || []).join(',')}
-                      onChange={(e) => setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
                       placeholder="/path/to/server.js,--flag"
                     />
                   </div>
@@ -447,7 +516,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 <input
                   className="w-full px-2 py-1 border border-input bg-background rounded"
                   value={(newServer.tags || []).join(',')}
-                  onChange={(e) => setNewServer((p) => ({ ...p, tags: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, tags: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
                   placeholder="docs,official"
                 />
               </div>
@@ -457,7 +526,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   type="number"
                   className="w-full px-2 py-1 border border-input bg-background rounded"
                   value={newServer.timeouts?.connectMs ?? ''}
-                  onChange={(e) => setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), connectMs: e.target.value ? Number(e.target.value) : undefined } }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), connectMs: e.target.value ? Number(e.target.value) : undefined } })); setEditing(true); }}
                   placeholder="e.g. 5000"
                 />
               </div>
@@ -467,7 +536,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   type="number"
                   className="w-full px-2 py-1 border border-input bg-background rounded"
                   value={newServer.timeouts?.readMs ?? ''}
-                  onChange={(e) => setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), readMs: e.target.value ? Number(e.target.value) : undefined } }))}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), readMs: e.target.value ? Number(e.target.value) : undefined } })); setEditing(true); }}
                   placeholder="e.g. 15000"
                 />
               </div>
@@ -480,18 +549,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   try {
                     if (!newServer.id) throw new Error('Server id is required');
                     const payload = { ...newServer };
-                    if (payload.transport === 'wss') {
-                      try {
-                        payload.headers = newServerHeadersText ? JSON.parse(newServerHeadersText) : {};
-                      } catch (err: any) {
-                        throw new Error('Headers must be valid JSON');
-                      }
-                    }
                     await upsertMcpServer(payload);
                     const data = await listMcpServers();
                     setMcpServers(data.servers || []);
+                    setEditing(false);
+                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
                   } catch (e: any) {
                     setMcpError(e?.message || 'Upsert failed');
+                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
                   }
                 }}
                 className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90"
@@ -572,6 +637,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     }
                   } catch (e: any) {
                     setTestFetchResult({ error: e?.message || 'Test fetch failed' });
+                    showToast({ variant: 'error', title: 'Test fetch failed', description: String(e?.message || '') });
                   }
                 }}
                 className="px-3 py-1.5 text-sm font-medium bg-muted rounded hover:bg-muted/80"
@@ -610,5 +676,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
     </form>
   );
 };
+
+const SettingsPanel: React.FC<SettingsPanelProps> = (props) => (
+  <ToastProvider>
+    <SettingsPanelInner {...props} />
+  </ToastProvider>
+);
 
 export default SettingsPanel;
