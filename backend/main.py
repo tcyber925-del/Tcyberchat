@@ -26,12 +26,13 @@ try:
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
 
     # Import database utilities
     from src.database import get_database_status
 
     # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.services.ai_service import aget_ai_service as get_ai_service
 except ImportError:
     # Fallback for direct execution
     import os
@@ -47,12 +48,13 @@ except ImportError:
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
 
     # Import database utilities
     from src.database import get_database_status
 
     # Import AI service
-    from src.services.ai_service import get_ai_service
+    from src.services.ai_service import aget_ai_service as get_ai_service
 
 # Ensure logs directory exists
 os.makedirs("logs", exist_ok=True)
@@ -70,6 +72,16 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Application starting up...")
+    # Optional warm-load of reranker model to reduce first-request latency
+    try:
+        if os.getenv("WEB_RERANK_WARMLOAD", "false").lower() == "true":
+            from src.services.reranker import get_reranker
+
+            if os.getenv("WEB_RERANK_MODEL"):
+                _ = get_reranker()
+                logger.info("Reranker warm-loaded")
+    except Exception as e:
+        logger.warning(f"Reranker warm-load skipped: {e}")
     try:
         yield
     finally:
@@ -203,6 +215,7 @@ app.include_router(analyze_image_router, prefix="/api")
 app.include_router(transcribe_audio_router, prefix="/api")
 app.include_router(render_content_router, prefix="/api")
 app.include_router(web_tools_router, prefix="/api")
+app.include_router(integrations_mcp_router, prefix="/api")
 
 
 # Global exception handlers for graceful error handling

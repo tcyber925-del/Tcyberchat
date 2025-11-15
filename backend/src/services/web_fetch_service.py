@@ -12,6 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
+# Optional httpx at module scope for consistent patching in tests
+try:
+    import httpx  # type: ignore
+except Exception:  # pragma: no cover
+    httpx = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,6 +34,55 @@ class FetchResult:
     extracted_at: datetime
     tokens_estimate: int
     error: str | None = None
+    # Enhancements
+    domain: str | None = None
+    trust_score: float = 0.5
+    is_suspicious: bool = False
+
+
+def sanitize_web_content(text: str) -> tuple[str, bool]:
+    """Basic prompt injection sanitization.
+    Returns (sanitized_text, is_suspicious).
+    """
+    if not text:
+        return text, False
+    suspicious_patterns = [
+        "ignore previous instructions",
+        "disregard prior",
+        "system prompt",
+        "hidden instruction",
+        "override",
+        "do not follow",
+    ]
+    is_suspicious = any(pat in text.lower() for pat in suspicious_patterns)
+    if not is_suspicious:
+        return text, False
+    # Remove lines that contain suspicious patterns
+    lines = text.splitlines()
+    clean_lines: list[str] = []
+    for line in lines:
+        ll = line.lower()
+        if any(pat in ll for pat in suspicious_patterns):
+            continue
+        clean_lines.append(line)
+    return "\n".join(clean_lines), True
+
+
+def compute_trust_score(url: str, content: str | None, allowlist: set[str] | None, blocklist: set[str]) -> float:
+    """Compute a simple trust score in [0,1] based on domain lists and heuristics."""
+    try:
+        domain = urlparse(url).netloc
+    except Exception:
+        domain = ""
+    score = 0.5
+    if allowlist and domain in allowlist:
+        score = 0.9
+    if domain in blocklist:
+        score = min(score, 0.2)
+    # Penalize extremely short content
+    if content and len(content) < 200:
+        score -= 0.1
+    return max(0.0, min(1.0, score))
 
 
 class WebFetchService:
@@ -45,6 +100,7 @@ class WebFetchService:
         blocklist_domains: list[str] | None = None,
         allowlist_domains: list[str] | None = None,
         max_fetch: int = 3,
+        prefer_impl: str = "custom",  # "custom" (httpx) or "langchain"
     ):
         """
         Initialize web fetch service
@@ -73,6 +129,7 @@ class WebFetchService:
             set(allowlist_domains or []) if allowlist_domains else None
         )
         self.max_fetch = max_fetch
+        self.prefer_impl = prefer_impl
 
         # Cache: canonical_url -> (FetchResult, timestamp)
         self._cache: dict[str, tuple[FetchResult, datetime]] = {}
@@ -112,12 +169,7 @@ class WebFetchService:
 
     def _check_httpx(self) -> bool:
         """Check if httpx is available"""
-        try:
-            import httpx
-
-            return True
-        except ImportError:
-            return False
+        return httpx is not None
 
     def _check_extraction_libs(self) -> dict[str, bool]:
         """Check which extraction libraries are available"""
@@ -483,7 +535,7 @@ class WebFetchService:
 
             # Optional LangChain backend (feature-flagged)
             try:
-                if os.getenv("WEB_FETCH_IMPL", "custom").lower() == "langchain":
+                if (self.prefer_impl or os.getenv("WEB_FETCH_IMPL", "custom")).lower() == "langchain":
                     from .web_fetch_lc_loader import LangChainWebLoader
 
                     lc = LangChainWebLoader()
@@ -512,7 +564,18 @@ class WebFetchService:
                 pass
 
             try:
-                import httpx
+                # Resolve httpx locally to avoid interference from external monkeypatching
+                local_httpx = httpx
+                if local_httpx is None:
+                    try:
+                        import importlib
+
+                        local_httpx = importlib.import_module("httpx")  # type: ignore
+                    except Exception:
+                        local_httpx = None  # type: ignore
+
+                if local_httpx is None:
+                    raise ImportError("httpx not available")
 
                 headers = {
                     "User-Agent": self.user_agent,
@@ -520,7 +583,7 @@ class WebFetchService:
                     "Accept-Language": "en-US,en;q=0.9",
                 }
 
-                async with httpx.AsyncClient(
+                async with local_httpx.AsyncClient(
                     timeout=self.timeout, follow_redirects=True
                 ) as client:
                     response = await client.get(url, headers=headers)
@@ -582,11 +645,20 @@ class WebFetchService:
                     # Create result
                     tokens_estimate = self._estimate_tokens(content) if content else 0
 
+                    # Sanitize + trust
+                    sanitized_content, is_suspicious = sanitize_web_content(content or "")
+                    trust = compute_trust_score(
+                        canonical_url,
+                        sanitized_content,
+                        self.allowlist_domains,
+                        self.blocklist_domains,
+                    )
+
                     result = FetchResult(
                         url=url,
                         canonical_url=canonical_url,
-                        content=content[:10000]
-                        if content
+                        content=sanitized_content[:10000]
+                        if sanitized_content
                         else None,  # Cap at 10k chars for safety
                         content_type=content_type,
                         title=title,
@@ -595,7 +667,10 @@ class WebFetchService:
                         tokens_estimate=min(
                             tokens_estimate, 3000
                         ),  # Cap token estimate
-                        error=None if content else "No content extracted",
+                        error=None if sanitized_content else "No content extracted",
+                        domain=self._get_domain(canonical_url),
+                        trust_score=trust,
+                        is_suspicious=is_suspicious,
                     )
 
                     # Update stats
@@ -615,33 +690,81 @@ class WebFetchService:
 
                     return result
 
-            except httpx.TimeoutException:
-                error = f"Timeout fetching URL: {url}"
-                logger.debug(error)
-                self._stats["failures"] += 1
-                self._stats["failures_by_reason"]["timeout"] += 1
-            except httpx.HTTPStatusError as e:
-                error = f"HTTP error {e.response.status_code}: {url}"
-                logger.debug(error)
-                self._stats["failures"] += 1
-                self._stats["failures_by_reason"][f"http_{e.response.status_code}"] += 1
             except Exception as e:
+                # Classify common httpx errors robustly even if module-level symbol was mutated
+                try:
+                    import importlib
+
+                    local_httpx = httpx or importlib.import_module("httpx")  # type: ignore
+                except Exception:
+                    local_httpx = None  # type: ignore
+
+                # Timeout classification
+                if (
+                    (local_httpx is not None and isinstance(e, getattr(local_httpx, "TimeoutException", tuple())))
+                    or ("timeout" in str(e).lower() or "timed out" in str(e).lower())
+                ):
+                    error = f"Timeout fetching URL: {url}"
+                    logger.debug(error)
+                    self._stats["failures"] += 1
+                    self._stats["failures_by_reason"]["timeout"] += 1
+                    return FetchResult(
+                        url=url,
+                        canonical_url=canonical_url,
+                        content=None,
+                        content_type=None,
+                        title=None,
+                        published_at=None,
+                        extracted_at=datetime.now(),
+                        tokens_estimate=0,
+                        error=error,
+                        domain=self._get_domain(canonical_url),
+                        trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                        is_suspicious=False,
+                    )
+
+                # HTTP status error classification
+                if local_httpx is not None and isinstance(e, getattr(local_httpx, "HTTPStatusError", tuple())):
+                    status = getattr(getattr(e, "response", None), "status_code", None)
+                    error = f"HTTP error {status if status is not None else ''}: {url}"
+                    logger.debug(error)
+                    self._stats["failures"] += 1
+                    if status is not None:
+                        self._stats["failures_by_reason"][f"http_{status}"] += 1
+                    return FetchResult(
+                        url=url,
+                        canonical_url=canonical_url,
+                        content=None,
+                        content_type=None,
+                        title=None,
+                        published_at=None,
+                        extracted_at=datetime.now(),
+                        tokens_estimate=0,
+                        error=error,
+                        domain=self._get_domain(canonical_url),
+                        trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                        is_suspicious=False,
+                    )
+
+                # Generic error fallback
                 error = f"Error fetching URL: {str(e)}"
                 logger.debug(error)
                 self._stats["failures"] += 1
                 self._stats["failures_by_reason"]["other"] += 1
-
-            return FetchResult(
-                url=url,
-                canonical_url=canonical_url,
-                content=None,
-                content_type=None,
-                title=None,
-                published_at=None,
-                extracted_at=datetime.now(),
-                tokens_estimate=0,
-                error=error,
-            )
+                return FetchResult(
+                    url=url,
+                    canonical_url=canonical_url,
+                    content=None,
+                    content_type=None,
+                    title=None,
+                    published_at=None,
+                    extracted_at=datetime.now(),
+                    tokens_estimate=0,
+                    error=error,
+                    domain=self._get_domain(canonical_url),
+                    trust_score=compute_trust_score(canonical_url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
+                )
 
     async def fetch_multiple(self, urls: list[str]) -> list[FetchResult]:
         """
@@ -665,6 +788,9 @@ class WebFetchService:
                     extracted_at=datetime.now(),
                     tokens_estimate=0,
                     error="Web fetch disabled",
+                    domain=self._get_domain(url),
+                    trust_score=compute_trust_score(url, None, self.allowlist_domains, self.blocklist_domains),
+                    is_suspicious=False,
                 )
                 for url in urls
             ]
@@ -780,6 +906,7 @@ def get_web_fetch_service() -> WebFetchService:
             blocklist_domains=blocklist,
             allowlist_domains=allowlist,
             max_fetch=max_fetch,
+            prefer_impl=os.getenv("WEB_FETCH_IMPL", "custom"),
         )
 
     return _web_fetch_service_instance

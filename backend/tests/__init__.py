@@ -1,0 +1,1 @@
+# Make backend tests a package for import paths like `from tests.helpers import ...`

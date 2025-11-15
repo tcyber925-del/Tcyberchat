@@ -14,6 +14,25 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Expose provider symbols at module level for tests/monkeypatching
+try:
+    from ddgs import DDGS  # type: ignore
+except Exception:
+    try:
+        from duckduckgo_search import DDGS  # type: ignore
+    except Exception:  # pragma: no cover
+        DDGS = None  # type: ignore
+
+try:
+    from serpapi import GoogleSearch  # type: ignore
+except Exception:  # pragma: no cover
+    GoogleSearch = None  # type: ignore
+
+try:
+    from tavily import TavilyClient  # type: ignore
+except Exception:  # pragma: no cover
+    TavilyClient = None  # type: ignore
+
 
 @dataclass
 class SearchResult:
@@ -106,12 +125,9 @@ class DuckDuckGoProvider(WebSearchProvider):
             raise RuntimeError("DuckDuckGo provider not available")
 
         try:
-            # Try the renamed package first, then fall back to the legacy one
-            try:
-                from ddgs import DDGS  # type: ignore
-            except Exception:
-                from duckduckgo_search import DDGS  # type: ignore
-
+            # Use module-level DDGS reference to allow tests to monkeypatch
+            if DDGS is None:
+                raise RuntimeError("DDGS not available")
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             results = await loop.run_in_executor(
@@ -156,13 +172,12 @@ class SerpAPIProvider(WebSearchProvider):
 
     def is_available(self) -> bool:
         """Check if SerpAPI is available (API key configured)"""
+        if not self.api_key:
+            self._available = False
+            return False
         if self._available is None:
-            if not self.api_key:
-                self._available = False
-                return False
             try:
-                import serpapi
-
+                import serpapi  # noqa: F401
                 self._available = True
             except ImportError:
                 logger.warning(
@@ -187,22 +202,23 @@ class SerpAPIProvider(WebSearchProvider):
             )
 
         try:
-            from serpapi import GoogleSearch
+            # Use serpapi.Client to match test expectations
+            import serpapi
 
             # Build search parameters
             params = {
                 "q": query,
                 "num": max_results,
                 "engine": "google",
-                "api_key": self.api_key,
             }
 
             # Run in thread pool to avoid blocking
             loop = asyncio.get_event_loop()
             try:
-                response = await loop.run_in_executor(
-                    None, lambda: GoogleSearch(params).get_dict()
-                )
+                def _call():
+                    client = serpapi.Client(api_key=self.api_key)
+                    return client.search(params)
+                response = await loop.run_in_executor(None, _call)
             except Exception as e:
                 error_msg = str(e)
                 if "Invalid API key" in error_msg or "401" in error_msg:
@@ -258,13 +274,12 @@ class TavilyProvider(WebSearchProvider):
 
     def is_available(self) -> bool:
         """Check if Tavily is available (API key configured)"""
+        if not self.api_key:
+            self._available = False
+            return False
         if self._available is None:
-            if not self.api_key:
-                self._available = False
-                return False
             try:
-                import tavily
-
+                import tavily  # noqa: F401
                 self._available = True
             except ImportError:
                 logger.warning(
@@ -288,9 +303,12 @@ class TavilyProvider(WebSearchProvider):
             raise RuntimeError("Tavily provider not available (API key not configured)")
 
         try:
-            from tavily import TavilyClient
+            # Use module-level TavilyClient reference to allow tests to monkeypatch
+            TavilyClient_local = TavilyClient
+            if TavilyClient_local is None:
+                raise RuntimeError("Tavily client not available")
 
-            client = TavilyClient(api_key=self.api_key)
+            client = TavilyClient_local(api_key=self.api_key)
 
             # Build search parameters
             # Note: Free/dev API keys may have limited parameters
@@ -437,6 +455,9 @@ class WebSearchService:
 
         # Cache: query -> (results, timestamp)
         self._cache: dict[str, tuple] = {}
+        # Circuit breaker state per provider
+        self._cb_failures: dict[str, int] = {}
+        self._cb_open_until: dict[str, float] = {}
 
         # Rate limiting: track requests per minute
         self._rate_limit_tracker: dict[str, list[float]] = defaultdict(list)
@@ -673,6 +694,24 @@ class WebSearchService:
 
         return enriched_results
 
+    def _cb_allowed(self, name: str) -> bool:
+        import time
+        cool = int(os.getenv("WEB_PROVIDER_CB_COOLDOWN", "60"))
+        until = self._cb_open_until.get(name, 0)
+        return time.time() >= until
+
+    def _cb_record_failure(self, name: str):
+        import time
+        thr = int(os.getenv("WEB_PROVIDER_CB_THRESHOLD", "3"))
+        cool = int(os.getenv("WEB_PROVIDER_CB_COOLDOWN", "60"))
+        self._cb_failures[name] = self._cb_failures.get(name, 0) + 1
+        if self._cb_failures[name] >= thr:
+            self._cb_open_until[name] = time.time() + cool
+
+    def _cb_record_success(self, name: str):
+        self._cb_failures[name] = 0
+        self._cb_open_until[name] = 0
+
     async def search(
         self,
         query: str,
@@ -748,8 +787,8 @@ class WebSearchService:
             f"max_results={max_results}"
         )
 
-        # Try primary provider
-        if self.primary_provider:
+        # Try primary provider (respect circuit breaker)
+        if self.primary_provider and self._cb_allowed(self.provider_name):
             try:
                 # Pass search_depth for Tavily provider (SerpAPI doesn't need this)
                 if isinstance(self.primary_provider, TavilyProvider):
@@ -774,41 +813,49 @@ class WebSearchService:
                     # Only cache if not time-sensitive
                     if not is_time_sensitive and use_cache:
                         self._cache_result(search_query, results)
+                    self._cb_record_success(self.provider_name)
                     return results
             except Exception as e:
                 logger.warning(
                     f"Primary provider ({self.provider_name}) failed: {e}",
                     exc_info=True,
                 )
+                self._cb_record_failure(self.provider_name)
 
-        # Try fallback provider
+        # Try fallback provider (respect circuit breaker)
         if self.fallback_provider:
-            try:
-                logger.info(f"Using fallback provider for query: {search_query[:50]}")
-                if isinstance(self.fallback_provider, TavilyProvider):
-                    search_depth = "advanced" if is_time_sensitive else "basic"
-                    results = await asyncio.wait_for(
-                        self.fallback_provider.search(
-                            search_query, max_results, search_depth=search_depth
-                        ),
-                        timeout=self.timeout_sec,
-                    )
-                else:
-                    results = await asyncio.wait_for(
-                        self.fallback_provider.search(search_query, max_results),
-                        timeout=self.timeout_sec,
-                    )
+            fb_name = getattr(self.fallback_provider, "name", "fallback")
+            if not self._cb_allowed(fb_name):
+                logger.warning(f"Circuit open for fallback provider '{fb_name}', skipping")
+            else:
+                try:
+                    logger.info(f"Using fallback provider for query: {search_query[:50]}")
+                    if isinstance(self.fallback_provider, TavilyProvider):
+                        search_depth = "advanced" if is_time_sensitive else "basic"
+                        results = await asyncio.wait_for(
+                            self.fallback_provider.search(
+                                search_query, max_results, search_depth=search_depth
+                            ),
+                            timeout=self.timeout_sec,
+                        )
+                    else:
+                        results = await asyncio.wait_for(
+                            self.fallback_provider.search(search_query, max_results),
+                            timeout=self.timeout_sec,
+                        )
 
-                if results:
-                    logger.info(
-                        f"Fallback web search returned {len(results)} results for query: '{search_query[:50]}'"
-                    )
-                    # Only cache if not time-sensitive
-                    if not is_time_sensitive and use_cache:
-                        self._cache_result(search_query, results)
-                    return results
-            except Exception as e:
-                logger.warning(f"Fallback provider also failed: {e}", exc_info=True)
+                    if results:
+                        logger.info(
+                            f"Fallback web search returned {len(results)} results for query: '{search_query[:50]}'"
+                        )
+                        # Only cache if not time-sensitive
+                        if not is_time_sensitive and use_cache:
+                            self._cache_result(search_query, results)
+                        self._cb_record_success(fb_name)
+                        return results
+                except Exception as e:
+                    logger.warning(f"Fallback provider also failed: {e}", exc_info=True)
+                    self._cb_record_failure(fb_name)
 
         # If LangChain impl failed, try custom providers as a last resort
         if self.impl == "langchain":

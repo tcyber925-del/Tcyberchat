@@ -36,6 +36,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
   const filteredSessions = sessions.filter((session) =>
     session.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const [visibleCount, setVisibleCount] = useState(50);
+  useEffect(() => { setVisibleCount(50); }, [searchQuery, sessions.length]);
+  const visibleSessions = filteredSessions.slice(0, visibleCount);
 
   // Close dropdown menu when clicking outside
   useEffect(() => {
@@ -125,7 +128,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
         <span id="chat-search-help" className="sr-only">
           Type to filter your chat history by title or content
         </span>
-        <ul role="listbox" aria-label="Chat sessions" className="space-y-1">
+        <ul role="listbox" aria-label="Chat sessions" className="space-y-1 overflow-auto max-h-[50vh] pr-1">
           {isLoading ? (
             // Loading skeleton
             Array.from({ length: 5 }).map((_, index) => (
@@ -134,7 +137,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
               </li>
             ))
           ) : filteredSessions.length > 0 ? (
-            filteredSessions.map((session) => (
+            visibleSessions.map((session) => (
               <li
                 key={session.id}
                 className={cn(
@@ -150,7 +153,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
               >
                 <div
                   onClick={() => onSelectSession(session.id)}
-                  className="flex-1 cursor-pointer truncate min-w-0"
+                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectSession(session.id); }}
+                  tabIndex={0}
+                  className="flex-1 cursor-pointer truncate min-w-0 focus:outline-none focus:ring-2 focus:ring-ring rounded"
                   role="option"
                   aria-selected="false"
                   title={session.title}
@@ -211,6 +216,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             </li>
           )}
         </ul>
+        {filteredSessions.length > visibleCount && (
+          <button
+            className="mt-2 w-full text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+            onClick={() => setVisibleCount((c) => c + 50)}
+            aria-label="Load more conversations"
+          >
+            Load more ({filteredSessions.length - visibleCount} remaining)
+          </button>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}

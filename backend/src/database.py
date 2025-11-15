@@ -53,7 +53,18 @@ def get_db():
 def create_tables():
     """Create all database tables"""
     try:
-        # Import models here to avoid circular imports
+        # Import models here to populate Base metadata and avoid circular imports
+        from .models.conversation import Conversation  # noqa: F401
+        from .models.message import Message  # noqa: F401
+        from .models.document import Document  # noqa: F401
+        try:
+            from .models import media_content  # noqa: F401
+        except Exception:
+            pass
+        try:
+            from .models import summary  # noqa: F401
+        except Exception:
+            pass
 
         Base.metadata.create_all(bind=engine)
         print("SQLAlchemy tables created successfully")

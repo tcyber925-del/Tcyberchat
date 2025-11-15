@@ -2,18 +2,16 @@ import os
 import sys
 import pytest
 
-# Ensure backend package is importable when running from repo root
+# Make backend package importable when running from repo root
 backend_root = os.path.join(os.getcwd(), "backend")
 if backend_root not in sys.path:
     sys.path.insert(0, backend_root)
 
-# Safe defaults for tests to avoid external calls
-os.environ.setdefault("WEB_FETCH_ENABLED", "false")
+# Safe defaults across all backend tests (including those outside backend/tests)
 os.environ.setdefault("RUN_INTEGRATION_TESTS", "0")
 # Ensure provider API keys are not set during unit tests
 os.environ.pop("TAVILY_API_KEY", None)
 os.environ.pop("SERPAPI_API_KEY", None)
-# Force empty values to override any inherited environment on some systems
 os.environ["TAVILY_API_KEY"] = ""
 os.environ["SERPAPI_API_KEY"] = ""
 
@@ -28,8 +26,6 @@ except RuntimeError:
     except Exception:
         pass
 
-import os
-
 
 @pytest.fixture(autouse=True)
 def ensure_event_loop():
@@ -42,10 +38,22 @@ def ensure_event_loop():
     yield
 
 
+@pytest.fixture
+def event_loop():
+    """Provide and close an event loop for asyncio tests (pytest-asyncio)."""
+    import asyncio
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop
+    finally:
+        try:
+            loop.close()
+        except Exception:
+            pass
+
+
 def pytest_configure(config):
-    config.addinivalue_line(
-        "markers", "integration: mark test as integration (requires services)"
-    )
+    config.addinivalue_line("markers", "integration: mark test as integration (requires services)")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -53,23 +61,7 @@ def pytest_collection_modifyitems(config, items):
     run_integration = os.getenv("RUN_INTEGRATION_TESTS", "0") == "1"
     if run_integration:
         return
-
-    skip_integration = pytest.mark.skip(
-        reason="Integration tests skipped (set RUN_INTEGRATION_TESTS=1 to enable)"
-    )
+    skip_integration = pytest.mark.skip(reason="Integration tests skipped (set RUN_INTEGRATION_TESTS=1 to enable)")
     for item in items:
         if "integration" in item.keywords:
             item.add_marker(skip_integration)
-
-
-@pytest.fixture
-def dev_mock_ai(monkeypatch):
-    """Fixture to enable DEV_MOCK_AI for tests that need the lightweight mock AI.
-
-    Usage:
-        def test_foo(dev_mock_ai):
-            # DEV_MOCK_AI is set for the duration of this test
-            ...
-    """
-    monkeypatch.setenv("DEV_MOCK_AI", "1")
-    yield

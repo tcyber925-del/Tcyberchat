@@ -2,6 +2,7 @@
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
+import { deepResearch } from '@/lib/api/chat';
 import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
 import { Message as ChatMessageType } from '@/types/message';
@@ -46,13 +47,17 @@ export default function Home() {
     selectedDocumentId,
     setSelectedDocumentId,
   } = useChat();
-  const { isSettingsOpen, toggleSettingsPanel } = useSettings();
+  const { settings, isSettingsOpen, toggleSettingsPanel } = useSettings();
   const { showToast } = useToast();
   const [input, setInput] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [isDeepRunning, setIsDeepRunning] = useState(false);
+  const deepAbortRef = useRef<AbortController | null>(null);
+  const deepStreamRef = useRef<EventSource | null>(null);
+  const [deepStep, setDeepStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -482,6 +487,99 @@ export default function Home() {
                 onFileAttach={handleAttachmentClick}
                 onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
                 webSearchEnabled={webSearchEnabled}
+onDeepResearch={async () => {
+                  const text = input?.trim();
+                  if (!text) {
+                    showToast('Enter a question to run Deep Research.', 'warning');
+                    return;
+                  }
+                  if (isDeepRunning) {
+                    deepAbortRef.current?.abort();
+                    return;
+                  }
+                  try {
+                    setIsDeepRunning(true);
+                    const ctrl = new AbortController();
+                    deepAbortRef.current = ctrl;
+                    setDeepStep('plan');
+                    showToast('Running deep research...', 'info');
+                    // Append the user message
+                    const userMsg = {
+                      id: 'u-' + Date.now().toString(36),
+                      content: text,
+                      timestamp: new Date(),
+                      role: 'user',
+                      conversationId: '',
+                    } as any;
+                    setMessages((prev) => [...prev, userMsg]);
+
+                    const iterations = settings.deepResearchDefaultIterations ?? 2;
+                    const model = settings.selectedModel;
+                    // Prefer SSE stream if available
+                    try {
+                      const es = deepResearchStream(text, model, iterations);
+                      deepStreamRef.current = es;
+                      es.addEventListener('step', (e: MessageEvent) => {
+                        try {
+                          const payload = JSON.parse((e as any).data);
+                          if (payload?.step) setDeepStep(payload.step);
+                        } catch {}
+                      });
+                      es.addEventListener('final', (e: MessageEvent) => {
+                        try {
+                          const payload = JSON.parse((e as any).data);
+                          const assistantMsg = {
+                            id: 'a-' + (Date.now() + 1).toString(36),
+                            content: payload.answer || 'No answer generated.',
+                            timestamp: new Date(),
+                            role: 'assistant',
+                            conversationId: '',
+                            citations: Array.isArray(payload.citations) ? payload.citations : [],
+                            metadata: { deepResearch: true, ...payload.metadata },
+                          } as any;
+                          setMessages((prev) => [...prev, assistantMsg]);
+                          setInput('');
+                        } catch {}
+                        es.close();
+                        deepStreamRef.current = null;
+                        setIsDeepRunning(false);
+                        setDeepStep(null);
+                      });
+                      es.addEventListener('error', () => {
+                        es.close();
+                        deepStreamRef.current = null;
+                        setIsDeepRunning(false);
+                        setDeepStep(null);
+                      });
+                    } catch {
+                      // Fallback to non-stream
+                      const res = await deepResearch(text, model, iterations, ctrl.signal);
+                      const assistantMsg = {
+                        id: 'a-' + (Date.now() + 1).toString(36),
+                        content: res.answer || 'No answer generated.',
+                        timestamp: new Date(),
+                        role: 'assistant',
+                        conversationId: '',
+                        citations: Array.isArray(res.citations) ? res.citations : [],
+                        metadata: { deepResearch: true, ...res.metadata },
+                      } as any;
+                      setMessages((prev) => [...prev, assistantMsg]);
+                      setInput('');
+                    }
+                  } catch (e) {
+                    if ((e as any)?.name === 'AbortError') {
+                      showToast('Deep research cancelled.', 'info');
+                    } else {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      showToast(`Deep research failed: ${msg}`, 'error');
+                    }
+                    try { deepStreamRef.current?.close(); } catch {}
+                    deepStreamRef.current = null;
+                  } finally {
+                    setIsDeepRunning(false);
+                    deepAbortRef.current = null;
+                  }
+                }}
               />
 
               <form onSubmit={handleSubmitLocal} className="p-4 flex items-center space-x-2">
@@ -540,6 +638,22 @@ export default function Home() {
                 <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
                   {isStreaming ? 'Stop' : editingMessageId ? 'Resend' : 'Send'}
                 </Button>
+                {isDeepRunning && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className="text-xs text-muted-foreground">{deepStep ?? 'working...'}</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        try { deepStreamRef.current?.close(); } catch {}
+                        deepStreamRef.current = null;
+                        deepAbortRef.current?.abort();
+                      }}
+                    >
+                      Cancel Deep Research
+                    </Button>
+                  </div>
+                )}
               </form>
             </div>
           )}

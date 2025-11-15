@@ -3,6 +3,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
 import { getAvailableModels, type AvailableModel } from '@/lib/api/models';
+import {
+  listMcpServers,
+  upsertMcpServer,
+  disableMcpServer,
+  warmConnect,
+  fetchDocViaMcp,
+  type McpServer,
+  type McpServerUpsert,
+} from '@/lib/api/integrations-mcp';
+import { KeyValueEditor } from '@/components/ui/KeyValueEditor';
+import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -14,12 +25,30 @@ function formatModelSize(bytes: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
+const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const { settings, updateSettings } = useSettings();
+  const { showToast } = useToast();
   const [localSettings, setLocalSettings] = useState(settings);
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // MCP state
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
+  const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true, headers: {} });
+  const [editing, setEditing] = useState(false);
+  const [testFetchUrl, setTestFetchUrl] = useState('');
+  const [testFetchServer, setTestFetchServer] = useState<string>('auto');
+  const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
+  const [testFetchTags, setTestFetchTags] = useState<string>('');
+  const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string } | null>(null);
+
+  const isSettingsDirty = useMemo(
+    () => JSON.stringify(localSettings) !== JSON.stringify(settings),
+    [localSettings, settings]
+  );
 
   const providerType = useMemo(() => {
     const currentModel = availableModels.find((m) => m.name === localSettings.selectedModel);
@@ -38,7 +67,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         const models = await getAvailableModels();
         if (models && models.length > 0) {
           setAvailableModels(models);
-          // If the currently saved model isn't in the available list, select the first available model.
           if (!models.some((m) => m.name === settings.selectedModel)) {
             setLocalSettings((prev) => ({ ...prev, selectedModel: models[0].name }));
           }
@@ -52,8 +80,32 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setModelsLoading(false);
       }
     };
+    const fetchMcp = async () => {
+      setMcpLoading(true);
+      setMcpError(null);
+      try {
+        const data = await listMcpServers();
+        setMcpServers(data.servers || []);
+      } catch (e: any) {
+        setMcpError(e?.message || 'Failed to load MCP servers');
+      } finally {
+        setMcpLoading(false);
+      }
+    };
     fetchModels();
+    fetchMcp();
   }, [settings.selectedModel]);
+
+  // Poll MCP status periodically
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const data = await listMcpServers();
+        setMcpServers(data.servers || []);
+      } catch {}
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleProviderChange = (newProvider: 'ollama' | 'cloud') => {
     const newModelList = newProvider === 'ollama' ? ollamaModels : cloudModels;
@@ -70,7 +122,14 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
   const handleSave = () => {
     updateSettings(localSettings);
-    onClose?.();
+    showToast({ variant: 'success', title: 'Settings saved' });
+  };
+
+  const handleCancelChanges = () => {
+    setLocalSettings(settings);
+    setNewServer({ id: '', transport: 'wss', enabled: true, headers: {} });
+    setEditing(false);
+    showToast({ variant: 'warning', title: 'Changes discarded' });
   };
 
   const ollamaModels = availableModels.filter((m) => m.provider === 'ollama');
@@ -201,26 +260,471 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ onClose }) => {
             />
             <span className="text-sm">Show web debug badges (dev-only)</span>
           </label>
+          <div className="flex items-center gap-2">
+            <label className="text-sm w-56" htmlFor="deepResearchDefaultIterations">
+              Deep Research default iterations
+            </label>
+            <input
+              id="deepResearchDefaultIterations"
+              name="deepResearchDefaultIterations"
+              type="number"
+              min={1}
+              max={5}
+              value={localSettings.deepResearchDefaultIterations ?? 2}
+              onChange={handleChange}
+              className="w-20 px-2 py-1 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
         </div>
       </fieldset>
 
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary rounded-md hover:bg-secondary/80"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary rounded-md hover:bg-primary/90"
-        >
-          Save Settings
-        </button>
-      </div>
+      {/* Integrations: MCP */}
+      <fieldset>
+        <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
+        {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+                onClick={async () => {
+                setMcpLoading(true);
+                try {
+                  await warmConnect();
+                  const data = await listMcpServers();
+                  setMcpServers(data.servers || []);
+                  showToast({ variant: 'success', title: 'Warm connect completed' });
+                } catch (e: any) {
+                  setMcpError(e?.message || 'Warm connect failed');
+                  showToast({ variant: 'error', title: 'Warm connect failed', description: String(e?.message || '') });
+                } finally {
+                  setMcpLoading(false);
+                }
+              }}
+              className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90"
+              disabled={mcpLoading}
+            >
+              {mcpLoading ? 'Connecting…' : 'Warm Connect'}
+            </button>
+          </div>
+
+          {/* Servers list */}
+          <div className="border border-input rounded-md p-3">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium">Configured Servers</h4>
+              <button
+                type="button"
+                onClick={async () => {
+                  // reload
+                  try {
+                    const data = await listMcpServers();
+                    setMcpServers(data.servers || []);
+                  } catch (e: any) {
+                    setMcpError(e?.message || 'Failed to load MCP servers');
+                  }
+                }}
+                className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+              >
+                Refresh
+              </button>
+            </div>
+            {mcpServers.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No servers configured.</p>
+            ) : (
+              <ul className="space-y-2">
+                {mcpServers.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between border border-muted rounded px-2 py-2">
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{s.id}</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-muted">
+                          {s.transport}
+                        </span>
+                        {!s.enabled && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-amber-200 text-amber-900">
+                            disabled
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] ${s.connected ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                          {s.connected ? 'connected' : 'disconnected'}
+                        </span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] ${s.healthy ? 'bg-emerald-200 text-emerald-900' : 'bg-rose-200 text-rose-900'}`}>
+                          {s.healthy ? 'healthy' : 'unhealthy'}
+                        </span>
+                        {s.tools && s.tools.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            tools:
+                          </span>
+                        )}
+                        {s.tools && s.tools.slice(0, 6).map((t) => (
+                          <span key={t} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-muted">
+                            {t}
+                          </span>
+                        ))}
+                        {s.tools && s.tools.length > 6 && (
+                          <span className="text-[10px] text-muted-foreground">+{s.tools.length - 6} more</span>
+                        )}
+                        {s.last_error && (
+                          <span className="text-[10px] text-rose-700">error: {s.last_error}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            await warmConnect();
+                            const data = await listMcpServers();
+                            setMcpServers(data.servers || []);
+                            showToast({ variant: 'success', title: `Warm connected: ${s.id}` });
+                          } catch (e: any) {
+                            showToast({ variant: 'error', title: `Warm connect failed: ${s.id}`, description: String(e?.message || '') });
+                          }
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+                      >
+                        Warm Connect
+                      </button>
+                      {!s.enabled ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await upsertMcpServer({ id: s.id, transport: s.transport as any, enabled: true });
+                              const data = await listMcpServers();
+                              setMcpServers(data.servers || []);
+                              showToast({ variant: 'success', title: `Enabled ${s.id}` });
+                            } catch (e: any) {
+                              setMcpError(e?.message || 'Enable failed');
+                              showToast({ variant: 'error', title: `Enable failed: ${s.id}` });
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-emerald-200 text-emerald-900 hover:bg-emerald-300"
+                        >
+                          Enable
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await disableMcpServer(s.id);
+                              const data = await listMcpServers();
+                              setMcpServers(data.servers || []);
+                              showToast({ variant: 'success', title: `Disabled ${s.id}` });
+                            } catch (e: any) {
+                              setMcpError(e?.message || 'Disable failed');
+                              showToast({ variant: 'error', title: `Disable failed: ${s.id}` });
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Disable
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {} });
+                          setEditing(true);
+                        }}
+                        className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Add / Update server */}
+          <div className="border border-input rounded-md p-3 space-y-3">
+            <h4 className="text-sm font-medium">Add / Update Server</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs mb-1">ID</label>
+                <input
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={newServer.id}
+                  onChange={(e) => setNewServer((p) => ({ ...p, id: e.target.value }))}
+                  placeholder="context7"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Transport</label>
+                <select
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={newServer.transport}
+                  onChange={(e) => setNewServer((p) => ({ ...p, transport: e.target.value as any }))}
+                >
+                  <option value="wss">wss</option>
+                  <option value="stdio">stdio</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Enabled</label>
+                <select
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={String(newServer.enabled ?? true)}
+                  onChange={(e) => setNewServer((p) => ({ ...p, enabled: e.target.value === 'true' }))}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              </div>
+              {newServer.transport === 'wss' ? (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs mb-1">WSS URL</label>
+                    <input
+                      className="w-full px-2 py-1 border border-input bg-background rounded"
+                      value={newServer.url || ''}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
+                      placeholder="wss://..."
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs mb-1">Headers</label>
+                    <KeyValueEditor
+                      value={(newServer.headers as Record<string, string>) || {}}
+                      onChange={(next) => {
+                        setNewServer((p) => ({ ...p, headers: next }));
+                        setEditing(true);
+                      }}
+                      addLabel="Add header"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Sent as additional request headers when connecting.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-xs mb-1">Command</label>
+                    <input
+                      className="w-full px-2 py-1 border border-input bg-background rounded"
+                      value={newServer.command || ''}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
+                      placeholder="node"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs mb-1">Args (comma-separated)</label>
+                    <input
+                      className="w-full px-2 py-1 border border-input bg-background rounded"
+                      value={(newServer.args || []).join(',')}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
+                      placeholder="/path/to/server.js,--flag"
+                    />
+                  </div>
+                </>
+              )}
+              <div className="md:col-span-2">
+                <label className="block text-xs mb-1">Tags (comma-separated)</label>
+                <input
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={(newServer.tags || []).join(',')}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, tags: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
+                  placeholder="docs,official"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Connect Timeout (ms)</label>
+                <input
+                  type="number"
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={newServer.timeouts?.connectMs ?? ''}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), connectMs: e.target.value ? Number(e.target.value) : undefined } })); setEditing(true); }}
+                  placeholder="e.g. 5000"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Read Timeout (ms)</label>
+                <input
+                  type="number"
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={newServer.timeouts?.readMs ?? ''}
+                  onChange={(e) => { setNewServer((p) => ({ ...p, timeouts: { ...(p.timeouts || {}), readMs: e.target.value ? Number(e.target.value) : undefined } })); setEditing(true); }}
+                  placeholder="e.g. 15000"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setMcpError(null);
+                  try {
+                    if (!newServer.id) throw new Error('Server id is required');
+                    const payload = { ...newServer };
+                    await upsertMcpServer(payload);
+                    const data = await listMcpServers();
+                    setMcpServers(data.servers || []);
+                    setEditing(false);
+                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
+                  } catch (e: any) {
+                    setMcpError(e?.message || 'Upsert failed');
+                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90"
+              >
+                Save Server
+              </button>
+            </div>
+          </div>
+
+          {/* Test Fetch via MCP */}
+          <div className="border border-input rounded-md p-3 space-y-2">
+            <h4 className="text-sm font-medium">Test Fetch via MCP</h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+              <div className="md:col-span-2">
+                <label className="block text-xs mb-1">URL</label>
+                <input
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={testFetchUrl}
+                  onChange={(e) => setTestFetchUrl(e.target.value)}
+                  placeholder="https://example.com/docs/page"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Server</label>
+                <select
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={testFetchServer}
+                  onChange={(e) => setTestFetchServer(e.target.value)}
+                >
+                  <option value="auto">auto</option>
+                  {mcpServers.map((s) => (
+                    <option key={s.id} value={s.id}>{s.id}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs mb-1">Tool</label>
+                <select
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={testFetchTool}
+                  onChange={(e) => setTestFetchTool(e.target.value)}
+                >
+                  <option value="http.get">http.get</option>
+                  <option value="fetch_url">fetch_url</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="md:col-span-2">
+                <label className="block text-xs mb-1">preferredTags (comma-separated)</label>
+                <input
+                  className="w-full px-2 py-1 border border-input bg-background rounded"
+                  value={testFetchTags}
+                  onChange={(e) => setTestFetchTags(e.target.value)}
+                  placeholder="docs,official"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setTestFetchResult(null);
+                  if (!testFetchUrl) {
+                    setTestFetchResult({ error: 'URL is required' });
+                    return;
+                  }
+                  try {
+                    const preferredTags = (testFetchTags || '')
+                      .split(',')
+                      .map((s) => s.trim())
+                      .filter(Boolean);
+                    const res = await fetchDocViaMcp({ url: testFetchUrl, server: testFetchServer || 'auto', tool: testFetchTool, preferredTags });
+                    if (res.error) {
+                      setTestFetchResult({ error: res.error });
+                    } else {
+                      setTestFetchResult({ snippet: res.citation?.snippet || (res.content ? res.content.slice(0, 200) : '') });
+                    }
+                  } catch (e: any) {
+                    setTestFetchResult({ error: e?.message || 'Test fetch failed' });
+                    showToast({ variant: 'error', title: 'Test fetch failed', description: String(e?.message || '') });
+                  }
+                }}
+                className="px-3 py-1.5 text-sm font-medium bg-muted rounded hover:bg-muted/80"
+              >
+                Run Test Fetch
+              </button>
+            </div>
+            {testFetchResult && (
+              <div className="text-sm">
+                {testFetchResult.error ? (
+                  <p className="text-destructive">Error: {testFetchResult.error}</p>
+                ) : (
+                  <p className="text-muted-foreground">Snippet: {testFetchResult.snippet || '(no preview)'}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </fieldset>
+
+      <div className="h-10" />
+      {/* Sticky dirty-state footer */}
+      {(isSettingsDirty || editing) && (
+        <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
+          <div className="text-xs text-muted-foreground flex-1">
+            You have unsaved changes{editing ? ' (MCP server form)' : ''}.
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+              onClick={handleCancelChanges}
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={handleSave}
+              disabled={!isSettingsDirty}
+            >
+              Save Settings
+            </button>
+            {editing && (
+              <button
+                type="button"
+                className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={async () => {
+                  try {
+                    if (!newServer.id) throw new Error('Server id is required');
+                    const payload = { ...newServer };
+                    await upsertMcpServer(payload);
+                    const data = await listMcpServers();
+                    setMcpServers(data.servers || []);
+                    setEditing(false);
+                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
+                  } catch (e: any) {
+                    setMcpError(e?.message || 'Upsert failed');
+                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
+                  }
+                }}
+              >
+                Save Server
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </form>
   );
 };
+
+const SettingsPanel: React.FC<SettingsPanelProps> = (props) => (
+  <ToastProvider>
+    <SettingsPanelInner {...props} />
+  </ToastProvider>
+);
 
 export default SettingsPanel;
