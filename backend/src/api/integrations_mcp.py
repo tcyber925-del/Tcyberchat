@@ -4,9 +4,27 @@ MCP integrations API: configure servers and fetch docs via MultiMcpClient.
 from __future__ import annotations
 
 import os
+import time
+import logging
 from typing import Any, Dict
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, BackgroundTasks
+
+from ..services.ai_service import get_ai_service
+
+logger = logging.getLogger(__name__)
+
+# Simple in-process cooldown to avoid repeated heavy init calls
+_last_init_ts: float | None = None
+_INIT_COOLDOWN_SECONDS = int(os.getenv("MCP_INIT_COOLDOWN", "30"))
+_MCP_HEALTH_FLOW = os.getenv("MCP_HEALTH_FLOW", "true").lower() == "true"
+# Simple in-memory metrics for basic instrumentation (reset on process restart)
+_metrics = {
+    "health_check_count": 0,
+    "init_request_count": 0,
+    "init_started_count": 0,
+    "init_failed_count": 0,
+}
 
 from ..services.mcp.multi_client import get_multi_mcp_client
 from ..services.web_fetch_service import get_web_fetch_service
@@ -56,6 +74,73 @@ async def warm_connect():
     client = get_multi_mcp_client()
     await client.warm_connect()
     return {"ok": True, "servers": client.list_servers()}
+
+
+@router.get("/health")
+async def mcp_health():
+    """Return basic status about AI service and MCP integration for the UI."""
+    start = time.time()
+    try:
+        ai_service = get_ai_service()
+        models = ai_service.get_available_models()
+        resp = {
+            "ok": True,
+            "ai": {"available_models": len(models), "models": models},
+        }
+        # instrumentation
+        _metrics["health_check_count"] = _metrics.get("health_check_count", 0) + 1
+        logger.info("MCP health checked: available_models=%d time=%.3fs", len(models), time.time() - start)
+        return resp
+    except Exception as e:
+        logger.exception("MCP health check failed: %s", e)
+        return {"ok": False, "error": str(e)}
+
+
+@router.post("/init-model")
+async def init_model(background_tasks: BackgroundTasks, body: Dict[str, Any] = Body({})):
+    """Start a background warm initialization for the AI service/model. Non-blocking.
+
+    The UI may call this if it detects the model is not yet ready. This endpoint
+    will return immediately and run initialization in the background.
+    """
+    model = body.get("model")
+
+    global _last_init_ts
+    now = time.time()
+    # instrumentation: record request
+    _metrics["init_request_count"] = _metrics.get("init_request_count", 0) + 1
+
+    if not _MCP_HEALTH_FLOW:
+        logger.info("Init model requested but MCP_HEALTH_FLOW is disabled")
+        return {"ok": False, "error": "mcp health flow disabled"}
+
+    if _last_init_ts and now - _last_init_ts < _INIT_COOLDOWN_SECONDS:
+        logger.info("Init model called too frequently; cooldown active")
+        return {"ok": False, "error": "cooldown active"}
+
+    _last_init_ts = now
+
+    def _init_task():
+        t0 = time.time()
+        try:
+            svc = get_ai_service(model)
+            svc.get_available_models()
+            _metrics["init_started_count"] = _metrics.get("init_started_count", 0) + 1
+            logger.info("Background model init completed for model=%s time=%.3fs", model, time.time() - t0)
+        except Exception as e:
+            _metrics["init_failed_count"] = _metrics.get("init_failed_count", 0) + 1
+            logger.exception("Background model init failed: %s", e)
+
+    background_tasks.add_task(_init_task)
+    logger.info("Background model init started for model=%s", model)
+    return {"ok": True, "started": True}
+
+
+@router.get("/metrics")
+async def mcp_metrics():
+    """Return simple in-memory metrics for MCP integration (useful for quick monitoring)."""
+    # Return a shallow copy to avoid accidental mutation by callers
+    return {"ok": True, "metrics": dict(_metrics)}
 
 
 @router.post("/fetch-doc")

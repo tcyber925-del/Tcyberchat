@@ -152,7 +152,15 @@ class WebResearchOrchestrator:
         # 2) Fetch/enrich
         max_fetch = max_fetch or self.max_fetch_default
         top_urls = [r.url for r in results[:max_fetch] if r.url]
-        enriched = await self.web_fetch.fetch_multiple(top_urls) if top_urls else []
+        enriched_raw = await self.web_fetch.fetch_multiple(top_urls) if top_urls else []
+        # Normalize enriched records to objects with attribute access to preserve
+        # existing code paths that expect .url/.content/etc.
+        enriched = []
+        for fr in enriched_raw:
+            if isinstance(fr, dict):
+                enriched.append(type("Fetch", (), fr))
+            else:
+                enriched.append(fr)
 
         # Optionally supplement with MCP-fetched docs when configured
         mcp_enabled = os.getenv("WEB_MCP_ENABLED", "false").lower() == "true"
@@ -371,7 +379,13 @@ class WebResearchOrchestrator:
                     : max(0, (max_fetch or self.max_fetch_default))
                 ]
                 if extra_to_fetch:
-                    extra_enriched = await self.web_fetch.fetch_multiple(extra_to_fetch)
+                    extra_enriched_raw = await self.web_fetch.fetch_multiple(extra_to_fetch)
+                    extra_enriched = []
+                    for fr in extra_enriched_raw:
+                        if isinstance(fr, dict):
+                            extra_enriched.append(type("Fetch", (), fr))
+                        else:
+                            extra_enriched.append(fr)
                     for fr in extra_enriched:
                         # Find title from original results
                         rmatch = next(

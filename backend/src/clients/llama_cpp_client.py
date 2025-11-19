@@ -17,7 +17,7 @@ class LlamaCppClient:
     Client for interacting with a remote llama.cpp server.
     """
 
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: str = "http://0.0.0.0:8080"):
         """
         Initializes the LlamaCppClient.
 
