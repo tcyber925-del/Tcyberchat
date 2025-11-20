@@ -1,11 +1,8 @@
-from __future__ import with_statement
-
 import os
 import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
@@ -26,7 +23,7 @@ sys.path.insert(0, PROJECT_ROOT)
 os.environ.setdefault("SKIP_DB_AUTO_INIT", "1")
 
 # Import the application's Base metadata after setting the flag
-from src.database import Base, DATABASE_URL  # noqa: E402
+from src.database import Base  # noqa: E402
 
 target_metadata = Base.metadata
 
@@ -46,7 +43,9 @@ def run_migrations_offline():
 
 def run_migrations_online():
     configuration = config.get_section(config.config_ini_section)
-    configuration["sqlalchemy.url"] = os.getenv("DATABASE_URL", configuration.get("sqlalchemy.url"))
+    configuration["sqlalchemy.url"] = os.getenv(
+        "DATABASE_URL", configuration.get("sqlalchemy.url")
+    )
 
     connectable = engine_from_config(
         configuration,

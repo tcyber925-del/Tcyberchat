@@ -5,7 +5,11 @@ import { ChatProvider } from '../../src/lib/context/chat-context';
 
 describe('Sidebar Toggle Integration', () => {
   it('should render the main layout', () => {
-    render(<ChatProvider><Home /></ChatProvider>);
+    render(
+      <ChatProvider>
+        <Home />
+      </ChatProvider>,
+    );
     const mainLayout = screen.getByTestId('main-layout');
     expect(mainLayout).toBeInTheDocument();
   });
@@ -15,7 +19,7 @@ describe('Sidebar Toggle Integration', () => {
     // This test will pass once a sidebar toggle button with the accessible name "Toggle Sidebar" is implemented.
     // For now, it serves as a placeholder and will fail if the button is not found.
     const sidebarToggle = screen.queryByLabelText('Toggle Sidebar');
-    
+
     if (sidebarToggle) {
       fireEvent.click(sidebarToggle);
       // Further assertions for sidebar visibility change will be added here once the sidebar is implemented.

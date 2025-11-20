@@ -1,17 +1,26 @@
 'use client';
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { useSettings } from '@/lib/context/settings-context';
+import { deepResearch } from '@/lib/api/chat';
+import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
 import { Message as ChatMessageType } from '@/types/message';
 import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { TypingIndicator } from '@/components/ui/typing-indicator';
+import { ChatInputModal } from '@/components/ui/chat-input-modal';
+import { cn } from '@/lib/utils';
+import { useToast } from '@/lib/context/toast-context';
+import { Plus, Globe } from 'lucide-react';
+
+import Sidebar from '@/components/sidebar';
+import { DocumentIndicator } from '@/components/document-indicator';
 
 // Lazy load components for performance optimization
-const TopBar = lazy(() => import('@/components/top-bar'));
-const ChatHistoryDrawer = lazy(() => import('@/components/chat-history-drawer'));
-const DocumentManagerDrawer = lazy(() => import('@/components/document-manager-drawer'));
+const SettingsDrawer = lazy(() => import('@/components/settings-drawer'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -21,59 +30,254 @@ const LoadingFallback = () => (
 );
 
 export default function Home() {
-  const { messages, setMessages, isLoading, isStreaming, streamingMessage, sendStreamingMessage, stopStreaming } = useChat();
+  const {
+    messages,
+    setMessages,
+    isLoading,
+    isStreaming,
+    streamingMessage,
+    sendStreamingMessage,
+    stopStreaming,
+    sessions,
+    documents,
+    selectSession,
+    selectDocument,
+    uploadDocument,
+    deleteDocument,
+    selectedDocumentId,
+    setSelectedDocumentId,
+  } = useChat();
+  const { settings, isSettingsOpen, toggleSettingsPanel } = useSettings();
+  const { showToast } = useToast();
   const [input, setInput] = useState('');
-  const [isChatHistoryOpen, setIsChatHistoryOpen] = useState(false);
-  const [isDocumentManagerOpen, setIsDocumentManagerOpen] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [isDeepRunning, setIsDeepRunning] = useState(false);
+  const deepAbortRef = useRef<AbortController | null>(null);
+  const deepStreamRef = useRef<EventSource | null>(null);
+  const [deepStep, setDeepStep] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  const toggleChatHistory = useCallback(() => {
-    setIsChatHistoryOpen(prev => !prev);
-    setIsDocumentManagerOpen(false); // Close document manager if open
+  const handleAttachmentClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      uploadDocument(file);
+    }
+    // Clear the input value so that selecting the same file twice still triggers the onChange event
+    event.target.value = '';
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Only show drag state if dragging files (not text/links)
+    const hasFiles = Array.from(e.dataTransfer.types).includes('Files');
+    if (hasFiles) {
+      setIsDragging(true);
+    }
   }, []);
 
-  const toggleDocumentManager = useCallback(() => {
-    setIsDocumentManagerOpen(prev => !prev);
-    setIsChatHistoryOpen(false); // Close chat history if open
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're leaving the drop zone (not just a child element)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+      setIsDragging(false);
+    }
   }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      // Check if dropped item is a file
+      const items = Array.from(e.dataTransfer.items);
+      const hasFiles = items.some((item) => item.kind === 'file');
+
+      if (!hasFiles) {
+        showToast('Please drop a file to upload.', 'warning');
+        return;
+      }
+
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) {
+        const file = files[0];
+
+        // Basic file validation
+        if (file.size === 0) {
+          showToast('Cannot upload empty file.', 'error');
+          return;
+        }
+
+        // Check file size (e.g., 100MB limit)
+        const maxSize = 100 * 1024 * 1024; // 100MB
+        if (file.size > maxSize) {
+          showToast(`File is too large. Maximum size is ${maxSize / (1024 * 1024)}MB.`, 'error');
+          return;
+        }
+
+        try {
+          // Only upload the first file
+          uploadDocument(file);
+          if (files.length > 1) {
+            showToast(
+              `Only the first file was uploaded. ${files.length - 1} other file(s) were ignored.`,
+              'info',
+            );
+          }
+        } catch (error) {
+          console.error('Error uploading file:', error);
+          showToast('Failed to upload file. Please try again.', 'error');
+        }
+      }
+    },
+    [uploadDocument, showToast],
+  );
 
   const handleNewChat = useCallback(() => {
     setMessages([]); // Clear the chat messages
-    setIsChatHistoryOpen(false);
-    setIsDocumentManagerOpen(false);
   }, [setMessages]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
   }, []);
 
-  const handleSubmitLocal = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    // If already streaming, stop the stream
-    if (isStreaming) {
-      stopStreaming();
-      return;
-    }
-    const text = input?.trim();
-    if (!text) return;
-    try {
-      await sendStreamingMessage(text);
-      setInput('');
-    } catch (err) {
-      // swallow - context handles error state and toasts
-      console.error('send error', err);
-    }
-  }, [input, sendStreamingMessage, isStreaming, stopStreaming]);
+  const handleEditMessage = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setInput(content);
+    // Focus the input field after a short delay to ensure it's rendered
+    setTimeout(() => {
+      inputRef.current?.focus();
+      // Move cursor to end of text
+      if (inputRef.current) {
+        const length = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(length, length);
+      }
+    }, 100);
+  }, []);
+
+  // Auto-detect if query needs web search
+  const shouldUseWebSearch = useCallback((query: string): boolean => {
+    const timeSensitiveKeywords = [
+      'latest',
+      'recent',
+      'news',
+      'today',
+      'current',
+      'now',
+      'this week',
+      'this month',
+      '2024',
+      '2025',
+      'update',
+      'what is',
+      'what are',
+      'who is',
+      'when did',
+    ];
+    const lowerQuery = query.toLowerCase();
+    return timeSensitiveKeywords.some((keyword) => lowerQuery.includes(keyword));
+  }, []);
+
+  const handleSubmitLocal = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      // If already streaming, stop the stream
+      if (isStreaming) {
+        stopStreaming();
+        return;
+      }
+      const text = input?.trim();
+      if (!text) return;
+
+      // Auto-enable web search for time-sensitive queries if not explicitly set
+      const useWebSearch = webSearchEnabled || shouldUseWebSearch(text);
+
+      try {
+        // If editing a message, update it instead of sending a new one
+        if (editingMessageId) {
+          // Find the message and update it
+          const messageToEdit = messages.find((m) => m.id === editingMessageId);
+          if (messageToEdit) {
+            // Update the message content
+            const updatedMessages = messages.map((m) =>
+              m.id === editingMessageId ? { ...m, content: text, timestamp: new Date() } : m,
+            );
+            setMessages(updatedMessages);
+
+            // Resend the edited message
+            await sendStreamingMessage(text, undefined, useWebSearch);
+
+            // Clear editing state
+            setEditingMessageId(null);
+            setInput('');
+            setWebSearchEnabled(false);
+            if (useWebSearch && !webSearchEnabled) {
+              showToast('Message updated and resent with web search!', 'success');
+            } else {
+              showToast('Message updated and resent!', 'success');
+            }
+          }
+        } else {
+          // Normal send
+          await sendStreamingMessage(text, undefined, useWebSearch);
+          setInput('');
+          setWebSearchEnabled(false); // Reset web search after sending
+          if (useWebSearch && !webSearchEnabled) {
+            showToast('Web search enabled automatically for this query', 'info');
+          }
+        }
+      } catch (err) {
+        // swallow - context handles error state and toasts
+        console.error('send error', err);
+      }
+    },
+    [
+      input,
+      sendStreamingMessage,
+      isStreaming,
+      stopStreaming,
+      webSearchEnabled,
+      editingMessageId,
+      messages,
+      setMessages,
+      showToast,
+      shouldUseWebSearch,
+    ],
+  );
 
   const chatRef = useRef<HTMLDivElement | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Auto-scroll when messages or streamingMessage change
+  // Smooth auto-scroll when messages or streamingMessage change
   useEffect(() => {
-    const el = chatRef.current;
-    if (!el) return;
-    // Scroll to bottom smoothly
-    try {
-      el.scrollTop = el.scrollHeight;
-    } catch {}
+    const scrollToBottom = () => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    };
+
+    // Small delay to ensure DOM is updated
+    const timeoutId = setTimeout(scrollToBottom, 100);
+    return () => clearTimeout(timeoutId);
   }, [messages, streamingMessage]);
 
   // Only render certain debug UI on the client to avoid hydration mismatches
@@ -82,23 +286,45 @@ export default function Home() {
     setMounted(true);
   }, []);
 
+  // Close modal when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (inputContainerRef.current && !inputContainerRef.current.contains(event.target as Node)) {
+        setIsModalOpen(false);
+      }
+    };
+
+    if (isModalOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isModalOpen]);
+
   return (
-    <div data-testid="main-layout" className="flex h-screen bg-background">
+    <div data-testid="main-layout" className="flex h-screen bg-background text-foreground">
+      <Sidebar
+        sessions={sessions}
+        documents={documents}
+        onNewChat={handleNewChat}
+        onSelectSession={selectSession}
+        onSelectDocument={selectDocument}
+        onUploadDocument={uploadDocument}
+        onDeleteDocument={deleteDocument}
+        onToggleSettings={toggleSettingsPanel}
+        isLoading={isLoading}
+      />
+
       <Suspense fallback={<LoadingFallback />}>
-        <ChatHistoryDrawer isOpen={isChatHistoryOpen} onClose={() => setIsChatHistoryOpen(false)} />
+        <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
       <div className="flex flex-col flex-grow">
-        <Suspense fallback={<LoadingFallback />}>
-          <TopBar
-            onToggleChatHistory={toggleChatHistory}
-            onToggleDocumentManager={toggleDocumentManager}
-            isChatHistoryOpen={isChatHistoryOpen}
-            isDocumentManagerOpen={isDocumentManagerOpen}
-            onNewChat={handleNewChat} // Pass handleNewChat to TopBar
-          />
-        </Suspense>
-  <main ref={chatRef} className="flex-grow p-4 overflow-y-auto">
+        <header className="flex items-center p-4 border-b border-border">
+          <h1 className="text-xl font-bold">TcyberChatbot</h1>
+        </header>
+        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto scroll-smooth">
           <div>
             <div>
               {messages.length === 0 && !isLoading && !streamingMessage ? (
@@ -109,80 +335,330 @@ export default function Home() {
                   <div className="space-y-2 max-w-md animate-slide-up">
                     <h2 className="text-2xl font-bold text-foreground">Welcome to TcyberChatbot</h2>
                     <p className="text-muted-foreground">
-                      Your local-first AI assistant. Upload documents, ask questions, and get intelligent responses with citations.
+                      Your local-first AI assistant. Upload documents, ask questions, and get
+                      intelligent responses with citations.
                     </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl w-full animate-slide-up" style={{ animationDelay: '0.2s' }}>
+                  <div
+                    className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl w-full animate-slide-up"
+                    style={{ animationDelay: '0.2s' }}
+                  >
                     <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
                       <div className="text-2xl mb-2">📄</div>
                       <h3 className="font-semibold mb-1">Document Upload</h3>
-                      <p className="text-sm text-muted-foreground">Upload PDFs, images, and text files for analysis</p>
+                      <p className="text-sm text-muted-foreground">
+                        Upload PDFs, images, and text files for analysis
+                      </p>
                     </div>
                     <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
                       <div className="text-2xl mb-2">🎤</div>
                       <h3 className="font-semibold mb-1">Voice Input</h3>
-                      <p className="text-sm text-muted-foreground">Record voice messages for hands-free interaction</p>
+                      <p className="text-sm text-muted-foreground">
+                        Record voice messages for hands-free interaction
+                      </p>
                     </div>
                     <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
                       <div className="text-2xl mb-2">🔍</div>
                       <h3 className="font-semibold mb-1">Smart Search</h3>
-                      <p className="text-sm text-muted-foreground">Get answers with document citations and web search</p>
+                      <p className="text-sm text-muted-foreground">
+                        Get answers with document citations and web search
+                      </p>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground max-w-md animate-slide-up" style={{ animationDelay: '0.4s' }}>
+                  <div
+                    className="text-sm text-muted-foreground max-w-md animate-slide-up"
+                    style={{ animationDelay: '0.4s' }}
+                  >
                     <p>Start by uploading a document or asking a question below.</p>
                   </div>
                 </div>
-                ) : (
+              ) : (
                 <Chat>
                   {messages.map((m: ChatMessageType) => {
                     // Normalize role: some messages may use `type` or `role`, and older code used 'ai'
                     const rawRole = (m as any).role ?? (m as any).type ?? 'assistant';
                     const role = rawRole === 'ai' ? 'assistant' : rawRole;
+                    const isUserMessage = role === 'user';
                     return (
-                      <ChatMessage key={m.id} role={role as any}>
-                        <ReactMarkdown>{m.content}</ReactMarkdown>
+                      <ChatMessage
+                        key={m.id}
+                        role={role as any}
+                        content={m.content}
+                        timestamp={m.timestamp}
+                        messageId={m.id}
+                        meta={(m as any).metadata}
+                        citations={m.citations as any}
+                        onCopy={(text) => {
+                          showToast('Message copied to clipboard!', 'success');
+                        }}
+                        onEdit={
+                          isUserMessage
+                            ? (content) => {
+                                handleEditMessage(m.id, content);
+                              }
+                            : undefined
+                        }
+                      >
+                        {isUserMessage ? (
+                          <div className="whitespace-pre-wrap">{m.content}</div>
+                        ) : (
+                          <MarkdownRenderer content={m.content} />
+                        )}
                       </ChatMessage>
                     );
                   })}
                   {/* Render in-progress streaming message */}
                   {streamingMessage && (
-                    <ChatMessage key={streamingMessage.id} role="assistant">
-                      <ReactMarkdown>{streamingMessage.content}</ReactMarkdown>
+                    <ChatMessage
+                      key={streamingMessage.id}
+                      role="assistant"
+                      content={streamingMessage.content}
+                      timestamp={streamingMessage.timestamp}
+                      isStreaming={isStreaming}
+                      onCopy={(text) => {
+                        showToast('Message copied to clipboard!', 'success');
+                      }}
+                    >
+                      {streamingMessage.content === 'Assistant is typing...' ? (
+                        <TypingIndicator />
+                      ) : (
+                        <MarkdownRenderer content={streamingMessage.content} />
+                      )}
                     </ChatMessage>
                   )}
+                  {/* Invisible element to scroll to */}
+                  <div ref={messagesEndRef} />
                 </Chat>
               )}
             </div>
           </div>
         </main>
 
-        {/* Undo notification - Removed as it's not directly supported by AI SDK's useChat */}
-        {/* {lastDeletedMessage && (
-          <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-card text-card-foreground border border-border px-4 py-3 rounded-lg shadow-xl z-50 flex items-center gap-3 animate-slide-up">
-            <span className="text-sm font-medium">Message deleted</span>
-            <button
-              onClick={undoDeleteMessage}
-              className="text-primary hover:text-primary/80 underline text-sm font-medium transition-colors duration-200"
-            >
-              Undo
-            </button>
-          </div>
-        )} */}
+        <div
+          className={cn(
+            'border-t bg-background transition-colors duration-200',
+            isDragging && 'border-primary border-2 bg-primary/5',
+          )}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {/* Document indicator - shown when a document is selected */}
+          {selectedDocumentId &&
+            (() => {
+              const selectedDoc = documents.find((doc) => doc.id === selectedDocumentId);
+              // Only show indicator if document exists in the list
+              // If document was deleted, it will be cleared when documents list updates
+              if (!selectedDoc) {
+                // Document not found - might have been deleted, clear selection
+                if (selectedDocumentId) {
+                  // Use setTimeout to avoid state update during render
+                  setTimeout(() => setSelectedDocumentId(null), 0);
+                }
+                return null;
+              }
+              return (
+                <div className="px-4 pt-3 pb-2">
+                  <DocumentIndicator
+                    documentId={selectedDoc.id}
+                    documentName={selectedDoc.filename}
+                    onRemove={() => setSelectedDocumentId(null)}
+                  />
+                </div>
+              );
+            })()}
 
-        <form onSubmit={handleSubmitLocal} className="p-4 border-t bg-background flex items-center space-x-2">
-          <ChatInput value={input} onChange={handleInputChange} placeholder="Type your message here..." className="flex-grow" />
-          <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
-            {isStreaming ? 'Stop' : 'Send'}
-          </Button>
-        </form>
+          {/* Drag overlay hint */}
+          {isDragging && (
+            <div className="px-4 py-12 text-center border-2 border-dashed border-primary rounded-lg mx-4 my-2 bg-primary/10">
+              <p className="text-primary font-medium text-lg">Drop file here to upload</p>
+              <p className="text-primary/70 text-sm mt-1">Release to upload your document</p>
+            </div>
+          )}
+
+          {/* Hide form when dragging to show drop zone clearly */}
+          {!isDragging && (
+            <div ref={inputContainerRef} className="relative">
+              {/* Modal Overlay */}
+              <ChatInputModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                onFileAttach={handleAttachmentClick}
+                onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
+                webSearchEnabled={webSearchEnabled}
+onDeepResearch={async () => {
+                  const text = input?.trim();
+                  if (!text) {
+                    showToast('Enter a question to run Deep Research.', 'warning');
+                    return;
+                  }
+                  if (isDeepRunning) {
+                    deepAbortRef.current?.abort();
+                    return;
+                  }
+                  try {
+                    setIsDeepRunning(true);
+                    const ctrl = new AbortController();
+                    deepAbortRef.current = ctrl;
+                    setDeepStep('plan');
+                    showToast('Running deep research...', 'info');
+                    // Append the user message
+                    const userMsg = {
+                      id: 'u-' + Date.now().toString(36),
+                      content: text,
+                      timestamp: new Date(),
+                      role: 'user',
+                      conversationId: '',
+                    } as any;
+                    setMessages((prev) => [...prev, userMsg]);
+
+                    const iterations = settings.deepResearchDefaultIterations ?? 2;
+                    const model = settings.selectedModel;
+                    // Prefer SSE stream if available
+                    try {
+                      const es = deepResearchStream(text, model, iterations);
+                      deepStreamRef.current = es;
+                      es.addEventListener('step', (e: MessageEvent) => {
+                        try {
+                          const payload = JSON.parse((e as any).data);
+                          if (payload?.step) setDeepStep(payload.step);
+                        } catch {}
+                      });
+                      es.addEventListener('final', (e: MessageEvent) => {
+                        try {
+                          const payload = JSON.parse((e as any).data);
+                          const assistantMsg = {
+                            id: 'a-' + (Date.now() + 1).toString(36),
+                            content: payload.answer || 'No answer generated.',
+                            timestamp: new Date(),
+                            role: 'assistant',
+                            conversationId: '',
+                            citations: Array.isArray(payload.citations) ? payload.citations : [],
+                            metadata: { deepResearch: true, ...payload.metadata },
+                          } as any;
+                          setMessages((prev) => [...prev, assistantMsg]);
+                          setInput('');
+                        } catch {}
+                        es.close();
+                        deepStreamRef.current = null;
+                        setIsDeepRunning(false);
+                        setDeepStep(null);
+                      });
+                      es.addEventListener('error', () => {
+                        es.close();
+                        deepStreamRef.current = null;
+                        setIsDeepRunning(false);
+                        setDeepStep(null);
+                      });
+                    } catch {
+                      // Fallback to non-stream
+                      const res = await deepResearch(text, model, iterations, ctrl.signal);
+                      const assistantMsg = {
+                        id: 'a-' + (Date.now() + 1).toString(36),
+                        content: res.answer || 'No answer generated.',
+                        timestamp: new Date(),
+                        role: 'assistant',
+                        conversationId: '',
+                        citations: Array.isArray(res.citations) ? res.citations : [],
+                        metadata: { deepResearch: true, ...res.metadata },
+                      } as any;
+                      setMessages((prev) => [...prev, assistantMsg]);
+                      setInput('');
+                    }
+                  } catch (e) {
+                    if ((e as any)?.name === 'AbortError') {
+                      showToast('Deep research cancelled.', 'info');
+                    } else {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      showToast(`Deep research failed: ${msg}`, 'error');
+                    }
+                    try { deepStreamRef.current?.close(); } catch {}
+                    deepStreamRef.current = null;
+                  } finally {
+                    setIsDeepRunning(false);
+                    deepAbortRef.current = null;
+                  }
+                }}
+              />
+
+              <form onSubmit={handleSubmitLocal} className="p-4 flex items-center space-x-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+                {/* Plus button to open modal */}
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(!isModalOpen)}
+                  className={cn(
+                    'p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors',
+                    isModalOpen && 'bg-accent text-foreground',
+                  )}
+                  title="More options"
+                  aria-label="More options"
+                >
+                  <Plus className="h-6 w-6" />
+                </button>
+                <ChatInput
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  placeholder={
+                    editingMessageId ? 'Edit your message...' : 'Type your message here...'
+                  }
+                  className="flex-grow"
+                  onFocus={() => setIsModalOpen(false)}
+                />
+                {/* Web search indicator */}
+                {(webSearchEnabled || (input.trim() && shouldUseWebSearch(input))) && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium">
+                    <Globe className="h-3 w-3" />
+                    <span>Web</span>
+                    {!webSearchEnabled && shouldUseWebSearch(input) && (
+                      <span className="ml-1 text-[10px] opacity-70">AUTO</span>
+                    )}
+                  </div>
+                )}
+                {editingMessageId && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingMessageId(null);
+                      setInput('');
+                    }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </Button>
+                )}
+                <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
+                  {isStreaming ? 'Stop' : editingMessageId ? 'Resend' : 'Send'}
+                </Button>
+                {isDeepRunning && (
+                  <div className="flex items-center gap-2 ml-2">
+                    <span className="text-xs text-muted-foreground">{deepStep ?? 'working...'}</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        try { deepStreamRef.current?.close(); } catch {}
+                        deepStreamRef.current = null;
+                        deepAbortRef.current?.abort();
+                      }}
+                    >
+                      Cancel Deep Research
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </div>
+          )}
+        </div>
       </div>
-      <Suspense fallback={<LoadingFallback />}>
-        <DocumentManagerDrawer isOpen={isDocumentManagerOpen} onClose={() => setIsDocumentManagerOpen(false)} />
-      </Suspense>
-
-      {/* Debug overlay (client-only to avoid hydration mismatches) */}
-      {/* debug overlay removed */}
     </div>
   );
 }

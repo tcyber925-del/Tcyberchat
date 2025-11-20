@@ -3,9 +3,8 @@ MediaContent model for rich content rendering in chat
 """
 
 from uuid import uuid4
-from typing import Optional
 
-from sqlalchemy import Column, String, Text, JSON, ForeignKey
+from sqlalchemy import JSON, Column, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -21,16 +20,22 @@ class MediaContent(Base):
     message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=False)
 
     # Content type and data
-    type = Column(String(50), nullable=False)  # 'image', 'table', 'code_block', 'diagram'
+    type = Column(
+        String(50), nullable=False
+    )  # 'image', 'table', 'code_block', 'diagram'
     content = Column(Text, nullable=False)  # Raw content data (HTML, Markdown, JSON)
 
     # Rendering metadata
-    content_metadata = Column(JSON, nullable=True)  # {"dimensions": {"width": 800, "height": 600}, "syntax": "python", etc.}
+    content_metadata = Column(
+        JSON, nullable=True
+    )  # {"dimensions": {"width": 800, "height": 600}, "syntax": "python", etc.}
 
     # Relationships
     message = relationship("Message", backref="media_content")
 
-    def __init__(self, message_id: str, type: str, content: str, metadata: Optional[dict] = None):
+    def __init__(
+        self, message_id: str, type: str, content: str, metadata: dict | None = None
+    ):
         self.message_id = message_id
         self.type = type
         self.content = content
@@ -39,17 +44,17 @@ class MediaContent(Base):
     @property
     def is_image(self) -> bool:
         """Check if this is an image content"""
-        return self.type == 'image'
+        return self.type == "image"
 
     @property
     def is_code_block(self) -> bool:
         """Check if this is a code block"""
-        return self.type == 'code_block'
+        return self.type == "code_block"
 
     @property
     def is_table(self) -> bool:
         """Check if this is a table"""
-        return self.type == 'table'
+        return self.type == "table"
 
     def to_dict(self) -> dict:
         """Convert to dictionary for API responses"""
@@ -58,7 +63,7 @@ class MediaContent(Base):
             "messageId": str(self.message_id),
             "type": self.type,
             "content": self.content,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     def __repr__(self) -> str:

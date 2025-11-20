@@ -49,7 +49,3 @@ export async function getAvailableModels(opts?: { forceRefresh?: boolean; signal
     return [];
   }
 }
-
-
-
-

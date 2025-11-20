@@ -11,21 +11,24 @@ alembic
 # Vector database for embeddings
 chromadb
 
-# AI/ML dependencies
-langchain
-langchain-community
-langchain-core
-langchain-text-splitters
+# AI/ML dependencies (pinned to 0.3.x line for test compatibility)
+langchain==0.3.27
+langchain-community==0.3.27
+langchain-text-splitters==0.3.9
+langchain-huggingface==0.3.0
 sentence-transformers
-ollama
 google-generativeai
 openai
+langgraph==0.6.3
+langgraph-prebuilt==0.6.3
+langgraph-sdk==0.2.0
 
 # Streaming and async
 sse-starlette
 
 # LangChain memory and conversation management
 langchain-experimental
+langchain-huggingface
 
 # Multi-modal processing
 transformers
@@ -41,15 +44,14 @@ pymupdf
 python-docx
 pytesseract
 opencv-python
-# File processing
-python-multipart
-aiofiles
-pymupdf
 
 # Utilities
 python-dotenv
 httpx
-asyncio
+
+# Web Search (optional - install providers as needed)
+duckduckgo-search>=5.0.0
+tavily-python>=0.3.0
 
 # Development dependencies
 pytest
@@ -57,3 +59,10 @@ pytest-asyncio
 black
 ruff
 pre-commit
+tavily-python
+duckduckgo-search
+google-search-results
+ddgs
+
+# MCP SDK
+mcp      

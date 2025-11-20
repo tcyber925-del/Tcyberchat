@@ -1,22 +1,26 @@
 """
 Document model for uploaded files and processing
 """
+
 from __future__ import annotations
-from datetime import datetime, timezone
-from typing import List, Optional
+
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, String, DateTime, Text, BigInteger, JSON, ForeignKey
+from sqlalchemy import JSON, BigInteger, Column, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
+
 try:
     # Prefer Pydantic v2 ConfigDict when available
-    from pydantic import BaseModel, Field, ConfigDict
+    from pydantic import BaseModel, ConfigDict, Field
+
     _PydanticV2 = True
 except Exception:
     from pydantic import BaseModel, Field
+
     _PydanticV2 = False
 from uuid import UUID as PyUUID
+
 from ..database import Base
 
 
@@ -30,7 +34,7 @@ class Document(Base):
     path = Column(String(500), nullable=False)  # Local file system path
     size = Column(BigInteger, nullable=False)  # File size in bytes
     mime_type = Column(String(100), nullable=False)
-    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
 
     # Extracted content from various processing stages
     content = Column(Text, nullable=True)  # Text extracted from document
@@ -49,15 +53,25 @@ class Document(Base):
     transcription = Column(Text, nullable=True)  # For audio files
 
     # Image-specific fields
-    image_analysis = Column(JSON, nullable=True)  # AI analysis results for images/diagrams
+    image_analysis = Column(
+        JSON, nullable=True
+    )  # AI analysis results for images/diagrams
 
     # Preview/thumbnail path
     preview_image = Column(String(500), nullable=True)
 
-    def __init__(self, filename: str, path: str, size: int, mime_type: str,
-                 content: Optional[str] = None, chunks: Optional[List[str]] = None,
-                 transcription: Optional[str] = None, image_analysis: Optional[dict] = None,
-                 status: str = "uploading"):
+    def __init__(
+        self,
+        filename: str,
+        path: str,
+        size: int,
+        mime_type: str,
+        content: str | None = None,
+        chunks: list[str] | None = None,
+        transcription: str | None = None,
+        image_analysis: dict | None = None,
+        status: str = "uploading",
+    ):
         self.filename = filename
         self.path = path
         self.size = size
@@ -71,17 +85,17 @@ class Document(Base):
     @property
     def is_text_document(self) -> bool:
         """Check if this is a text-based document"""
-        return str(self.mime_type) in ['text/plain', 'text/markdown', 'application/pdf']
+        return str(self.mime_type) in ["text/plain", "text/markdown", "application/pdf"]
 
     @property
     def is_image(self) -> bool:
         """Check if this is an image file"""
-        return str(self.mime_type).startswith('image/')
+        return str(self.mime_type).startswith("image/")
 
     @property
     def is_audio(self) -> bool:
         """Check if this is an audio file"""
-        return str(self.mime_type).startswith('audio/')
+        return str(self.mime_type).startswith("audio/")
 
     @property
     def has_content(self) -> bool:
@@ -110,12 +124,21 @@ class Document(Base):
             "hasContent": self.content is not None,
             "hasTranscription": self.transcription is not None,
             "hasImageAnalysis": self.image_analysis is not None,
-            "previewImage": self.preview_image
+            "previewImage": self.preview_image,
         }
 
     def update_status(self, new_status: str):
         """Update processing status with validation"""
-        valid_statuses = ["uploading", "processing", "analyzing", "transcribing", "embedding", "ready", "completed", "error"]
+        valid_statuses = [
+            "uploading",
+            "processing",
+            "analyzing",
+            "transcribing",
+            "embedding",
+            "ready",
+            "completed",
+            "error",
+        ]
         if new_status not in valid_statuses:
             raise ValueError(f"Invalid status: {new_status}")
         self.status = new_status
@@ -123,15 +146,17 @@ class Document(Base):
     def __repr__(self) -> str:
         return f"<Document(id={self.id}, filename='{self.filename}', status='{self.status}')>"
 
+
 class DocumentCreate(BaseModel):
     filename: str
     path: str
     size: int
     mime_type: str
-    content: Optional[str] = None
-    chunks: Optional[List[str]] = None
-    transcription: Optional[str] = None
-    image_analysis: Optional[dict] = None
+    content: str | None = None
+    chunks: list[str] | None = None
+    transcription: str | None = None
+    image_analysis: dict | None = None
+
 
 class DocumentRead(BaseModel):
     id: PyUUID
@@ -143,13 +168,16 @@ class DocumentRead(BaseModel):
     hasContent: bool = Field(alias="has_content")
     hasTranscription: bool = Field(alias="has_transcription")
     hasImageAnalysis: bool = Field(alias="has_image_analysis")
-    previewImage: Optional[str] = Field(alias="preview_image")
+    previewImage: str | None = Field(alias="preview_image")
+
 
 # Pydantic V2 uses `model_config = ConfigDict(...)`. Fall back to v1 `Config` when needed.
 if _PydanticV2:
     DocumentRead.model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 else:
+
     class DocumentReadConfig:
         orm_mode = True
         allow_population_by_field_name = True
+
     DocumentRead.Config = DocumentReadConfig

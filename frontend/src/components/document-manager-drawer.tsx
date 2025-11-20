@@ -12,19 +12,28 @@ interface DocumentManagerDrawerProps {
 const DocumentManagerDrawer: React.FC<DocumentManagerDrawerProps> = ({ isOpen, onClose }) => {
   const { documents, selectDocument, uploadDocument, deleteDocument } = useChat();
 
-  const handleSelectDocument = useCallback((documentId: string) => {
-    selectDocument(documentId);
-    onClose(); // Close drawer after selecting a document
-  }, [selectDocument, onClose]);
+  const handleSelectDocument = useCallback(
+    (documentId: string) => {
+      selectDocument(documentId);
+      onClose(); // Close drawer after selecting a document
+    },
+    [selectDocument, onClose],
+  );
 
-  const handleUploadDocument = useCallback(async (file: File) => {
-    await uploadDocument(file);
-    // Optionally, keep the drawer open or close it after upload
-  }, [uploadDocument]);
+  const handleUploadDocument = useCallback(
+    async (file: File) => {
+      await uploadDocument(file);
+      // Optionally, keep the drawer open or close it after upload
+    },
+    [uploadDocument],
+  );
 
-  const handleDeleteDocument = useCallback(async (documentId: string) => {
-    await deleteDocument(documentId);
-  }, [deleteDocument]);
+  const handleDeleteDocument = useCallback(
+    async (documentId: string) => {
+      await deleteDocument(documentId);
+    },
+    [deleteDocument],
+  );
 
   return (
     <aside
@@ -39,9 +48,18 @@ const DocumentManagerDrawer: React.FC<DocumentManagerDrawerProps> = ({ isOpen, o
       <div className="p-4">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-semibold">Document Management</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Close document management">
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            aria-label="Close document management"
+          >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

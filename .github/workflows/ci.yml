@@ -1,0 +1,216 @@
+name: CI
+
+on:
+  push:
+    branches: [ sync/full-workspace-2025-10-26 ]
+  pull_request:
+    branches: [ sync/full-workspace-2025-10-26 ]
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch:
+    inputs:
+      run_integration:
+        description: 'Set to "1" to run integration tests'
+        required: false
+        default: '1'
+
+# Use anchors to define common steps
+x-common-steps:
+  - &checkout
+    uses: actions/checkout@v4
+  - &setup-python
+    uses: actions/setup-python@v5
+    with:
+      python-version: '3.11'
+  - &cache-pip
+    uses: actions/cache@v4
+    with:
+      path: ~/.cache/pip
+      key: ${{ runner.os }}-pip-${{ hashFiles('**/backend/requirements.txt') }}
+      restore-keys: |
+        ${{ runner.os }}-pip-
+
+jobs:
+  ruff-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - *checkout
+      - *setup-python
+      - *cache-pip
+      - name: Install lint deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Ruff check
+        run: ruff check .
+
+  mypy-typecheck:
+    runs-on: ubuntu-latest
+    needs: ruff-lint
+  frontend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - *checkout
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+      - name: Get pnpm store directory
+        id: pnpm-cache-lint
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache-lint.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install deps
+        run: pnpm install --frozen-lockfile=false
+      - name: Lint (frontend)
+        run: pnpm run lint
+
+  backend-lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - *checkout
+      - *setup-python
+      - *cache-pip
+      - name: Install type deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt mypy
+      - name: Mypy type check
+        env:
+          MYPYPATH: backend
+        run: mypy src
+      - name: Install ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+      - name: Lint (backend)
+        run: ruff check .
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - *checkout
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+          run_install: false
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install frontend dependencies
+        run: pnpm install
+      - name: Run frontend tests (CI)
+        env:
+          CI: 'true'
+        run: pnpm test -- --ci --watchAll=false
+
+  backend-unit-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - *checkout
+      - *setup-python
+      - *cache-pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run unit tests
+        run: |
+          mkdir -p reports
+          pytest tests/unit -q --junitxml=reports/unit-junit.xml
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-test-report
+          path: backend/reports/unit-junit.xml
+
+  backend-integration-tests:
+    if: github.event.inputs.run_integration == '1' || github.ref_name == 'sync/full-workspace-2025-10-26' || (github.event_name == 'pull_request' && github.base_ref == 'sync/full-workspace-2025-10-26')
+    runs-on: ubuntu-latest
+    needs: backend-unit-tests
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - *checkout
+      - *setup-python
+      - *cache-pip
+      - name: Install integration dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Seed ChromaDB
+        run: |
+          nohup python -u scripts/seed_chroma.py &
+          sleep 1
+      - name: Start backend server
+        env:
+          RUN_INTEGRATION_TESTS: '1'
+        run: |
+          nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
+          sleep 6
+      - name: Run integration tests
+        env:
+          RUN_INTEGRATION_TESTS: '1'
+        run: |
+          mkdir -p reports
+          pytest tests/integration -q --junitxml=reports/integration-junit.xml
+      - name: Upload integration test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-integration-test-report
+          path: backend/reports/integration-junit.xml
+      - name: Upload backend logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs
+          path: |
+            backend/logs/**
+            backend/.venv/**/pip-log.txt

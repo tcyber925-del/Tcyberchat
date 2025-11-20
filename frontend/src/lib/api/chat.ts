@@ -4,16 +4,17 @@ export async function sendMessageStreaming(
   conversationId?: string,
   model?: string,
   documentId?: string,
+  enableWebSearch?: boolean,
   onChunk?: (chunk: string) => void,
   onComplete?: (finalMessage: { content: string; messageId?: string; citations?: any[] }) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ) {
   const response = await fetch('/api/chat', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ message, conversationId, documentId, model }),
+    body: JSON.stringify({ message, conversationId, documentId, model, enableWebSearch }),
   });
 
   if (!response.ok) {
@@ -55,7 +56,7 @@ export async function sendMessageStreaming(
         const lines = buffer.split(/\r?\n/);
         // If the buffer does not end with a newline, the last element is a partial line — keep it in buffer
         const endsWithNewline = /\r?\n$/.test(buffer);
-        const partial = endsWithNewline ? '' : lines.pop() ?? '';
+        const partial = endsWithNewline ? '' : (lines.pop() ?? '');
 
         // State for accumulating an event block across lines
         let currentEvent = 'message';
@@ -79,7 +80,15 @@ export async function sendMessageStreaming(
               if (data) {
                 try {
                   const parsed = JSON.parse(data);
-                  onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+                  onComplete?.({
+                    content: parsed.content,
+                    messageId: parsed.messageId,
+                    citations: parsed.citations,
+                    webSearchUsed: parsed.webSearchUsed,
+                    webSearchResultsCount: parsed.webSearchResultsCount,
+                    webProvider: parsed.webProvider,
+                    webImpl: parsed.webImpl,
+                  });
                 } catch (e) {
                   onComplete?.({ content: data });
                 }
@@ -133,7 +142,15 @@ export async function sendMessageStreaming(
       if (sawSSE) {
         try {
           const parsed = JSON.parse(remaining);
-          onComplete?.({ content: parsed.content, messageId: parsed.messageId, citations: parsed.citations });
+          onComplete?.({
+            content: parsed.content,
+            messageId: parsed.messageId,
+            citations: parsed.citations,
+            webSearchUsed: parsed.webSearchUsed,
+            webSearchResultsCount: parsed.webSearchResultsCount,
+            webProvider: parsed.webProvider,
+            webImpl: parsed.webImpl,
+          });
         } catch (e) {
           // If not JSON, call onChunk with remaining
           onChunk?.(remaining);
@@ -148,5 +165,244 @@ export async function sendMessageStreaming(
     try {
       reader.releaseLock();
     } catch {}
+  }
+}
+
+// getModels - fetches the list of available AI models
+export async function getModels() {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const response = await fetch(`${API_BASE_URL}/api/v1/models`);
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText);
+    throw new Error(text || response.statusText);
+  }
+  const data = await response.json();
+  return data.models || [];
+}
+
+// getConversations - fetches all conversations
+export async function getConversations(limit: number = 50): Promise<any[]> {
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations?limit=${limit}`);
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(
+        text || `Failed to fetch conversations: ${response.status} ${response.statusText}`,
+      );
+    }
+    const data = await response.json();
+    // Ensure we return an array even if API returns null/undefined
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    throw error;
+  }
+}
+
+// getConversationMessages - fetches messages for a specific conversation
+export async function getConversationMessages(conversationId: string): Promise<any> {
+  if (!conversationId || typeof conversationId !== 'string') {
+    throw new Error('Invalid conversation ID');
+  }
+
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`);
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Conversation not found');
+      }
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(
+        text || `Failed to fetch conversation: ${response.status} ${response.statusText}`,
+      );
+    }
+    const data = await response.json();
+
+    // Validate and normalize data
+    if (!data || !data.id) {
+      throw new Error('Invalid conversation data received from server');
+    }
+
+    return {
+      conversation: {
+        id: data.id,
+        title: data.title || 'Untitled Conversation',
+        startedAt: data.startedAt || new Date().toISOString(),
+        lastActivity: data.lastActivity || data.startedAt || new Date().toISOString(),
+        documentId: data.documentId || null,
+        messageCount: data.messageCount || 0,
+      },
+      messages: (Array.isArray(data.messages) ? data.messages : [])
+        .map((msg: any) => {
+          // Validate message data
+          if (!msg || !msg.id || !msg.content) {
+            console.warn('Invalid message data:', msg);
+            return null;
+          }
+          return {
+            id: msg.id,
+            content: msg.content || '',
+            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+            role:
+              msg.type === 'bot'
+                ? 'assistant'
+                : msg.type === 'user'
+                  ? 'user'
+                  : msg.type || 'assistant',
+            conversationId: msg.conversationId || conversationId,
+            citations: Array.isArray(msg.citations) ? msg.citations : [],
+            metadata: msg.metadata || {},
+          };
+        })
+        .filter((msg: any) => msg !== null), // Remove invalid messages
+    };
+  } catch (error) {
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    throw error;
+  }
+}
+
+// deepResearch - calls backend Deep Research API and returns full answer with citations
+export async function deepResearch(
+  query: string,
+  model?: string,
+  maxIterations: number = 2,
+  signal?: AbortSignal,
+) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const res = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, model, maxIterations }),
+    signal,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || res.statusText);
+  }
+  return res.json();
+}
+
+// deepResearchStream - SSE stream for deep research steps
+export function deepResearchStream(
+  query: string,
+  model?: string,
+  maxIterations: number = 2,
+) {
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const url = new URL(`${API_BASE_URL}/api/tools/web-search/deep-research/stream`);
+  url.searchParams.set('query', query);
+  if (model) url.searchParams.set('model', model);
+  url.searchParams.set('maxIterations', String(maxIterations));
+  const es = new EventSource(url.toString());
+  return es;
+}
+
+// deleteConversation - deletes a conversation
+export async function deleteConversation(conversationId: string): Promise<void> {
+  if (!conversationId || typeof conversationId !== 'string') {
+    throw new Error('Invalid conversation ID');
+  }
+
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Conversation not found');
+      }
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(
+        text || `Failed to delete conversation: ${response.status} ${response.statusText}`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    throw error;
+  }
+}
+
+// updateConversation - updates a conversation (title, isPinned, isArchived)
+export async function updateConversation(
+  conversationId: string,
+  updates: { title?: string; isPinned?: boolean; isArchived?: boolean },
+): Promise<any> {
+  if (!conversationId || typeof conversationId !== 'string') {
+    throw new Error('Invalid conversation ID');
+  }
+
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Conversation not found');
+      }
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(
+        text || `Failed to update conversation: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    throw error;
+  }
+}
+
+// exportConversation - exports a conversation as JSON
+export async function exportConversation(conversationId: string): Promise<any> {
+  if (!conversationId || typeof conversationId !== 'string') {
+    throw new Error('Invalid conversation ID');
+  }
+
+  try {
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/chat/conversations/${conversationId}/export`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Conversation not found');
+      }
+      const text = await response.text().catch(() => response.statusText);
+      throw new Error(
+        text || `Failed to export conversation: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    return await response.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error('Network error: Unable to connect to server. Please check your connection.');
+    }
+    throw error;
   }
 }

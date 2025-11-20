@@ -89,7 +89,7 @@ cd backend
 # Use uv run to ensure .venv is used
 uv run python main.py
 # Or using uvicorn directly:
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 3001
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Running Tests

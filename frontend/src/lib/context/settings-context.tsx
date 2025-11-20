@@ -13,6 +13,11 @@ export interface UserSettings {
 
   // Feature flags
   multimodalEnabled: boolean;
+  showWebDebugBadges: boolean; // Dev-only inline badge toggle
+  showSourcesPanel: boolean; // Show Sources cards under assistant messages
+
+  // Deep research defaults
+  deepResearchDefaultIterations?: number;
 
   // Version for migrations
   version: number;
@@ -23,6 +28,8 @@ export interface SettingsContextType {
   updateSettings: (updates: Partial<UserSettings>) => void;
   resetSettings: () => void;
   isLoading: boolean;
+  isSettingsOpen: boolean;
+  toggleSettingsPanel: () => void;
 }
 
 // Default settings
@@ -31,7 +38,10 @@ const DEFAULT_SETTINGS: UserSettings = {
   webSearchEnabled: true,
   theme: 'system',
   multimodalEnabled: true,
-  version: 1,
+  showWebDebugBadges: false,
+  showSourcesPanel: true,
+  deepResearchDefaultIterations: 2,
+  version: 4,
 };
 
 // Storage key
@@ -39,15 +49,24 @@ const SETTINGS_STORAGE_KEY = 'tcyber-chatbot-settings';
 
 // Migration functions
 const migrateSettings = (stored: any): UserSettings => {
-  const currentVersion = 1;
+  const currentVersion = 4;
 
-  // If no version or already current version, use defaults for missing fields
-  if (!stored.version || stored.version >= currentVersion) {
-    return { ...DEFAULT_SETTINGS, ...stored };
+  if (!stored || typeof stored !== 'object') {
+    return DEFAULT_SETTINGS;
   }
 
-  // Future migrations would go here
-  // if (stored.version < 2) { ... }
+  // v1 -> v2: add showWebDebugBadges default false
+  if (!stored.version || stored.version < 2) {
+    stored.showWebDebugBadges = false;
+  }
+  // v2 -> v3: add showSourcesPanel default true
+  if (!stored.version || stored.version < 3) {
+    stored.showSourcesPanel = true;
+  }
+  // v3 -> v4: add deepResearchDefaultIterations default 2
+  if (!stored.version || stored.version < 4) {
+    stored.deepResearchDefaultIterations = 2;
+  }
 
   return { ...DEFAULT_SETTINGS, ...stored, version: currentVersion };
 };
@@ -59,6 +78,7 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSettingsOpen, setSettingsOpen] = useState(false);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -90,7 +110,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Update settings function
   const updateSettings = (updates: Partial<UserSettings>) => {
-    setSettings(prev => ({ ...prev, ...updates }));
+    setSettings((prev) => ({ ...prev, ...updates }));
   };
 
   // Reset settings to defaults
@@ -98,18 +118,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setSettings(DEFAULT_SETTINGS);
   };
 
+  const toggleSettingsPanel = () => {
+    setSettingsOpen((prev) => !prev);
+  };
+
   const value: SettingsContextType = {
     settings,
     updateSettings,
     resetSettings,
     isLoading,
+    isSettingsOpen,
+    toggleSettingsPanel,
   };
 
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 };
 
 // Hook to use settings context

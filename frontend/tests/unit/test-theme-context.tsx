@@ -27,7 +27,7 @@ Object.defineProperty(window, 'localStorage', {
 // Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: jest.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -47,22 +47,13 @@ const TestComponent: React.FC = () => {
     <div>
       <div data-testid="theme">{theme}</div>
       <div data-testid="resolved-theme">{resolvedTheme}</div>
-      <button
-        data-testid="set-light"
-        onClick={() => setTheme('light')}
-      >
+      <button data-testid="set-light" onClick={() => setTheme('light')}>
         Set Light
       </button>
-      <button
-        data-testid="set-dark"
-        onClick={() => setTheme('dark')}
-      >
+      <button data-testid="set-dark" onClick={() => setTheme('dark')}>
         Set Dark
       </button>
-      <button
-        data-testid="set-system"
-        onClick={() => setTheme('system')}
-      >
+      <button data-testid="set-system" onClick={() => setTheme('system')}>
         Set System
       </button>
     </div>
@@ -72,9 +63,7 @@ const TestComponent: React.FC = () => {
 // Wrapper component with both providers
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <SettingsProvider>
-    <ThemeProvider>
-      {children}
-    </ThemeProvider>
+    <ThemeProvider>{children}</ThemeProvider>
   </SettingsProvider>
 );
 
@@ -83,7 +72,7 @@ describe('Theme Context', () => {
     localStorageMock.clear();
     // Reset matchMedia mock
     (window.matchMedia as jest.Mock).mockClear();
-    (window.matchMedia as jest.Mock).mockImplementation(query => ({
+    (window.matchMedia as jest.Mock).mockImplementation((query) => ({
       matches: false,
       media: query,
       onchange: null,
@@ -99,7 +88,7 @@ describe('Theme Context', () => {
     render(
       <TestWrapper>
         <TestComponent />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     await waitFor(() => {
@@ -112,7 +101,7 @@ describe('Theme Context', () => {
     render(
       <TestWrapper>
         <TestComponent />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     await waitFor(() => {
@@ -131,7 +120,7 @@ describe('Theme Context', () => {
     render(
       <TestWrapper>
         <TestComponent />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     await waitFor(() => {
@@ -148,7 +137,7 @@ describe('Theme Context', () => {
 
   it('should detect system dark preference', async () => {
     // Mock system dark preference
-    (window.matchMedia as jest.Mock).mockImplementation(query => ({
+    (window.matchMedia as jest.Mock).mockImplementation((query) => ({
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
@@ -162,7 +151,7 @@ describe('Theme Context', () => {
     render(
       <TestWrapper>
         <TestComponent />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     await waitFor(() => {
@@ -175,7 +164,7 @@ describe('Theme Context', () => {
     render(
       <TestWrapper>
         <TestComponent />
-      </TestWrapper>
+      </TestWrapper>,
     );
 
     await waitFor(() => {
