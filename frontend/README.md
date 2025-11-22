@@ -8,8 +8,8 @@ The frontend is a [Next.js](https://nextjs.org/) application built with [React](
 
 ## Prerequisites
 
-*   [Node.js](https://nodejs.org/) (version 20 or later)
-*   [npm](https://www.npmjs.com/)
+- [Node.js](https://nodejs.org/) (version 20 or later)
+- [npm](https://www.npmjs.com/)
 
 ## Getting Started
 
@@ -38,8 +38,8 @@ The application will be available at [http://localhost:3000](http://localhost:30
 
 ## Available Scripts
 
-*   `npm run dev`: Starts the development server.
-*   `npm run build`: Builds the application for production.
-*   `npm run start`: Starts the production server.
-*   `npm run lint`: Lints the code using ESLint.
-*   `npm run test`: Runs the tests using Jest.
+- `npm run dev`: Starts the development server.
+- `npm run build`: Builds the application for production.
+- `npm run start`: Starts the production server.
+- `npm run lint`: Lints the code using ESLint.
+- `npm run test`: Runs the tests using Jest.

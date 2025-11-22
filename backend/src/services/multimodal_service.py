@@ -2,19 +2,18 @@
 MultiModalService for image analysis, audio transcription, and rich content processing
 """
 
-from typing import Dict, List, Optional, Any, Tuple
-import base64
 import io
 from pathlib import Path
+from typing import Any
 
 try:
     # Image processing
-    from PIL import Image
     import torch
-    from transformers import AutoProcessor, AutoModelForCausalLM
 
     # Audio processing
     import whisper
+    from PIL import Image
+    from transformers import AutoModelForCausalLM, AutoProcessor
 
     MULTIMODAL_AVAILABLE = True
 except ImportError:
@@ -57,13 +56,19 @@ class MultiModalService:
         except Exception as e:
             print(f"Failed to load audio model: {e}")
 
-    async def analyze_image(self, image_data: bytes, prompt: Optional[str] = None, document_id: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_image(
+        self,
+        image_data: bytes,
+        prompt: str | None = None,
+        document_id: str | None = None,
+    ) -> dict[str, Any]:
         """Analyze image using vision-language model"""
         await self._ensure_image_model()
 
         try:
             # Attempt to open bytes as an image to validate content
             from PIL import Image
+
             try:
                 img2 = Image.open(io.BytesIO(image_data))
                 width, height = img2.size
@@ -79,8 +84,14 @@ class MultiModalService:
             if prompt:
                 enhanced_prompt = f"Based on this image analysis, {prompt}"
                 try:
-                    ai_response = await self.ai_service.generate_response(enhanced_prompt)
-                    answer = ai_response.get("response") if isinstance(ai_response, dict) else str(ai_response)
+                    ai_response = await self.ai_service.generate_response(
+                        enhanced_prompt
+                    )
+                    answer = (
+                        ai_response.get("response")
+                        if isinstance(ai_response, dict)
+                        else str(ai_response)
+                    )
                 except Exception:
                     answer = None
 
@@ -89,7 +100,7 @@ class MultiModalService:
                 "objects": mock_objects,
                 "answer": answer,
                 "confidence": 0.85,
-                "processing_time": 0.1
+                "processing_time": 0.1,
             }
 
         except Exception as e:
@@ -98,10 +109,12 @@ class MultiModalService:
                 "description": "Unable to analyze image",
                 "objects": [],
                 "confidence": 0.0,
-                "processing_time": 0.0
+                "processing_time": 0.0,
             }
 
-    async def analyze_image_from_bytes(self, image_bytes: bytes, query: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_image_from_bytes(
+        self, image_bytes: bytes, query: str | None = None
+    ) -> dict[str, Any]:
         """Analyze image from byte data"""
         try:
             # Save temporarily for processing
@@ -122,10 +135,16 @@ class MultiModalService:
                 "description": "Unable to analyze image",
                 "objects": [],
                 "confidence": 0.0,
-                "processing_time": 0.0
+                "processing_time": 0.0,
             }
 
-    async def transcribe_audio(self, audio_data: bytes, language: Optional[str] = None, document_id: Optional[str] = None, include_timestamps: bool = False) -> Dict[str, Any]:
+    async def transcribe_audio(
+        self,
+        audio_data: bytes,
+        language: str | None = None,
+        document_id: str | None = None,
+        include_timestamps: bool = False,
+    ) -> dict[str, Any]:
         """Transcribe audio file to text"""
         await self._ensure_audio_model()
 
@@ -138,7 +157,7 @@ class MultiModalService:
                     "transcription": "",
                     "segments": [],
                     "language": language or "unknown",
-                    "processing_time": 0.0
+                    "processing_time": 0.0,
                 }
 
             # Save bytes to temp file and run transcription
@@ -150,7 +169,7 @@ class MultiModalService:
                 result = self._audio_model.transcribe(
                     temp_path,
                     language=language if language and language != "auto" else None,
-                    verbose=False
+                    verbose=False,
                 )
             finally:
                 try:
@@ -161,17 +180,19 @@ class MultiModalService:
             # Format segments
             segments = []
             for segment in result.get("segments", []):
-                segments.append({
-                    "start": segment.get("start"),
-                    "end": segment.get("end"),
-                    "text": segment.get("text")
-                })
+                segments.append(
+                    {
+                        "start": segment.get("start"),
+                        "end": segment.get("end"),
+                        "text": segment.get("text"),
+                    }
+                )
 
             return {
                 "transcription": result.get("text", ""),
                 "segments": segments,
                 "language": result.get("language") or (language or "unknown"),
-                "processing_time": result.get("processing_time", 0.0)
+                "processing_time": result.get("processing_time", 0.0),
             }
 
         except Exception as e:
@@ -180,10 +201,12 @@ class MultiModalService:
                 "transcription": "",
                 "segments": [],
                 "language": "unknown",
-                "processing_time": 0.0
+                "processing_time": 0.0,
             }
 
-    async def transcribe_audio_from_bytes(self, audio_bytes: bytes, language: Optional[str] = None) -> Dict[str, Any]:
+    async def transcribe_audio_from_bytes(
+        self, audio_bytes: bytes, language: str | None = None
+    ) -> dict[str, Any]:
         """Transcribe audio from byte data"""
         try:
             # Save temporarily for processing
@@ -204,11 +227,12 @@ class MultiModalService:
                 "transcription": "",
                 "segments": [],
                 "language": "unknown",
-                "processing_time": 0.0
+                "processing_time": 0.0,
             }
 
-    def render_rich_content(self, content: str, content_type: str,
-                           metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def render_rich_content(
+        self, content: str, content_type: str, metadata: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Render rich content for chat display"""
         try:
             metadata = metadata or {}
@@ -224,11 +248,15 @@ class MultiModalService:
             elif content_type == "code":
                 # Syntax highlight code
                 language = metadata.get("language", "text")
-                rendered = f"<pre class='language-{language}'><code>{content}</code></pre>"
+                rendered = (
+                    f"<pre class='language-{language}'><code>{content}</code></pre>"
+                )
 
             elif content_type == "image":
                 # Render image
-                rendered = f"<img src='{content}' alt='Generated image' class='chat-image' />"
+                rendered = (
+                    f"<img src='{content}' alt='Generated image' class='chat-image' />"
+                )
 
             else:
                 # Plain text fallback
@@ -238,18 +266,18 @@ class MultiModalService:
                 "renderedContent": rendered,
                 "contentType": content_type,
                 "metadata": metadata,
-                "contentId": f"content_{hash(content)}"
+                "contentId": f"content_{hash(content)}",
             }
 
         except Exception as e:
             return {
                 "error": f"Content rendering failed: {str(e)}",
-                "renderedContent": f"<div class='error'>Failed to render content</div>",
+                "renderedContent": "<div class='error'>Failed to render content</div>",
                 "contentType": content_type,
-                "metadata": metadata or {}
+                "metadata": metadata or {},
             }
 
-    async def extract_text_from_image(self, image_path: str) -> Dict[str, Any]:
+    async def extract_text_from_image(self, image_path: str) -> dict[str, Any]:
         """Extract text from image using OCR with pytesseract"""
         try:
             # Read image using PIL
@@ -260,38 +288,44 @@ class MultiModalService:
 
             # Preprocessing for better OCR
             gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
-            _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, threshold = cv2.threshold(
+                gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
 
             # Perform OCR
             text = pytesseract.image_to_string(threshold)
 
             # Get confidence data
-            data = pytesseract.image_to_data(threshold, output_type=pytesseract.Output.DICT)
+            data = pytesseract.image_to_data(
+                threshold, output_type=pytesseract.Output.DICT
+            )
 
             # Calculate average confidence
-            confidences = [conf for conf in data['conf'] if conf != -1]
+            confidences = [conf for conf in data["conf"] if conf != -1]
             avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
 
             # Extract text regions
             regions = []
-            for i, conf in enumerate(data['conf']):
+            for i, conf in enumerate(data["conf"]):
                 if conf > 60:  # Only high confidence regions
-                    regions.append({
-                        "text": data['text'][i],
-                        "confidence": conf,
-                        "bbox": {
-                            "x": data['left'][i],
-                            "y": data['top'][i],
-                            "width": data['width'][i],
-                            "height": data['height'][i]
+                    regions.append(
+                        {
+                            "text": data["text"][i],
+                            "confidence": conf,
+                            "bbox": {
+                                "x": data["left"][i],
+                                "y": data["top"][i],
+                                "width": data["width"][i],
+                                "height": data["height"][i],
+                            },
                         }
-                    })
+                    )
 
             return {
                 "text": text.strip(),
                 "confidence": avg_confidence / 100.0,  # Convert to 0-1 scale
                 "language": "unknown",  # Could be detected
-                "regions": regions
+                "regions": regions,
             }
 
         except Exception as e:
@@ -300,10 +334,10 @@ class MultiModalService:
                 "text": "",
                 "confidence": 0.0,
                 "language": "unknown",
-                "regions": []
+                "regions": [],
             }
 
-    async def extract_text_from_image_bytes(self, image_bytes: bytes) -> Dict[str, Any]:
+    async def extract_text_from_image_bytes(self, image_bytes: bytes) -> dict[str, Any]:
         """Extract text from image bytes using OCR"""
         try:
             # Create PIL image from bytes
@@ -312,7 +346,9 @@ class MultiModalService:
 
             # Preprocessing for better OCR
             gray = cv2.cvtColor(opencv_image, cv2.COLOR_BGR2GRAY)
-            _, threshold = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            _, threshold = cv2.threshold(
+                gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+            )
 
             # Perform OCR
             text = pytesseract.image_to_string(threshold)
@@ -321,7 +357,7 @@ class MultiModalService:
                 "text": text.strip(),
                 "confidence": 0.8,  # Placeholder confidence
                 "language": "unknown",
-                "regions": []
+                "regions": [],
             }
 
         except Exception as e:
@@ -330,56 +366,80 @@ class MultiModalService:
                 "text": "",
                 "confidence": 0.0,
                 "language": "unknown",
-                "regions": []
+                "regions": [],
             }
 
-    def get_supported_formats(self) -> Dict[str, List[str]]:
+    def get_supported_formats(self) -> dict[str, list[str]]:
         """Get supported formats for each modality"""
         return {
             "images": ["image/jpeg", "image/png", "image/gif", "image/webp"],
             "audio": ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4"],
-            "text": ["text/plain", "text/markdown", "application/pdf"]
+            "text": ["text/plain", "text/markdown", "application/pdf"],
         }
 
-    async def get_available_models(self) -> List[Dict[str, Any]]:
+    async def get_available_models(self) -> list[dict[str, Any]]:
         """Get available image analysis models"""
         return [
             {
                 "name": "ocr-tesseract",
                 "type": "ocr",
                 "description": "Tesseract OCR for text extraction",
-                "languages": ["eng", "spa", "fra", "deu"]
+                "languages": ["eng", "spa", "fra", "deu"],
             },
             {
                 "name": "vision-placeholder",
                 "type": "vision",
                 "description": "Placeholder for vision model",
-                "capabilities": ["object_detection", "scene_description"]
-            }
+                "capabilities": ["object_detection", "scene_description"],
+            },
         ]
 
-    async def get_supported_languages(self) -> List[str]:
+    async def get_supported_languages(self) -> list[str]:
         """Get supported languages for transcription"""
         return ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"]
 
-    async def get_transcription_models(self) -> List[Dict[str, Any]]:
+    async def get_transcription_models(self) -> list[dict[str, Any]]:
         """Get available transcription models"""
         return [
             {
                 "name": "whisper-base",
                 "size": "base",
-                "languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"],
-                "description": "Fast Whisper model for general transcription"
+                "languages": [
+                    "en",
+                    "es",
+                    "fr",
+                    "de",
+                    "it",
+                    "pt",
+                    "ru",
+                    "ja",
+                    "zh",
+                    "ar",
+                ],
+                "description": "Fast Whisper model for general transcription",
             },
             {
                 "name": "whisper-large",
                 "size": "large",
-                "languages": ["en", "es", "fr", "de", "it", "pt", "ru", "ja", "zh", "ar"],
-                "description": "High accuracy Whisper model"
-            }
+                "languages": [
+                    "en",
+                    "es",
+                    "fr",
+                    "de",
+                    "it",
+                    "pt",
+                    "ru",
+                    "ja",
+                    "zh",
+                    "ar",
+                ],
+                "description": "High accuracy Whisper model",
+            },
         ]
 
-    async def analyze_audio_content(self, audio_data: bytes, document_id: Optional[str] = None) -> Dict[str, Any]:
+    async def analyze_audio_content(
+        self, audio_data: bytes, document_id: str | None = None
+    ) -> dict[str, Any]:
         """Analyze audio content beyond transcription"""
         # First transcribe
         transcription_result = await self.transcribe_audio_from_bytes(audio_data)
@@ -392,12 +452,13 @@ class MultiModalService:
             "topics": [],  # Placeholder for topic detection
             "language": transcription_result.get("language", "unknown"),
             "duration": transcription_result.get("processing_time", 0.0),
-            "confidence": 0.8  # Placeholder
+            "confidence": 0.8,  # Placeholder
         }
 
 
 # Global instance for dependency injection
 _multimodal_service_instance = None
+
 
 def get_multimodal_service() -> MultiModalService:
     """Get singleton MultiModalService instance"""

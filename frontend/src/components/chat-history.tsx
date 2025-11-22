@@ -33,9 +33,12 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
   const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const filteredSessions = sessions.filter(session =>
-    session.title.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredSessions = sessions.filter((session) =>
+    session.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
+  const [visibleCount, setVisibleCount] = useState(50);
+  useEffect(() => { setVisibleCount(50); }, [searchQuery, sessions.length]);
+  const visibleSessions = filteredSessions.slice(0, visibleCount);
 
   // Close dropdown menu when clicking outside
   useEffect(() => {
@@ -72,15 +75,18 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
     setExpandedMenuId(null);
   }, []);
 
-  const handleShareClick = useCallback(async (e: React.MouseEvent, session: ChatSession) => {
-    e.stopPropagation();
-    try {
-      await shareSession(session.id);
-    } catch (error) {
-      // Error is handled by the context
-    }
-    setExpandedMenuId(null);
-  }, [shareSession]);
+  const handleShareClick = useCallback(
+    async (e: React.MouseEvent, session: ChatSession) => {
+      e.stopPropagation();
+      try {
+        await shareSession(session.id);
+      } catch (error) {
+        // Error is handled by the context
+      }
+      setExpandedMenuId(null);
+    },
+    [shareSession],
+  );
 
   const handleDeleteConfirm = useCallback(async () => {
     if (selectedSession) {
@@ -122,7 +128,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
         <span id="chat-search-help" className="sr-only">
           Type to filter your chat history by title or content
         </span>
-        <ul role="listbox" aria-label="Chat sessions" className="space-y-1">
+        <ul role="listbox" aria-label="Chat sessions" className="space-y-1 overflow-auto max-h-[50vh] pr-1">
           {isLoading ? (
             // Loading skeleton
             Array.from({ length: 5 }).map((_, index) => (
@@ -131,13 +137,13 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
               </li>
             ))
           ) : filteredSessions.length > 0 ? (
-            filteredSessions.map((session) => (
+            visibleSessions.map((session) => (
               <li
                 key={session.id}
                 className={cn(
-                  "group relative flex items-center gap-2 p-2 rounded",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  "transition-colors"
+                  'group relative flex items-center gap-2 p-2 rounded',
+                  'hover:bg-accent hover:text-accent-foreground',
+                  'transition-colors',
                 )}
                 onMouseEnter={() => setHoveredSessionId(session.id)}
                 onMouseLeave={() => {
@@ -147,7 +153,9 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
               >
                 <div
                   onClick={() => onSelectSession(session.id)}
-                  className="flex-1 cursor-pointer truncate min-w-0"
+                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectSession(session.id); }}
+                  tabIndex={0}
+                  className="flex-1 cursor-pointer truncate min-w-0 focus:outline-none focus:ring-2 focus:ring-ring rounded"
                   role="option"
                   aria-selected="false"
                   title={session.title}
@@ -170,7 +178,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
                         <MoreVertical className="h-3 w-3" />
                       </Button>
                       {expandedMenuId === session.id && (
-                        <div ref={menuRef} className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]">
+                        <div
+                          ref={menuRef}
+                          className="absolute right-0 top-8 z-10 bg-background border border-border rounded-md shadow-lg p-1 min-w-[120px]"
+                        >
                           <button
                             onClick={(e) => handleRenameClick(e, session)}
                             className="w-full flex items-center gap-2 px-2 py-1.5 text-sm hover:bg-accent rounded text-left"
@@ -205,6 +216,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             </li>
           )}
         </ul>
+        {filteredSessions.length > visibleCount && (
+          <button
+            className="mt-2 w-full text-xs px-2 py-1 rounded bg-muted hover:bg-muted/80"
+            onClick={() => setVisibleCount((c) => c + 50)}
+            aria-label="Load more conversations"
+          >
+            Load more ({filteredSessions.length - visibleCount} remaining)
+          </button>
+        )}
       </div>
 
       {/* Delete Confirmation Dialog */}
@@ -213,7 +233,8 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
           <DialogHeader>
             <DialogTitle>Delete Conversation</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{selectedSession?.title}"? This action cannot be undone.
+              Are you sure you want to delete "{selectedSession?.title}"? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -226,10 +247,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-            >
+            <Button variant="destructive" onClick={handleDeleteConfirm}>
               Delete
             </Button>
           </DialogFooter>
@@ -241,9 +259,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Rename Conversation</DialogTitle>
-            <DialogDescription>
-              Enter a new name for this conversation.
-            </DialogDescription>
+            <DialogDescription>Enter a new name for this conversation.</DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -271,10 +287,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({ sessions, onSelectSession, is
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleRenameConfirm}
-              disabled={!renameValue.trim()}
-            >
+            <Button onClick={handleRenameConfirm} disabled={!renameValue.trim()}>
               Save
             </Button>
           </DialogFooter>

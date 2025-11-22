@@ -1,5 +1,6 @@
 import asyncio
 from types import SimpleNamespace
+
 from src.services.rag_adapter import AIServiceLLMAdapter
 
 

@@ -5,8 +5,22 @@ import { ChatSession } from '@/types/chat';
 import { Message } from '@/types/message';
 import { Document } from '@/types/document';
 import { UserSettings } from '@/types/settings';
-import { sendMessageStreaming, getModels, getConversations, getConversationMessages, deleteConversation, updateConversation, exportConversation } from '@/lib/api/chat';
-import { uploadDocument as apiUploadDocument, getDocuments as apiGetDocuments, deleteDocument as apiDeleteDocument, updateDocument as apiUpdateDocument, exportDocument as apiExportDocument } from '@/lib/api/documents';
+import {
+  sendMessageStreaming,
+  getModels,
+  getConversations,
+  getConversationMessages,
+  deleteConversation,
+  updateConversation,
+  exportConversation,
+} from '@/lib/api/chat';
+import {
+  uploadDocument as apiUploadDocument,
+  getDocuments as apiGetDocuments,
+  deleteDocument as apiDeleteDocument,
+  updateDocument as apiUpdateDocument,
+  exportDocument as apiExportDocument,
+} from '@/lib/api/documents';
 import { useToast } from './toast-context'; // Import useToast
 
 interface ChatContextType {
@@ -40,7 +54,11 @@ interface ChatContextType {
   // Streaming functionality
   isStreaming: boolean;
   streamingMessage: Message | null;
-  sendStreamingMessage: (content: string, conversationId?: string, enableWebSearch?: boolean) => Promise<void>;
+  sendStreamingMessage: (
+    content: string,
+    conversationId?: string,
+    enableWebSearch?: boolean,
+  ) => Promise<void>;
   stopStreaming: () => void;
   deleteMessage: (messageId: string) => void;
   undoDeleteMessage: () => void;
@@ -114,7 +132,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setSessions(sessionsWithDates);
       } catch (error) {
         console.error('Failed to load conversations from database:', error);
-        const errorMessage = error instanceof Error ? error.message : 'Failed to load chat sessions';
+        const errorMessage =
+          error instanceof Error ? error.message : 'Failed to load chat sessions';
         showToast(errorMessage, 'error');
         // Set empty array on error to prevent UI issues
         setSessions([]);
@@ -145,8 +164,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const fetchModels = async () => {
       try {
         const allModels = await getModels();
-        const local = (allModels || []).filter(m => m.provider === 'llama.cpp');
-        const cloud = (allModels || []).filter(m => m.provider !== 'llama.cpp');
+        const local = (allModels || []).filter((m) => m.provider === 'llama.cpp');
+        const cloud = (allModels || []).filter((m) => m.provider !== 'llama.cpp');
         setLocalModels(local);
         setCloudModels(cloud);
       } catch (err) {
@@ -170,12 +189,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       showToast('Started a new chat.', 'info');
       return;
     }
-    
+
     // Load conversation and messages from API
     try {
       setIsLoading(true);
       const { conversation, messages: loadedMessages } = await getConversationMessages(sessionId);
-      
+
       const session: ChatSession = {
         id: conversation.id,
         title: conversation.title,
@@ -184,17 +203,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         documentId: conversation.documentId || undefined,
         messageCount: conversation.messageCount,
       };
-      
+
       setCurrentSession(session);
       setMessages(loadedMessages);
-      
+
       // Set selected document if conversation has one
       if (conversation.documentId) {
         setSelectedDocumentId(conversation.documentId);
       } else {
         setSelectedDocumentId(null);
       }
-      
+
       // Refresh conversations list to update last activity (don't fail if this fails)
       try {
         const conversations = await getConversations(50);
@@ -213,7 +232,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // Don't show error for refresh failure, just log it
         console.warn('Failed to refresh conversations list:', refreshError);
       }
-      
+
       showToast(`Loaded conversation: ${session.title}`, 'info');
     } catch (error) {
       console.error('Failed to load conversation:', error);
@@ -268,16 +287,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       showToast('Filename cannot be empty.', 'error');
       return;
     }
-    
+
     try {
       setIsLoading(true);
       const updatedDocument = await apiUpdateDocument(documentId, newFilename.trim());
-      
+
       // Update in documents list
-      setDocuments(prev => prev.map(doc => 
-        doc.id === documentId ? updatedDocument : doc
-      ));
-      
+      setDocuments((prev) => prev.map((doc) => (doc.id === documentId ? updatedDocument : doc)));
+
       showToast('Document renamed successfully.', 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to rename document';
@@ -293,7 +310,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const documentData = await apiExportDocument(documentId);
-      
+
       // Create a JSON blob and download it
       const jsonString = JSON.stringify(documentData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -305,7 +322,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       // Also copy to clipboard as a fallback
       try {
         await navigator.clipboard.writeText(jsonString);
@@ -323,7 +340,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const sendStreamingMessage = async (content: string, conversationId?: string, enableWebSearch: boolean = false) => {
+  const sendStreamingMessage = async (
+    content: string,
+    conversationId?: string,
+    enableWebSearch: boolean = false,
+  ) => {
     if (isStreaming) return; // Prevent multiple simultaneous streams
 
     setIsStreaming(true);
@@ -363,24 +384,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         // onChunk callback - update streaming message content
         (chunk: string) => {
           // eslint-disable-next-line no-console
-          console.debug('[chat-context] onChunk received length=', chunk?.length, 'preview=', chunk?.slice(0,50));
-          setStreamingMessage(prev => {
+          console.debug(
+            '[chat-context] onChunk received length=',
+            chunk?.length,
+            'preview=',
+            chunk?.slice(0, 50),
+          );
+          setStreamingMessage((prev) => {
             if (!prev) return null;
             // If placeholder is present, replace it with the first real chunk
             const placeholder = 'Assistant is typing...';
             const newContent = prev.content === placeholder ? chunk : prev.content + chunk;
             return {
               ...prev,
-              content: newContent
+              content: newContent,
             };
           });
         },
         // onComplete callback - finalize the message
         (finalMessage) => {
-          // finalMessage is expected to be { content, messageId?, citations? }
+          // finalMessage is expected to be { content, messageId, citations?, web* }
           // eslint-disable-next-line no-console
-          console.debug('[chat-context] onComplete finalMessage preview=', finalMessage?.content?.slice(0,80));
+          console.debug(
+            '[chat-context] onComplete finalMessage preview=',
+            finalMessage?.content?.slice(0, 80),
+          );
           setStreamingMessage(null);
+
+          // Dev-only: show a small toast with web provider/impl if present
+          try {
+            if (process.env.NODE_ENV !== 'production') {
+              const wp = (finalMessage as any)?.webProvider;
+              const wi = (finalMessage as any)?.webImpl;
+              const used = (finalMessage as any)?.webSearchUsed;
+              const cnt = (finalMessage as any)?.webSearchResultsCount;
+              if (wp || wi) {
+                showToast(
+                  `Web ${used ? 'USED' : 'OFF'}: provider=${wp ?? 'n/a'}, impl=${wi ?? 'n/a'}, results=${cnt ?? 0}`,
+                  'info',
+                );
+              }
+            }
+          } catch {}
 
           // Format the backend content and citations into a clear, human-readable Markdown string
           const formatFinal = (msg: { content?: string; citations?: any[] | undefined }) => {
@@ -416,6 +461,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             role: 'assistant',
             conversationId: conversationId || currentSession?.id || 'default',
             citations: (finalMessage as any)?.citations ?? [],
+            metadata: {
+              webProvider: (finalMessage as any)?.webProvider,
+              webImpl: (finalMessage as any)?.webImpl,
+              webSearchUsed: (finalMessage as any)?.webSearchUsed,
+              webSearchResultsCount: (finalMessage as any)?.webSearchResultsCount,
+            },
           };
           addMessage(aiMessage);
           showToast('AI response received!', 'success');
@@ -435,7 +486,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   messageCount: conv.messageCount || 0,
                 }));
               setSessions(updatedSessions);
-              
+
               // If we don't have a current session but we have a conversationId, find and set it
               if (!currentSession && (conversationId || userMessage.conversationId)) {
                 const convId = conversationId || userMessage.conversationId;
@@ -457,7 +508,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setCurrentSession({
               ...currentSession,
               lastActivity: new Date(),
-              messageCount: currentSession.messageCount + 2
+              messageCount: currentSession.messageCount + 2,
             });
           }
         },
@@ -468,7 +519,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           setError(error.message);
           setStreamingMessage(null);
           showToast(`Error: ${error.message}`, 'error');
-        }
+        },
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -487,29 +538,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteMessage = (messageId: string) => {
-    const messageToDelete = messages.find(msg => msg.id === messageId);
+    const messageToDelete = messages.find((msg) => msg.id === messageId);
     if (messageToDelete) {
-      setMessages(prev => prev.filter(msg => msg.id !== messageId));
-      setDeletedMessages(prev => [...prev, messageToDelete]);
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      setDeletedMessages((prev) => [...prev, messageToDelete]);
       setLastDeletedMessage(messageToDelete);
       showToast('Message deleted. Click "Undo" to restore.', 'info', 10000);
 
       // Auto-clear undo after 10 seconds
       setTimeout(() => {
         setLastDeletedMessage(null);
-        setDeletedMessages(prev => prev.filter(msg => msg.id !== messageId));
+        setDeletedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
       }, 10000);
     }
   };
 
   const undoDeleteMessage = () => {
     if (lastDeletedMessage) {
-      setMessages(prev => {
+      setMessages((prev) => {
         // Insert the message back in the correct position based on timestamp
         const newMessages = [...prev, lastDeletedMessage];
         return newMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
       });
-      setDeletedMessages(prev => prev.filter(msg => msg.id !== lastDeletedMessage.id));
+      setDeletedMessages((prev) => prev.filter((msg) => msg.id !== lastDeletedMessage.id));
       setLastDeletedMessage(null);
       showToast('Message restored.', 'success');
     }
@@ -520,17 +571,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       await deleteConversation(sessionId);
-      
+
       // Remove from sessions list
-      setSessions(prev => prev.filter(s => s.id !== sessionId));
-      
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
       // If the deleted session was the current one, clear it
       if (currentSession?.id === sessionId) {
         setCurrentSession(null);
         setMessages([]);
         setSelectedDocumentId(null);
       }
-      
+
       showToast('Conversation deleted successfully.', 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete conversation';
@@ -547,21 +598,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       showToast('Title cannot be empty.', 'error');
       return;
     }
-    
+
     try {
       setIsLoading(true);
       await updateConversation(sessionId, { title: newTitle.trim() });
-      
+
       // Update in sessions list
-      setSessions(prev => prev.map(s => 
-        s.id === sessionId ? { ...s, title: newTitle.trim() } : s
-      ));
-      
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, title: newTitle.trim() } : s)),
+      );
+
       // Update current session if it's the one being renamed
       if (currentSession?.id === sessionId) {
         setCurrentSession({ ...currentSession, title: newTitle.trim() });
       }
-      
+
       showToast('Conversation renamed successfully.', 'success');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to rename conversation';
@@ -577,7 +628,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const conversationData = await exportConversation(sessionId);
-      
+
       // Create a JSON blob and download it
       const jsonString = JSON.stringify(conversationData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -589,7 +640,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       // Also copy to clipboard as a fallback
       try {
         await navigator.clipboard.writeText(jsonString);

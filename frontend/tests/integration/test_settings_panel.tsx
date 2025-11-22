@@ -5,7 +5,11 @@ import { ChatProvider } from '../../src/lib/context/chat-context';
 
 describe('Settings Panel Integration', () => {
   it('should open the settings panel when the settings icon is clicked', () => {
-    render(<ChatProvider><Home /></ChatProvider>);
+    render(
+      <ChatProvider>
+        <Home />
+      </ChatProvider>,
+    );
     // This test will pass once a settings icon/button is implemented.
     // For now, it serves as a placeholder and will fail if this element is not found.
     const settingsButton = screen.queryByLabelText(/settings/i); // Assuming an accessible name for the settings button

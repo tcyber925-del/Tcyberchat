@@ -1,27 +1,28 @@
 """
 Conversations API: CRUD and export/import
 """
+
 import json
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Body, Response
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..services.chat_service import get_chat_service, ChatService
+from ..services.chat_service import get_chat_service
 
 router = APIRouter(tags=["conversations"])
 
 
 class CreateConversationRequest(BaseModel):
-    title: Optional[str] = None
-    documentId: Optional[str] = None
+    title: str | None = None
+    documentId: str | None = None
 
 
 class UpdateConversationRequest(BaseModel):
-    title: Optional[str] = None
-    isPinned: Optional[bool] = None
-    isArchived: Optional[bool] = None
+    title: str | None = None
+    isPinned: bool | None = None
+    isArchived: bool | None = None
 
 
 @router.get("/")
@@ -32,9 +33,13 @@ async def list_conversations(limit: int = 50, db: Session = Depends(get_db)):
 
 
 @router.post("/")
-async def create_conversation(request: CreateConversationRequest = Body(...), db: Session = Depends(get_db)):
+async def create_conversation(
+    request: CreateConversationRequest = Body(...), db: Session = Depends(get_db)
+):
     chat_service = get_chat_service()
-    conv = chat_service.create_conversation(title=request.title, document_id=request.documentId)
+    conv = chat_service.create_conversation(
+        title=request.title, document_id=request.documentId
+    )
     return conv.to_dict()
 
 
@@ -50,13 +55,19 @@ async def get_conversation(conversation_id: str, db: Session = Depends(get_db)):
 
 
 @router.patch("/{conversation_id}")
-async def update_conversation(conversation_id: str, request: UpdateConversationRequest = Body(...), db: Session = Depends(get_db)):
+async def update_conversation(
+    conversation_id: str,
+    request: UpdateConversationRequest = Body(...),
+    db: Session = Depends(get_db),
+):
     chat_service = get_chat_service()
     conv = None
     if request.title is not None:
         conv = chat_service.update_conversation_title(conversation_id, request.title)
     if request.isPinned is not None or request.isArchived is not None:
-        conv = chat_service.set_conversation_flags(conversation_id, is_pinned=request.isPinned, is_archived=request.isArchived)
+        conv = chat_service.set_conversation_flags(
+            conversation_id, is_pinned=request.isPinned, is_archived=request.isArchived
+        )
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conv.to_dict()

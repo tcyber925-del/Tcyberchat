@@ -1,6 +1,6 @@
-import os
-from typing import Optional, AsyncGenerator
 import asyncio
+import os
+from collections.abc import AsyncGenerator
 
 try:
     from openai import OpenAI
@@ -16,7 +16,12 @@ class OpenRouterClient:
         client.chat("Hello")
     """
 
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://openrouter.ai/api/v1", model: str = "openai/gpt-oss-20b:free"):
+    def __init__(
+        self,
+        api_key: str | None = None,
+        base_url: str = "https://openrouter.ai/api/v1",
+        model: str = "openai/gpt-oss-20b:free",
+    ):
         self.model = model
         self.base_url = base_url
         self.api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
@@ -50,7 +55,7 @@ class OpenRouterClient:
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                stream=True
+                stream=True,
             )
             for chunk in stream:
                 if chunk.choices and chunk.choices[0].delta.content:

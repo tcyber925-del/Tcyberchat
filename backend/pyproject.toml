@@ -40,6 +40,9 @@ dependencies = [
     "httpx",
     "asyncio",
 
+    # MCP SDK
+    "mcp",
+
     # Development dependencies
     "pytest",
     "pytest-asyncio",
@@ -47,6 +50,9 @@ dependencies = [
     "ruff",
     "pre-commit"
 ]
+
+[project.scripts]
+mcp-server = "scripts.mcp_server:main"
 
 [tool.black]
 line-length = 88
@@ -111,5 +117,5 @@ warn_unreachable = true
 strict_equality = true
 
 [[tool.mypy.overrides]]
-module = ["chromadb.*", "sentence_transformers.*", "langchain.*"]
+module = ["chromadb.*", "sentence_transformers.*", "langchain.*", "mcp.*"]
 ignore_missing_imports = true

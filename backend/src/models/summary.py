@@ -2,11 +2,10 @@
 Summary model for AI-generated document summaries
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import Column, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
@@ -21,7 +20,7 @@ class Summary(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     content = Column(Text, nullable=False)  # The summary text
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
     model = Column(String(100), nullable=False)  # AI model used (e.g., "llama3.1:8b")
 
     # Relationships
@@ -39,7 +38,7 @@ class Summary(Base):
             "documentId": str(self.document_id),
             "content": self.content,
             "createdAt": self.created_at.isoformat(),
-            "model": self.model
+            "model": self.model,
         }
 
     def __repr__(self) -> str:
