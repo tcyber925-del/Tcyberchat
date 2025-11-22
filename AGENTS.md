@@ -248,6 +248,37 @@ When asked to build/modify features, follow these guidelines:
 - Persist storage directories, vector DB data, metadata DB; version control frontend; backup raw documents.
 
 ---
+## MCP Tool Usage (Expanded, Universal)
+
+---
+alwaysApply=True
+---
+If an MCP tool server is available (examples: Context7, filesystem, process, npm, venv, Git, Docker, HTTP, etc.):
+
+Agents MUST:
+
+Use the MCP tool whenever it reduces hallucination
+
+Use the docs API to:
+
+Look up library functions
+
+Validate import paths
+
+Generate accurate code
+
+Confirm API signatures
+
+Use MCP file tools for reading/writing local project files
+
+Use MCP process tools for running local commands (tests, formatting)
+
+Use MCP package managers (npm/pip/uv) through MCP when available
+
+This is a hard rule:
+
+If code generation depends on library knowledge, ALWAYS call the MCP documentation lookup tool before writing the code.
+---
 
 ## Security & Privacy Notes
 

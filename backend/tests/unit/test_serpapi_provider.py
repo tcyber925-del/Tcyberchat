@@ -66,7 +66,7 @@ class TestSerpAPIProvider:
             return_value=True,
         ):
             # Mock serpapi.Client where it's imported in the search method
-            with patch("serpapi.Client") as mock_client_class:
+            with patch("serpapi.Client", create=True) as mock_client_class:
                 mock_client = Mock()
                 # client.search() returns a SerpResults object that acts like a dict
                 mock_client.search.return_value = mock_response
@@ -99,7 +99,7 @@ class TestSerpAPIProvider:
             return_value=True,
         ):
             # Mock serpapi.Client where it's imported in the search method
-            with patch("serpapi.Client") as mock_client_class:
+            with patch("serpapi.Client", create=True) as mock_client_class:
                 mock_client = Mock()
                 mock_client.search.side_effect = Exception("Invalid API key")
                 mock_client_class.return_value = mock_client
@@ -117,7 +117,7 @@ class TestSerpAPIProvider:
             return_value=True,
         ):
             # Mock serpapi.Client where it's imported in the search method
-            with patch("serpapi.Client") as mock_client_class:
+            with patch("serpapi.Client", create=True) as mock_client_class:
                 mock_client = Mock()
                 mock_client.search.side_effect = Exception("Rate limit exceeded")
                 mock_client_class.return_value = mock_client
@@ -137,7 +137,7 @@ class TestSerpAPIProvider:
             return_value=True,
         ):
             # Mock serpapi.Client where it's imported in the search method
-            with patch("serpapi.Client") as mock_client_class:
+            with patch("serpapi.Client", create=True) as mock_client_class:
                 mock_client = Mock()
                 mock_client.search.return_value = mock_response
                 mock_client_class.return_value = mock_client
@@ -168,7 +168,7 @@ class TestSerpAPIProvider:
             return_value=True,
         ):
             # Mock serpapi.Client where it's imported in the search method
-            with patch("serpapi.Client") as mock_client_class:
+            with patch("serpapi.Client", create=True) as mock_client_class:
                 mock_client = Mock()
                 mock_client.search.return_value = mock_response
                 mock_client_class.return_value = mock_client

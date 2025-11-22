@@ -170,7 +170,7 @@ export async function sendMessageStreaming(
 
 // getModels - fetches the list of available AI models
 export async function getModels() {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://0.0.0.0:8000';
   const response = await fetch(`${API_BASE_URL}/api/v1/models`);
   if (!response.ok) {
     const text = await response.text().catch(() => response.statusText);

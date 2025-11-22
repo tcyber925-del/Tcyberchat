@@ -35,9 +35,29 @@ async def search(
         # For now, focus on document search via RAG
         # In a full implementation, this would also search conversations
         if type in ["all", "documents"]:
-            results = await rag_service.search_relevant_chunks(
+            raw_results = await rag_service.search_relevant_chunks(
                 query=q.strip(), limit=limit
             )
+
+            # Normalize results to contract shape expected by callers/tests
+            results = []
+            for r in raw_results:
+                metadata = r.get("metadata") or {}
+                doc_id = r.get("document_id") or metadata.get("document_id")
+                title = metadata.get("title") or metadata.get("filename") or f"Document {doc_id}"
+                snippet = (r.get("content") or "")[:200]
+                score = r.get("score") or r.get("relevance_rank") or 0
+                results.append(
+                    {
+                        "type": "document",
+                        "id": doc_id,
+                        "title": title,
+                        "snippet": snippet,
+                        "score": score,
+                        # include original raw fields for debugging
+                        "_raw": r,
+                    }
+                )
 
             return {"query": q.strip(), "results": results, "total": len(results)}
         else:

@@ -11,9 +11,9 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from backend.src.clients.gemini_client import GeminiClient
-from backend.src.clients.llama_cpp_client import LlamaCppClient
-from backend.src.clients.openrouter_client import OpenRouterClient
+from src.clients.gemini_client import GeminiClient
+from src.clients.llama_cpp_client import LlamaCppClient
+from src.clients.openrouter_client import OpenRouterClient
 
 # Load environment variables
 load_dotenv()

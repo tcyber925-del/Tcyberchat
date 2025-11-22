@@ -27,6 +27,7 @@ try:
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
     from src.api.integrations_mcp import router as integrations_mcp_router
+    from src.api.admin_vectorstore import router as admin_vectorstore_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -82,11 +83,82 @@ async def lifespan(app: FastAPI):
                 logger.info("Reranker warm-loaded")
     except Exception as e:
         logger.warning(f"Reranker warm-load skipped: {e}")
+    # Admin API sanity check: warn if admin endpoints enabled but no API key provided
     try:
+        if os.getenv("ADMIN_API_ENABLED", "false").lower() == "true":
+            admin_key = os.getenv("ADMIN_API_KEY")
+            if not admin_key:
+                logger.warning(
+                    "ADMIN_API_ENABLED=true but ADMIN_API_KEY is not set. Admin endpoints will be unprotected."
+                )
+    except Exception:
+        # best effort; don't fail startup for logging issues
+        pass
+    # Optional background processing of the index retry queue
+    index_retry_task = None
+    stop_event = None
+    try:
+        # Start background loop only if enabled via env var
+        if os.getenv("INDEX_RETRY_QUEUE_AUTOPROC", "false").lower() == "true":
+            import asyncio
+
+            from src.services.index_retry_queue import get_index_job_queue
+
+            interval = int(os.getenv("INDEX_RETRY_QUEUE_INTERVAL_SECONDS", "60"))
+
+            stop_event = asyncio.Event()
+
+            async def _process_loop(stop_evt: asyncio.Event, interval_s: int):
+                q = get_index_job_queue()
+                logger.info("Index retry queue autoproc enabled, starting loop")
+                while not stop_evt.is_set():
+                    try:
+                        res = await q.process_all()
+                        logger.info(f"Index retry loop processed: {res}")
+                        # Move scheduled jobs that are due (if backend supports it)
+                        try:
+                            if hasattr(q, "_move_due_scheduled_to_queue"):
+                                m = q._move_due_scheduled_to_queue()
+                                if m:
+                                    logger.info(f"Moved {m} scheduled jobs into queue")
+                        except Exception as e:
+                            logger.debug(f"Failed to move scheduled jobs: {e}")
+                        # Reclaim expired processing claims so they can be retried
+                        try:
+                            if hasattr(q, "reclaim_expired"):
+                                r = q.reclaim_expired()
+                                if r:
+                                    logger.info(f"Reclaimed {r} expired processing jobs")
+                        except Exception as e:
+                            logger.debug(f"Failed to reclaim expired claims: {e}")
+                        # Attempt to requeue failed jobs if backend supports it
+                        try:
+                            if hasattr(q, "requeue_all_failed"):
+                                req_count = await q.requeue_all_failed()
+                                if req_count:
+                                    logger.info(f"Requeued {req_count} failed jobs")
+                        except Exception as e:
+                            logger.debug(f"Failed to run failed-job requeue: {e}")
+                    except Exception as e:
+                        logger.warning(f"Index retry loop error: {e}")
+                    await asyncio.wait([stop_evt.wait()], timeout=interval_s)
+
+            index_retry_task = asyncio.create_task(_process_loop(stop_event, interval))
+
         yield
     finally:
         # Shutdown
         logger.info("Application shutting down...")
+        if stop_event is not None:
+            stop_event.set()
+        if index_retry_task is not None:
+            try:
+                import asyncio
+
+                asyncio.get_event_loop().run_until_complete(index_retry_task)
+            except Exception:
+                # If loop already stopped or cannot join, ignore
+                pass
 
 
 # Initialize FastAPI app with enhanced OpenAPI documentation
@@ -151,7 +223,11 @@ app = FastAPI(
 # Configure CORS for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend development server
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+    ],  # Frontend development server (allow common dev hosts)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -216,6 +292,15 @@ app.include_router(transcribe_audio_router, prefix="/api")
 app.include_router(render_content_router, prefix="/api")
 app.include_router(web_tools_router, prefix="/api")
 app.include_router(integrations_mcp_router, prefix="/api")
+app.include_router(admin_vectorstore_router, prefix="/api")
+# Metrics router
+try:
+    from src.api.metrics import router as metrics_router
+
+    app.include_router(metrics_router, prefix="")
+except Exception:
+    # optional metrics support; ignore if import fails
+    pass
 
 
 # Global exception handlers for graceful error handling

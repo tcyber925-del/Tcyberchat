@@ -22,3 +22,14 @@ pytest tests/integration
 
 CI
 - A GitHub Actions workflow has been added at `.github/workflows/ci.yml` to run the backend tests on push / PR.
+
+Test shims
+- For CI/test stability the repository contains lightweight in-repo shims used when optional test dependencies
+	are not installed: `fakeredis.py` (a minimal FakeRedis shim) and `prometheus_client.py` (a tiny metrics
+	rendering shim). These are only intended for tests and local development; prefer installing the real
+	`fakeredis` and `prometheus_client` packages in CI and production environments.
+
+Recommended CI change:
+- Install `fakeredis` and `prometheus_client` in the CI job when available so the shims are replaced by
+	the real packages. The shims will continue to act as fallbacks for quick local runs where installing
+	optional deps is not desirable.

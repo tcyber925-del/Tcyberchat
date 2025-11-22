@@ -411,6 +411,39 @@ class DocumentService:
             # Fallback to simple chunking if RAG service fails
             await self._fallback_chunking(document)
 
+            # Attempt to add fallback chunks to a lightweight vectorstore as a last resort
+            try:
+                from .vectorstore_manager import add_texts as _add_texts
+                from .index_retry_queue import get_index_job_queue
+
+                chunks = getattr(document, "chunks", []) or []
+                if chunks:
+                    metadatas = [
+                        {
+                            "document_id": doc_id,
+                            "filename": filename,
+                            "mime_type": mime,
+                            "chunk_index": idx,
+                        }
+                        for idx, _ in enumerate(chunks)
+                    ]
+                    ok = _add_texts(chunks, metadatas=metadatas)
+                    if ok:
+                        document.has_embeddings = True
+                    else:
+                        # Enqueue for later retry
+                        try:
+                            q = get_index_job_queue()
+                            # enqueue is async
+                            import asyncio
+
+                            asyncio.get_event_loop().create_task(q.enqueue({"texts": chunks, "metadatas": metadatas, "document_id": doc_id}))
+                        except Exception:
+                            pass
+            except Exception:
+                # Swallow any errors from fallback indexing to avoid breaking processing
+                pass
+
     async def _extract_pdf_content(self, file_path: str) -> str:
         """Extract text content from PDF file"""
         try:
@@ -843,3 +876,33 @@ class DocumentService:
 def get_document_service(db: Session = Depends(get_db)) -> DocumentService:
     """Get DocumentService instance with database session"""
     return DocumentService(db)
+
+
+def list_all_documents_texts() -> list[tuple[str, dict]]:
+    """Return a list of tuples (text, metadata) for all documents.
+
+    This helper is used by admin tooling to bulk-index documents. It avoids
+    needing to construct a service instance and returns simple serializable
+    structures.
+    """
+    try:
+        # Create a lightweight DB session to fetch documents
+        from .database import SessionLocal
+
+        db = SessionLocal()
+        try:
+            docs = db.query(Document).all()
+            out = []
+            for d in docs:
+                text = getattr(d, "content", "") or ""
+                meta = {
+                    "id": str(getattr(d, "id", "")),
+                    "filename": getattr(d, "filename", ""),
+                    "mime_type": getattr(d, "mime_type", ""),
+                }
+                out.append((text, meta))
+            return out
+        finally:
+            db.close()
+    except Exception:
+        return []

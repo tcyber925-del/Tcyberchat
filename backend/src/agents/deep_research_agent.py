@@ -109,6 +109,24 @@ async def investigate_parallel(state: ResearchState) -> Dict[str, Any]:
     
     from ..services.web_search_service import get_web_search_service
     from ..services.web_fetch_service import get_web_fetch_service
+
+    # lazy import for optional retriever integration
+    def get_retriever_tool():
+        try:
+            from ..services.rag_service import RAGService
+            from .tools import create_retriever_tool_from_vectorstore
+
+            try:
+                rs = RAGService()
+            except Exception:
+                return None
+
+            if getattr(rs, "vectorstore", None) is None:
+                return None
+
+            return create_retriever_tool_from_vectorstore(rs.vectorstore, top_k=3)
+        except Exception:
+            return None
     
     search_service = get_web_search_service()
     fetch_service = get_web_fetch_service()
@@ -124,6 +142,15 @@ async def investigate_parallel(state: ResearchState) -> Dict[str, Any]:
             # Fetch top URLs
             urls = [r.url for r in results[:2] if r.url]
             fetched = await fetch_service.fetch_multiple(urls) if urls else []
+
+            # Attempt to enrich with vectorstore retriever results (optional)
+            retriever = get_retriever_tool()
+            retriever_results = []
+            if retriever:
+                try:
+                    retriever_results = retriever(question, k=3)
+                except Exception:
+                    retriever_results = []
             
             # Build findings summary
             findings_parts = []
@@ -138,6 +165,26 @@ async def investigate_parallel(state: ResearchState) -> Dict[str, Any]:
                     "url": fr.canonical_url if fr and fr.canonical_url else r.url,
                     "snippet": r.snippet,
                     "tokens": fr.tokens_estimate if fr else 0,
+                })
+
+            # Merge retriever results; support multiple result shapes
+            for ridx, rd in enumerate(retriever_results, start=len(sources) + 1):
+                # rd may be {"text","title","source"} or {"page_content","metadata":{...}}
+                if isinstance(rd, dict) and "page_content" in rd:
+                    title = rd.get("metadata", {}).get("title")
+                    source_url = rd.get("metadata", {}).get("source")
+                    text = rd.get("page_content")
+                else:
+                    title = rd.get("title") if isinstance(rd, dict) else None
+                    source_url = rd.get("source") if isinstance(rd, dict) else None
+                    text = rd.get("text") if isinstance(rd, dict) else str(rd)
+
+                sources.append({
+                    "id": ridx,
+                    "title": title or f"retrieved_{ridx}",
+                    "url": source_url or None,
+                    "snippet": (text or "")[:300],
+                    "tokens": 0,
                 })
             
             return {
