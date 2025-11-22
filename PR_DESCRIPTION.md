@@ -22,6 +22,8 @@ Commands to open PR locally using `gh` (if you prefer):
 # create a branch locally that matches the remote branch (if needed)
 git fetch origin feat/mcp-integration
 git checkout -b feat/fix-fakeredis-shim origin/feat/mcp-integration
+ git fetch origin feat/mcp-integration
+ git checkout -b feat/fix-fakeredis-shim origin/feat/mcp-integration
 
 # create PR using GitHub CLI
 gh pr create --title "Fix fakeredis shim and document test shims" --body-file PR_DESCRIPTION.md --base main --head feat/fix-fakeredis-shim

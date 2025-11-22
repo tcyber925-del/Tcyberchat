@@ -1,16 +1,10 @@
-"""Lightweight fakeredis shim for unit tests.
+"""Lightweight fakeredis shim (moved into tests/_shims).
 
-This module prefers the real `fakeredis` package when available and
-falls back to a minimal in-repo shim implementing the subset of Redis
-commands used by unit tests (lists, hashes, sorted-sets and a simple
-pipeline).
-"""Top-level compatibility wrapper for test shims.
-
-This module re-exports the test-only shim that now lives under
-`backend/tests/_shims/`. Keeping a tiny top-level wrapper preserves
-`import fakeredis` semantics for tests and code that expect that
-module name.
+This file is a copy of the test shim and is only used as a fallback
+when the real `fakeredis` package is not installed. It is intended to
+live under `backend/tests/_shims/` so test-only code is grouped.
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -18,7 +12,6 @@ from typing import Any, Dict, List, Tuple, Optional
 try:
     import importlib, sys
     _real_faker = importlib.import_module("fakeredis")
-    # If importing 'fakeredis' gave us this same module (self-import), treat as not available
     if _real_faker is sys.modules.get(__name__):
         raise ImportError("embedded shim: use fallback")
 
@@ -180,8 +173,3 @@ except Exception:
         @staticmethod
         def from_url(url: str, decode_responses: bool = True):
             return FakeRedis()
-from backend.tests._shims import fakeredis as _shim
-
-# Re-export the main symbols used by tests
-FakeRedis = getattr(_shim, "FakeRedis")
-Redis = getattr(_shim, "Redis")
