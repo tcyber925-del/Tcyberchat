@@ -20,6 +20,8 @@ Commands to open PR locally using `gh` (if you prefer):
 
 ```pwsh
 # create a branch locally that matches the remote branch (if needed)
+git fetch origin feat/mcp-integration
+git checkout -b feat/fix-fakeredis-shim origin/feat/mcp-integration
  git fetch origin feat/mcp-integration
  git checkout -b feat/fix-fakeredis-shim origin/feat/mcp-integration
 
@@ -34,3 +36,5 @@ $body = Get-Content PR_DESCRIPTION.md -Raw
 $payload = @{ title = 'Fix fakeredis shim and document test shims'; head = 'feat/mcp-integration'; base = 'main'; body = $body } | ConvertTo-Json -Depth 5
 curl -s -X POST -H "Authorization: token $env:GITHUB_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/Codcyber101/TcyberLocalChat/pulls -d $payload | ConvertFrom-Json
 ```
+
+If you'd like, I can try creating the PR via the API now (requires a token). Let me know and I will proceed.

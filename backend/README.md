@@ -1,3 +1,4 @@
+````markdown
 # Backend
 
 This folder contains the backend FastAPI application and tests for the Local First Chatbot.
@@ -33,3 +34,5 @@ Recommended CI change:
 - Install `fakeredis` and `prometheus_client` in the CI job when available so the shims are replaced by
 	the real packages. The shims will continue to act as fallbacks for quick local runs where installing
 	optional deps is not desirable.
+
+````
