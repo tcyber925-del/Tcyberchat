@@ -17,7 +17,7 @@ export type McpServer = {
 
 export type McpServerUpsert = {
   id: string;
-  transport: 'wss' | 'stdio';
+  transport: 'wss' | 'sse' | 'stdio';
   enabled?: boolean;
   // wss fields
   url?: string;
@@ -25,6 +25,8 @@ export type McpServerUpsert = {
   // stdio fields
   command?: string;
   args?: string[];
+  // optional env for stdio servers
+  env?: Record<string, string>;
   tags?: string[];
   timeouts?: { connectMs?: number; readMs?: number };
 };
@@ -50,6 +52,8 @@ export type McpFetchDocResponse = {
     source_type?: string;
   };
   error?: string;
+  // Optional structured content returned by MCP tool (when available)
+  structuredContent?: any;
 };
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
@@ -99,4 +103,29 @@ export async function fetchDocViaMcp(req: McpFetchDocRequest): Promise<McpFetchD
     method: 'POST',
     body: JSON.stringify(req),
   });
+}
+
+export async function testConnection(server: McpServerUpsert): Promise<{ ok: boolean; tools?: any[]; error?: string }> {
+  return http('/api/integrations/mcp/test-connection', {
+    method: 'POST',
+    body: JSON.stringify(server),
+  });
+}
+
+export async function getServerEnv(serverId: string, adminToken?: string): Promise<any> {
+  const path = `/api/integrations/mcp/servers/${encodeURIComponent(serverId)}/env`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (adminToken) headers['X-Admin-Token'] = adminToken;
+  const res = await fetch(path, { method: 'GET', headers });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const j = await res.json();
+      detail = j?.detail || j?.error || res.statusText;
+    } catch {
+      detail = res.statusText;
+    }
+    throw new Error(`HTTP ${res.status} ${detail}`);
+  }
+  return res.json();
 }

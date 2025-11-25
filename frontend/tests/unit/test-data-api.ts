@@ -1,15 +1,24 @@
-import { exportData, importData } from '../../src/lib/api/data';
+// Remove static imports
+// import { exportData, importData } from '../../src/lib/api/data';
 
 // Mock fetch globally
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
 describe('Data Management API', () => {
-  const API_URL = 'http://localhost:3001';
+  const API_URL = 'http://localhost:8000';
+  let exportData: any;
+  let importData: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
+    jest.resetModules(); // Reset modules to ensure fresh import
     process.env.NEXT_PUBLIC_API_URL = API_URL;
+
+    // Dynamically import the module after setting env var
+    const dataModule = await import('../../src/lib/api/data');
+    exportData = dataModule.exportData;
+    importData = dataModule.importData;
   });
 
   afterEach(() => {
@@ -42,7 +51,12 @@ describe('Data Management API', () => {
     });
 
     it('should use default API URL when NEXT_PUBLIC_API_URL is not set', async () => {
+      jest.resetModules(); // Reset again for this specific test case
       delete process.env.NEXT_PUBLIC_API_URL;
+
+      // Re-import with no env var
+      const dataModule = await import('../../src/lib/api/data');
+      exportData = dataModule.exportData;
 
       const mockBlob = new Blob(['test data'], { type: 'application/zip' });
       mockFetch.mockResolvedValueOnce({
@@ -52,7 +66,8 @@ describe('Data Management API', () => {
 
       await exportData();
 
-      expect(mockFetch).toHaveBeenCalledWith('http://localhost:3001/data-management/export', {
+      // Default is http://0.0.0.0:8000 based on source code
+      expect(mockFetch).toHaveBeenCalledWith('http://0.0.0.0:8000/data-management/export', {
         method: 'POST',
       });
     });

@@ -1,46 +1,42 @@
 """
-WebSocket MCP connection using the official MCP SDK.
+SSE (Streamable HTTP) MCP connection using the official MCP SDK.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
 
-class WsMcpConnection:
-    """WebSocket-based MCP client connection."""
+class SseMcpConnection:
+    """SSE-based MCP client connection."""
 
-    def __init__(self, url: str, headers: Optional[Dict[str, str]] = None, connect_timeout: float = 3.0) -> None:
+    def __init__(self, url: str, headers: Optional[Dict[str, str]] = None) -> None:
         self._url = url
         self._headers = headers or {}
-        self._connect_timeout = connect_timeout
         self._session = None
         self._client = None
         self._context = None
 
     async def start(self) -> None:
-        """Connect to the MCP server via WebSocket."""
+        """Connect to the MCP server via SSE (Streamable HTTP)."""
         try:
             from mcp.client.session import ClientSession
-            # Prefer SDK-provided websocket client if available, otherwise fall back to local adapter
-            try:
-                from mcp.client.websocket import websocket_client  # type: ignore
-            except Exception:
-                from ..clients.websocket_client import websocket_client
+            from mcp.client.streamable_http import streamablehttp_client
 
-            # Create websocket transport and session
-            self._context = websocket_client(self._url, headers=self._headers or {})
-            read, write = await self._context.__aenter__()
+            # Start SSE client (streamable http)
+            self._context = streamablehttp_client(self._url, headers=self._headers)
+            # streamablehttp_client yields (read, write, worker)
+            read, write, _ = await self._context.__aenter__()
+            
             self._session = ClientSession(read, write)
             await self._session.initialize()
             self._client = self._session
         except Exception as e:
-            # Failed to connect or SDK not available
             self._session = None
             self._client = None
-            raise RuntimeError(f"Failed to start WS MCP connection: {e}") from e
+            raise RuntimeError(f"Failed to start SSE MCP connection: {e}") from e
 
     async def stop(self) -> None:
-        """Close the MCP client session."""
+        """Stop the MCP server connection."""
         if self._context is not None:
             try:
                 await self._context.__aexit__(None, None, None)
@@ -71,13 +67,11 @@ class WsMcpConnection:
     async def call_tool(self, name: str, params: Dict[str, Any], stream: bool = False) -> Dict[str, Any]:
         """Call a tool on the MCP server."""
         if self._client is None:
-            return {"error": "ws mcp client not available"}
+            return {"error": "sse mcp client not available"}
         try:
             result = await self._client.call_tool(name, params)
-            # MCP SDK returns CallToolResult with content list
             out: Dict[str, Any] = {}
             if hasattr(result, "content"):
-                # Combine content blocks
                 content_text = ""
                 for block in result.content:
                     if hasattr(block, "text"):

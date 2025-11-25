@@ -110,7 +110,7 @@ async def test_web_search_service_with_tavily():
             print("  This might be due to cached singleton instance")
 
         # Test search
-        query = "latest AI news 2024"
+        query = "What is the latest ai news today?"
         print(f"\nTesting query: '{query}'")
         results = await service.search(
             query, max_results=5, use_cache=False, force_fresh=True

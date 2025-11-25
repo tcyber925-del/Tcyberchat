@@ -9,6 +9,8 @@ import {
   disableMcpServer,
   warmConnect,
   fetchDocViaMcp,
+  testConnection,
+  getServerEnv,
   type McpServer,
   type McpServerUpsert,
 } from '@/lib/api/integrations-mcp';
@@ -39,11 +41,13 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true, headers: {} });
   const [editing, setEditing] = useState(false);
+  const [mcpAdminToken, setMcpAdminToken] = useState<string>('');
+  const [testConnLoading, setTestConnLoading] = useState(false);
   const [testFetchUrl, setTestFetchUrl] = useState('');
   const [testFetchServer, setTestFetchServer] = useState<string>('auto');
   const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
   const [testFetchTags, setTestFetchTags] = useState<string>('');
-  const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string } | null>(null);
+  const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string; structuredContent?: any } | null>(null);
 
   const isSettingsDirty = useMemo(
     () => JSON.stringify(localSettings) !== JSON.stringify(settings),
@@ -102,7 +106,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
       try {
         const data = await listMcpServers();
         setMcpServers(data.servers || []);
-      } catch {}
+      } catch { }
     }, 15000);
     return () => clearInterval(id);
   }, []);
@@ -217,11 +221,10 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
             {(['light', 'dark', 'system'] as const).map((themeOption) => (
               <label
                 key={themeOption}
-                className={`relative flex-1 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  localSettings.theme === themeOption
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-background/50'
-                }`}
+                className={`relative flex-1 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${localSettings.theme === themeOption
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/50'
+                  }`}
               >
                 <input
                   type="radio"
@@ -280,13 +283,23 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
       {/* Integrations: MCP */}
       <fieldset>
-        <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
-        {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
+            <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
+            {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
+            <div className="mb-2">
+              <label className="block text-xs mb-1">Admin token (optional)</label>
+              <input
+                className="w-full px-2 py-1 border border-input bg-background rounded"
+                value={mcpAdminToken}
+                onChange={(e) => setMcpAdminToken(e.target.value)}
+                placeholder="X-Admin-Token to reveal full env values"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Provide an admin token to reveal full environment variables when editing a server. Token is sent only to the backend endpoint for verification.</p>
+            </div>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
-                onClick={async () => {
+              onClick={async () => {
                 setMcpLoading(true);
                 try {
                   await warmConnect();
@@ -305,6 +318,51 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
             >
               {mcpLoading ? 'Connecting…' : 'Warm Connect'}
             </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify({ servers: mcpServers }, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'mcp-config.json';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+            >
+              Export Config
+            </button>
+            <label className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80 cursor-pointer">
+              Import Config
+              <input
+                type="file"
+                className="hidden"
+                accept=".json"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const json = JSON.parse(text);
+                    if (Array.isArray(json.servers)) {
+                      for (const s of json.servers) {
+                        await upsertMcpServer(s);
+                      }
+                      const data = await listMcpServers();
+                      setMcpServers(data.servers || []);
+                      showToast({ variant: 'success', title: 'Config imported' });
+                    } else {
+                      throw new Error('Invalid config format');
+                    }
+                  } catch (err: any) {
+                    showToast({ variant: 'error', title: 'Import failed', description: err.message });
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
 
           {/* Servers list */}
@@ -368,6 +426,9 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                         {s.last_error && (
                           <span className="text-[10px] text-rose-700">error: {s.last_error}</span>
                         )}
+                        {s.env_present && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-800">env</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -426,9 +487,24 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {} });
-                          setEditing(true);
+                        onClick={async () => {
+                            try {
+                              // fetch masked or full env if available (pass admin token if provided)
+                              let envObj: Record<string, string> | undefined = undefined;
+                              try {
+                                const envRes = await getServerEnv(s.id, mcpAdminToken || undefined);
+                                if (envRes?.ok) {
+                                  envObj = envRes.env || envRes.env_masked || undefined;
+                                }
+                              } catch (e) {
+                                // ignore env fetch errors
+                                envObj = undefined;
+                              }
+                              setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {}, env: envObj });
+                              setEditing(true);
+                            } catch (err) {
+                              setMcpError('Failed to prepare edit');
+                            }
                         }}
                         className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80"
                       >
@@ -461,8 +537,9 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   value={newServer.transport}
                   onChange={(e) => setNewServer((p) => ({ ...p, transport: e.target.value as any }))}
                 >
-                  <option value="wss">wss</option>
-                  <option value="stdio">stdio</option>
+                  <option value="wss">WebSocket (WSS)</option>
+                  <option value="sse">SSE (HTTP)</option>
+                  <option value="stdio">Stdio (Local)</option>
                 </select>
               </div>
               <div>
@@ -476,15 +553,17 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   <option value="false">false</option>
                 </select>
               </div>
-              {newServer.transport === 'wss' ? (
+              {newServer.transport === 'wss' || newServer.transport === 'sse' ? (
                 <>
                   <div className="md:col-span-2">
-                    <label className="block text-xs mb-1">WSS URL</label>
+                    <label className="block text-xs mb-1">
+                      {newServer.transport === 'wss' ? 'WebSocket URL' : 'SSE Endpoint URL'}
+                    </label>
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.url || ''}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
-                      placeholder="wss://..."
+                      onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
+                      placeholder={newServer.transport === 'wss' ? "wss://api.example.com/mcp" : "http://localhost:8000/sse"}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -497,7 +576,23 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                       }}
                       addLabel="Add header"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Sent as additional request headers when connecting.</p>
+                    <div className="flex gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground flex-1">Sent as additional request headers.</p>
+                      <select
+                        className="text-[10px] px-1 py-0.5 border rounded bg-background"
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          setNewServer(p => ({ ...p, headers: { ...(p.headers || {}), [e.target.value]: '' } }));
+                          setEditing(true);
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">+ Preset</option>
+                        <option value="Authorization">Authorization</option>
+                        <option value="X-API-Key">X-API-Key</option>
+                        <option value="User-Agent">User-Agent</option>
+                      </select>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -507,7 +602,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.command || ''}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
+                      onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
                       placeholder="node"
                     />
                   </div>
@@ -516,9 +611,21 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={(newServer.args || []).join(',')}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
+                      onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
                       placeholder="/path/to/server.js,--flag"
                     />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs mb-1">Env (key / value)</label>
+                    <KeyValueEditor
+                      value={(newServer.env as Record<string, string>) || {}}
+                      onChange={(next) => {
+                        setNewServer((p) => ({ ...p, env: next }));
+                        setEditing(true);
+                      }}
+                      addLabel="Add env var"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Environment variables passed to stdio servers when started.</p>
                   </div>
                 </>
               )}
@@ -573,6 +680,29 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90"
               >
                 Save Server
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setTestConnLoading(true);
+                  try {
+                    const res = await testConnection(newServer);
+                    if (res.ok) {
+                      const toolNames = res.tools?.map((t: any) => t.name).join(', ') || 'none';
+                      showToast({ variant: 'success', title: 'Connection Successful', description: `Found tools: ${toolNames}` });
+                    } else {
+                      showToast({ variant: 'error', title: 'Connection Failed', description: res.error });
+                    }
+                  } catch (e: any) {
+                    showToast({ variant: 'error', title: 'Connection Error', description: e.message });
+                  } finally {
+                    setTestConnLoading(false);
+                  }
+                }}
+                disabled={testConnLoading}
+                className="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
+              >
+                {testConnLoading ? 'Testing...' : 'Test Connection'}
               </button>
             </div>
           </div>
@@ -644,7 +774,10 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     if (res.error) {
                       setTestFetchResult({ error: res.error });
                     } else {
-                      setTestFetchResult({ snippet: res.citation?.snippet || (res.content ? res.content.slice(0, 200) : '') });
+                      setTestFetchResult({
+                        snippet: res.citation?.snippet || (res.content ? res.content.slice(0, 200) : ''),
+                        structuredContent: res.structuredContent,
+                      });
                     }
                   } catch (e: any) {
                     setTestFetchResult({ error: e?.message || 'Test fetch failed' });
@@ -661,7 +794,15 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 {testFetchResult.error ? (
                   <p className="text-destructive">Error: {testFetchResult.error}</p>
                 ) : (
-                  <p className="text-muted-foreground">Snippet: {testFetchResult.snippet || '(no preview)'}</p>
+                  <>
+                    <p className="text-muted-foreground">Snippet: {testFetchResult.snippet || '(no preview)'}</p>
+                    {testFetchResult.structuredContent && (
+                      <div className="mt-2">
+                        <label className="block text-xs mb-1">Structured Content</label>
+                        <pre className="max-h-60 overflow-auto bg-surface p-2 rounded text-xs">{JSON.stringify(testFetchResult.structuredContent, null, 2)}</pre>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -671,53 +812,55 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
       <div className="h-10" />
       {/* Sticky dirty-state footer */}
-      {(isSettingsDirty || editing) && (
-        <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
-          <div className="text-xs text-muted-foreground flex-1">
-            You have unsaved changes{editing ? ' (MCP server form)' : ''}.
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
-              onClick={handleCancelChanges}
-            >
-              Discard Changes
-            </button>
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleSave}
-              disabled={!isSettingsDirty}
-            >
-              Save Settings
-            </button>
-            {editing && (
+      {
+        (isSettingsDirty || editing) && (
+          <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
+            <div className="text-xs text-muted-foreground flex-1">
+              You have unsaved changes{editing ? ' (MCP server form)' : ''}.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+                onClick={handleCancelChanges}
+              >
+                Discard Changes
+              </button>
               <button
                 type="button"
                 className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={async () => {
-                  try {
-                    if (!newServer.id) throw new Error('Server id is required');
-                    const payload = { ...newServer };
-                    await upsertMcpServer(payload);
-                    const data = await listMcpServers();
-                    setMcpServers(data.servers || []);
-                    setEditing(false);
-                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
-                  } catch (e: any) {
-                    setMcpError(e?.message || 'Upsert failed');
-                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
-                  }
-                }}
+                onClick={handleSave}
+                disabled={!isSettingsDirty}
               >
-                Save Server
+                Save Settings
               </button>
-            )}
+              {editing && (
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={async () => {
+                    try {
+                      if (!newServer.id) throw new Error('Server id is required');
+                      const payload = { ...newServer };
+                      await upsertMcpServer(payload);
+                      const data = await listMcpServers();
+                      setMcpServers(data.servers || []);
+                      setEditing(false);
+                      showToast({ variant: 'success', title: `Saved ${payload.id}` });
+                    } catch (e: any) {
+                      setMcpError(e?.message || 'Upsert failed');
+                      showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
+                    }
+                  }}
+                >
+                  Save Server
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </form>
+        )
+      }
+    </form >
   );
 };
 
