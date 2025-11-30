@@ -1,5 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -31,8 +33,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
   const codeStyle = theme === 'dark' ? vscDarkPlus : oneLight;
 
   return (
-    <div className={cn('markdown-container', className)}>
+    <div className={cn('markdown-container prose prose-sm dark:prose-invert max-w-none break-anywhere w-full', className)}>
       <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           // Enhanced code block rendering with syntax highlighting
           code({ node, inline, className, children, ...props }) {
@@ -64,7 +67,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
             ) : (
               <code
                 className={cn(
-                  'relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm',
+                  'relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-medium',
                   className,
                 )}
                 {...props}
@@ -88,32 +91,38 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-primary hover:underline underline-offset-2"
+                className="text-primary hover:underline underline-offset-2 font-medium"
               >
                 {children}
               </a>
             );
           },
-          // Enhanced list styling
+          // Enhanced list styling with better spacing
           ul({ children }) {
-            return <ul className="list-disc list-inside my-2 space-y-1">{children}</ul>;
+            return <ul className="list-disc list-outside ml-6 my-4 space-y-2">{children}</ul>;
           },
           ol({ children }) {
-            return <ol className="list-decimal list-inside my-2 space-y-1">{children}</ol>;
+            return <ol className="list-decimal list-outside ml-6 my-4 space-y-2">{children}</ol>;
           },
-          // Enhanced heading styling
+          li({ children }) {
+            return <li className="leading-relaxed pl-1">{children}</li>;
+          },
+          // Enhanced heading styling with better spacing
           h1({ children }) {
-            return <h1 className="text-2xl font-bold mt-6 mb-3">{children}</h1>;
+            return <h1 className="text-2xl font-bold mt-8 mb-4 first:mt-0">{children}</h1>;
           },
           h2({ children }) {
-            return <h2 className="text-xl font-semibold mt-5 mb-2">{children}</h2>;
+            return <h2 className="text-xl font-semibold mt-6 mb-3 first:mt-0">{children}</h2>;
           },
           h3({ children }) {
-            return <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>;
+            return <h3 className="text-lg font-semibold mt-5 mb-2 first:mt-0">{children}</h3>;
           },
-          // Enhanced paragraph spacing
+          h4({ children }) {
+            return <h4 className="text-base font-semibold mt-4 mb-2">{children}</h4>;
+          },
+          // Enhanced paragraph spacing with proper line breaks
           p({ children }) {
-            return <p className="mb-3 leading-relaxed">{children}</p>;
+            return <p className="mb-4 leading-relaxed whitespace-normal break-anywhere">{children}</p>;
           },
           // Enhanced table styling
           table({ children }) {
@@ -134,6 +143,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
           },
           td({ children }) {
             return <td className="border border-border px-4 py-2">{children}</td>;
+          },
+          // Add horizontal rule styling
+          hr() {
+            return <hr className="my-6 border-border" />;
+          },
+          // Add strong (bold) styling
+          strong({ children }) {
+            return <strong className="font-bold text-foreground">{children}</strong>;
+          },
+          // Add emphasis (italic) styling
+          em({ children }) {
+            return <em className="italic">{children}</em>;
           },
         }}
       >

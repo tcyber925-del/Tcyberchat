@@ -15,10 +15,15 @@ try:
 except Exception:
     try:
         from langchain_community.embeddings import (
-            SentenceTransformerEmbeddings as LCEmbeddings,  # type: ignore
+            HuggingFaceEmbeddings as LCEmbeddings,  # type: ignore
         )
     except Exception:
-        LCEmbeddings = None  # type: ignore
+        try:
+            from langchain_community.embeddings import (
+                SentenceTransformerEmbeddings as LCEmbeddings,  # type: ignore
+            )
+        except Exception:
+            LCEmbeddings = None  # type: ignore
 
 from .rag_adapter import (
     LANGCHAIN_PRESENT,
@@ -1515,7 +1520,7 @@ Answer:"""
                         yield {"content": "AI service not available", "done": False}
 
             yield {
-                "content": full_response_content,
+                "content": "",
                 "done": True,
                 "citations": citations,
                 "context_chunks_used": len(citations),
