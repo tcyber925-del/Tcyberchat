@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from src.clients.gemini_client import GeminiClient
 from src.clients.llama_cpp_client import LlamaCppClient
 from src.clients.openrouter_client import OpenRouterClient
+from src.clients.groq_client import GroqClient
 
 # Load environment variables
 load_dotenv()
@@ -32,6 +33,7 @@ class AIService:
         self.model_name = model_name
         self.gemini_client: GeminiClient | None = None
         self.openrouter_client: OpenRouterClient | None = None
+        self.groq_client: GroqClient | None = None
 
         # Initialize clients based on available API keys
         gemini_key = os.getenv("GEMINI_API_KEY")
@@ -58,6 +60,20 @@ class AIService:
             except Exception as e:
                 logger.warning(f"Failed to initialize OpenRouter client: {e}")
 
+        # Initialize Groq client (for ultrafast inference and reasoning)
+        groq_key = os.getenv("GROQ_API_KEY")
+        if groq_key:
+            try:
+                # Use reasoning model by default for Groq
+                self.groq_client = GroqClient(
+                    api_key=groq_key, model="openai/gpt-oss-120b"  # 120B reasoning model
+                )
+                logger.info(
+                    f"Groq client initialized with model: {self.groq_client.model_name}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize Groq client: {e}")
+
         # Initialize Llama.cpp client
         llama_server_url = os.getenv("LLAMA_CPP_SERVER_URL", "http://localhost:8080")
         if not AIService._llama_cpp_client:
@@ -78,6 +94,8 @@ class AIService:
                     return "google"
                 elif provider_prefix in ("openrouter", "openai"):
                     return "openrouter"
+                elif provider_prefix == "groq":
+                    return "groq"
                 elif provider_prefix == "llama.cpp":
                     return "llama.cpp"
                 # If prefix doesn't match known providers, continue with normal logic
@@ -229,6 +247,34 @@ class AIService:
                         logger.warning(f"Failed to update OpenRouter client model: {e}")
                 async for chunk in self.openrouter_client.chat_stream(full_prompt):
                     yield chunk
+            elif provider == "groq" and self.groq_client:
+                logger.info(
+                    f"Attempting streaming response with Groq using model: {self.model_name}..."
+                )
+                full_prompt = self._construct_full_prompt(prompt, context)
+                # Extract model name
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix == "groq":
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                # Update model if needed
+                if self.groq_client.model_name != actual_model:
+                    try:
+                        groq_key = os.getenv("GROQ_API_KEY")
+                        if groq_key:
+                            self.groq_client = GroqClient(
+                                api_key=groq_key, model=actual_model
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to update Groq client model: {e}")
+                if self.groq_client:
+                    async for chunk in self.groq_client.generate_stream(full_prompt):
+                        yield chunk
             else:
                 logger.error(f"No suitable provider found for model: {self.model_name}")
                 yield "I'm sorry, I don't have an answer right now."
@@ -355,6 +401,35 @@ class AIService:
                     response_text = await asyncio.get_event_loop().run_in_executor(
                         None, lambda: self.openrouter_client.chat(full_prompt)
                     )
+            elif provider == "groq" and self.groq_client:
+                logger.info(
+                    f"Attempting non-streaming response with Groq using model: {self.model_name}..."
+                )
+                full_prompt = self._construct_full_prompt(prompt, context)
+                # Extract model name
+                if ":" in self.model_name:
+                    parts = self.model_name.split(":", 1)
+                    provider_prefix = parts[0].lower().strip()
+                    if provider_prefix == "groq":
+                        actual_model = parts[1].strip()
+                    else:
+                        actual_model = self.model_name
+                else:
+                    actual_model = self.model_name
+                # Update model if needed
+                if self.groq_client.model_name != actual_model:
+                    try:
+                        groq_key = os.getenv("GROQ_API_KEY")
+                        if groq_key:
+                            self.groq_client = GroqClient(
+                                api_key=groq_key, model=actual_model
+                            )
+                    except Exception as e:
+                        logger.warning(f"Failed to update Groq client model: {e}")
+                if self.groq_client:
+                    response_text = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: self.groq_client.generate(full_prompt, max_tokens=max_tokens)
+                    )
             else:
                 error_message = (
                     f"No suitable AI provider found for model: {self.model_name}"
@@ -413,6 +488,26 @@ class AIService:
             )
             available_models.append(
                 {"name": "models/gemini-1.5-pro", "provider": "google"}
+            )
+
+        # Add Groq models if client is available
+        if self.groq_client:
+            # Reasoning models (optimized for complex problem-solving)
+            available_models.append(
+                {"name": "openai/gpt-oss-120b", "provider": "groq"}
+            )
+            available_models.append(
+                {"name": "openai/gpt-oss-20b", "provider": "groq"}
+            )
+            # Standard fast models
+            available_models.append(
+                {"name": "llama-3.3-70b-versatile", "provider": "groq"}
+            )
+            available_models.append(
+                {"name": "llama-3.1-70b-versatile", "provider": "groq"}
+            )
+            available_models.append(
+                {"name": "mixtral-8x7b-32768", "provider": "groq"}
             )
 
         await self._fetch_llama_cpp_models_if_needed()

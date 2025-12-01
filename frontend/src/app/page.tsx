@@ -2,10 +2,10 @@
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
-import { deepResearch } from '@/lib/api/chat';
+import { deepResearch, deepResearchStream } from '@/lib/api/chat';
 import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
-import { Message as ChatMessageType } from '@/types/message';
+import { Message } from '@/types/message';
 import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
@@ -374,7 +374,7 @@ export default function Home() {
                 </div>
               ) : (
                 <Chat>
-                  {messages.map((m: ChatMessageType) => {
+                  {messages.map((m: Message) => {
                     // Normalize role: some messages may use `type` or `role`, and older code used 'ai'
                     const rawRole = (m as any).role ?? (m as any).type ?? 'assistant';
                     const role = rawRole === 'ai' ? 'assistant' : rawRole;
@@ -504,14 +504,14 @@ onDeepResearch={async () => {
                     setDeepStep('plan');
                     showToast('Running deep research...', 'info');
                     // Append the user message
-                    const userMsg = {
+                    const userMsg: Message = {
                       id: 'u-' + Date.now().toString(36),
                       content: text,
                       timestamp: new Date(),
                       role: 'user',
                       conversationId: '',
-                    } as any;
-                    setMessages((prev) => [...prev, userMsg]);
+                    };
+                    setMessages((prev: Message[]): Message[] => [...prev, userMsg]);
 
                     const iterations = settings.deepResearchDefaultIterations ?? 2;
                     const model = settings.selectedModel;
@@ -528,7 +528,7 @@ onDeepResearch={async () => {
                       es.addEventListener('final', (e: MessageEvent) => {
                         try {
                           const payload = JSON.parse((e as any).data);
-                          const assistantMsg = {
+                          const assistantMsg: Message = {
                             id: 'a-' + (Date.now() + 1).toString(36),
                             content: payload.answer || 'No answer generated.',
                             timestamp: new Date(),
@@ -536,8 +536,8 @@ onDeepResearch={async () => {
                             conversationId: '',
                             citations: Array.isArray(payload.citations) ? payload.citations : [],
                             metadata: { deepResearch: true, ...payload.metadata },
-                          } as any;
-                          setMessages((prev) => [...prev, assistantMsg]);
+                          };
+                          setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
                           setInput('');
                         } catch {}
                         es.close();
@@ -554,7 +554,7 @@ onDeepResearch={async () => {
                     } catch {
                       // Fallback to non-stream
                       const res = await deepResearch(text, model, iterations, ctrl.signal);
-                      const assistantMsg = {
+                      const assistantMsg: Message = {
                         id: 'a-' + (Date.now() + 1).toString(36),
                         content: res.answer || 'No answer generated.',
                         timestamp: new Date(),
@@ -562,8 +562,8 @@ onDeepResearch={async () => {
                         conversationId: '',
                         citations: Array.isArray(res.citations) ? res.citations : [],
                         metadata: { deepResearch: true, ...res.metadata },
-                      } as any;
-                      setMessages((prev) => [...prev, assistantMsg]);
+                      };
+                      setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
                       setInput('');
                     }
                   } catch (e) {

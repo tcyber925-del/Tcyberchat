@@ -1,4 +1,3 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://0.0.0.0:8000';
 import { fetchJsonWithRetries } from '@/lib/api/request';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -32,11 +31,19 @@ export async function getAvailableModels(opts?: { forceRefresh?: boolean; signal
     const url = `${API_BASE_URL}/api/v1/models`;
     inProgressPromise = (async () => {
       try {
-        const models = await fetchJsonWithRetries<AvailableModel[] | { models: AvailableModel[] }>(url, { timeoutMs: 8000, retries: 1, signal: opts?.signal });
+        // Increased timeout to 15 seconds for initial model loading
+        const models = await fetchJsonWithRetries<AvailableModel[] | { models: AvailableModel[] }>(url, {
+          timeoutMs: 15000,
+          retries: 2,
+          signal: opts?.signal
+        });
         const resolved = Array.isArray(models) ? models : (models && Array.isArray((models as any).models) ? (models as any).models : []);
         cachedModels = resolved;
         cacheTimestamp = Date.now();
         return resolved;
+      } catch (err) {
+        console.error('Error fetching models from backend:', err);
+        throw err;
       } finally {
         inProgressPromise = null;
       }
@@ -46,7 +53,11 @@ export async function getAvailableModels(opts?: { forceRefresh?: boolean; signal
   } catch (error) {
     console.error('Failed to fetch available models:', error);
     // On error, return cached models if available to avoid breaking UI
-    if (cachedModels) return cachedModels;
+    if (cachedModels) {
+      console.warn('Using cached models due to fetch error');
+      return cachedModels;
+    }
+    // Return empty array as last resort to prevent UI crash
     return [];
   }
 }

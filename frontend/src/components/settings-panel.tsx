@@ -3,9 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
 import { getAvailableModels, type AvailableModel } from '@/lib/api/models';
-<<<<<<< HEAD
 import { getMcpHealth, initMcpModel } from '@/lib/api/mcp';
-=======
 import {
   listMcpServers,
   upsertMcpServer,
@@ -19,7 +17,8 @@ import {
 } from '@/lib/api/integrations-mcp';
 import { KeyValueEditor } from '@/components/ui/KeyValueEditor';
 import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
+import { cn } from '@/lib/utils';
+
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -129,13 +128,8 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
         const models = await getAvailableModels({ signal: ac.signal });
         if (models && models.length > 0) {
           setAvailableModels(models);
-<<<<<<< HEAD
-          if (!models.some(m => m.name === settings.selectedModel)) {
-            setLocalSettings(prev => ({ ...prev, selectedModel: models[0].name }));
-=======
           if (!models.some((m) => m.name === settings.selectedModel)) {
             setLocalSettings((prev) => ({ ...prev, selectedModel: models[0].name }));
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
           }
         } else {
           setError('No models returned from the backend.');
@@ -151,18 +145,6 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setModelsLoading(false);
       }
     };
-<<<<<<< HEAD
-
-    // Debounce initial fetch to avoid rapid open/close causing duplicate work
-    timer = window.setTimeout(() => { fetchModels(); }, DEBOUNCE_MS);
-
-    return () => {
-      ac.abort();
-      if (timer) clearTimeout(timer);
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, []);
-=======
     const fetchMcp = async () => {
       setMcpLoading(true);
       setMcpError(null);
@@ -178,7 +160,6 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
     fetchModels();
     fetchMcp();
   }, [settings.selectedModel]);
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
 
   // Poll MCP status periodically
   useEffect(() => {
@@ -260,93 +241,159 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
       }}
       onKeyDown={(e) => e.key === 'Escape' && onClose?.()}
     >
-      {/* AI Model Selection */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-foreground mb-2">
+      {/* Enhanced AI Model Selection */}
+      <fieldset className="space-y-4">
+        <legend className="block text-sm font-medium text-foreground mb-3">
           AI Model Configuration
         </legend>
-        {error && <p className="text-sm text-destructive">Error: {error}</p>}
-        <div className="space-y-2">
-          <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="providerType"
-                value="ollama"
-                checked={providerType === 'ollama'}
-                onChange={() => handleProviderChange('ollama')}
-                disabled={modelsLoading || ollamaModels.length === 0}
-              />
-              <span className="ml-2">Local (Ollama)</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="providerType"
-                value="cloud"
-                checked={providerType === 'cloud'}
-                onChange={() => handleProviderChange('cloud')}
-                disabled={modelsLoading || cloudModels.length === 0}
-              />
-              <span className="ml-2">Cloud Models</span>
-            </label>
+        {error && <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">⚠️ {error}</p>}
+
+        <div className="space-y-3">
+          {/* Provider Type Selection with Enhanced UI */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleProviderChange('ollama')}
+              disabled={modelsLoading || ollamaModels.length === 0}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all',
+                'font-medium text-sm',
+                providerType === 'ollama'
+                  ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                  : 'border-border bg-background hover:bg-accent hover:border-accent-foreground/20',
+                (modelsLoading || ollamaModels.length === 0) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
+              </svg>
+              <span>Local (Ollama)</span>
+              {ollamaModels.length > 0 && (
+                <span className="ml-auto text-xs bg-background px-2 py-0.5 rounded-full">
+                  {ollamaModels.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleProviderChange('cloud')}
+              disabled={modelsLoading || cloudModels.length === 0}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all',
+                'font-medium text-sm',
+                providerType === 'cloud'
+                  ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                  : 'border-border bg-background hover:bg-accent hover:border-accent-foreground/20',
+                (modelsLoading || cloudModels.length === 0) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+              </svg>
+              <span>Cloud Models</span>
+              {cloudModels.length > 0 && (
+                <span className="ml-auto text-xs bg-background px-2 py-0.5 rounded-full">
+                  {cloudModels.length}
+                </span>
+              )}
+            </button>
           </div>
-          <label htmlFor="selectedModel" className="block text-sm font-medium text-foreground">
-            AI Model
-          </label>
-          <select
-            id="selectedModel"
-            name="selectedModel"
-            value={localSettings.selectedModel}
-            onChange={handleChange}
-            disabled={
-              modelsLoading ||
-              (providerType === 'ollama' ? ollamaModels.length === 0 : cloudModels.length === 0)
-            }
-            className="w-full px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {modelsLoading ? (
-              <option>Loading models...</option>
-            ) : (
-              (providerType === 'ollama' ? ollamaModels : cloudModels).map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.provider === 'ollama'
-                    ? `${model.name} (${formatModelSize(model.size)})`
-                    : `${model.provider}: ${model.name}`}
-                </option>
-              ))
+
+          {/* Enhanced Model Dropdown */}
+          <div>
+            <label htmlFor="selectedModel" className="block text-sm font-medium text-foreground mb-2">
+              Select Model
+            </label>
+            <div className="relative">
+              <select
+                id="selectedModel"
+                name="selectedModel"
+                value={localSettings.selectedModel}
+                onChange={handleChange}
+                disabled={
+                  modelsLoading ||
+                  (providerType === 'ollama' ? ollamaModels.length === 0 : cloudModels.length === 0)
+                }
+                className={cn(
+                  'w-full px-4 py-3 pr-10 border-2 border-input bg-background rounded-lg shadow-sm',
+                  'text-sm font-medium',
+                  'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
+                  'transition-all duration-200',
+                  'appearance-none cursor-pointer',
+                  'hover:border-primary/50',
+                )}
+              >
+                {modelsLoading ? (
+                  <option>⏳ Loading models...</option>
+                ) : (
+                  (providerType === 'ollama' ? ollamaModels : cloudModels).map((model) => {
+                    const isReasoning = model.name.includes('reasoning') ||
+                      model.name.includes('gpt-oss') ||
+                      model.name.includes('o1') ||
+                      model.name.includes('o3');
+                    const isGroq = model.provider === 'groq';
+
+                    let displayName = '';
+                    if (model.provider === 'ollama') {
+                      displayName = `${model.name} (${formatModelSize(model.size)})`;
+                    } else {
+                      const prefix = isGroq ? '⚡ Groq' : model.provider;
+                      const suffix = isReasoning ? ' 🧠 Reasoning' : '';
+                      displayName = `${prefix}: ${model.name}${suffix}`;
+                    }
+
+                    return (
+                      <option key={model.name} value={model.name}>
+                        {displayName}
+                      </option>
+                    );
+                  })
+                )}
+              </select>
+              {/* Custom dropdown arrow */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="h-5 w-5 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Model Info Card */}
+            {!modelsLoading && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-lg border border-border">
+                <div className="flex items-start gap-2 text-xs">
+                  <svg className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">
+                      {providerType === 'ollama'
+                        ? 'Local models run on your machine with full privacy.'
+                        : 'Cloud models provide access to the latest AI capabilities.'}
+                    </p>
+                    {cloudModels.some(m => m.provider === 'groq' && m.name === localSettings.selectedModel) && (
+                      <p className="text-violet-600 dark:text-violet-400 font-medium">
+                        ⚡ Groq provides ultra-fast inference with LPU technology
+                      </p>
+                    )}
+                    {(localSettings.selectedModel.includes('reasoning') ||
+                      localSettings.selectedModel.includes('gpt-oss') ||
+                      localSettings.selectedModel.includes('o1') ||
+                      localSettings.selectedModel.includes('o3')) && (
+                        <p className="text-indigo-600 dark:text-indigo-400 font-medium">
+                          🧠 Reasoning model - optimized for complex problem-solving
+                        </p>
+                      )}
+                  </div>
+                </div>
+              </div>
             )}
-          </select>
+          </div>
         </div>
       </fieldset>
 
-<<<<<<< HEAD
-      {/* MCP Health / Init status */}
-      <div>
-        {mcpHealth && !mcpHealth.ok && (
-          <div className="text-sm text-warning space-y-2">
-            <p>MCP health check failed: {mcpHealth.error || 'unknown'}</p>
-            <div className="flex space-x-2">
-              <button type="button" onClick={handleRefreshHealth} className="px-3 py-1 text-sm bg-secondary rounded">Retry Health</button>
-            </div>
-          </div>
-        )}
 
-        {mcpHealth && mcpHealth.ok && mcpHealth.ai && (!mcpHealth.ai.available_models || mcpHealth.ai.available_models === 0) && (
-          <div className="text-sm text-muted space-y-2">
-            <p>Model appears to be initializing or not available yet.</p>
-            <div className="flex items-center space-x-2">
-              <button type="button" onClick={handleInitModel} disabled={initInProgress} className="px-3 py-1 text-sm bg-primary text-white rounded">
-                {initInProgress ? 'Initializing…' : 'Warm Model'}
-              </button>
-              <button type="button" onClick={handleRefreshHealth} className="px-3 py-1 text-sm bg-secondary rounded">Check Status</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Other settings fields... */}
-=======
       {/* Appearance Settings */}
       <fieldset>
         <legend className="block text-sm font-medium text-foreground mb-2">Appearance</legend>
@@ -377,62 +424,105 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
           </div>
         </div>
       </fieldset>
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
 
-      {/* Feature Flags */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-foreground mb-2">Features</legend>
-        <div className="space-y-3">
-          <label className="flex items-center gap-2">
+      {/* Enhanced Features Section */}
+      <fieldset className="space-y-4">
+        <legend className="block text-sm font-medium text-foreground mb-3">Features</legend>
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
               name="showSourcesPanel"
               checked={localSettings.showSourcesPanel}
               onChange={handleChange}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Show Sources panel under assistant messages</span>
+            <span className="text-sm group-hover:text-foreground transition-colors">
+              Show Sources panel under assistant messages
+            </span>
           </label>
-          <label className="flex items-center gap-2">
+
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
               name="showWebDebugBadges"
               checked={localSettings.showWebDebugBadges}
               onChange={handleChange}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Show web debug badges (dev-only)</span>
+            <span className="text-sm group-hover:text-foreground transition-colors">
+              Show web debug badges (dev-only)
+            </span>
           </label>
-          <div className="flex items-center gap-2">
-            <label className="text-sm w-56" htmlFor="deepResearchDefaultIterations">
-              Deep Research default iterations
-            </label>
-            <input
-              id="deepResearchDefaultIterations"
-              name="deepResearchDefaultIterations"
-              type="number"
-              min={1}
-              max={5}
-              value={localSettings.deepResearchDefaultIterations ?? 2}
-              onChange={handleChange}
-              className="w-20 px-2 py-1 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+
+          {/* Enhanced Deep Research Settings */}
+          <div className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-lg border-2 border-violet-200 dark:border-violet-800">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="p-2 bg-violet-100 dark:bg-violet-900/50 rounded-lg">
+                <svg className="h-5 w-5 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-100 mb-1">
+                  Deep Research Settings
+                </h4>
+                <p className="text-xs text-violet-700 dark:text-violet-300">
+                  Configure how the AI conducts multi-step research with web search and synthesis
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-violet-900 dark:text-violet-100 min-w-[140px]" htmlFor="deepResearchDefaultIterations">
+                Research Iterations
+              </label>
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  id="deepResearchDefaultIterations"
+                  name="deepResearchDefaultIterations"
+                  type="range"
+                  min={1}
+                  max={5}
+                  value={localSettings.deepResearchDefaultIterations ?? 2}
+                  onChange={handleChange}
+                  className="flex-1 h-2 bg-violet-200 dark:bg-violet-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                />
+                <div className="flex items-center justify-center w-12 h-8 bg-violet-600 text-white text-sm font-bold rounded-md">
+                  {localSettings.deepResearchDefaultIterations ?? 2}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 p-2 bg-white/50 dark:bg-black/20 rounded border border-violet-200 dark:border-violet-800">
+              <p className="text-xs text-violet-700 dark:text-violet-300">
+                <strong>Tip:</strong> Higher iterations = more thorough research but slower response.
+                {' '}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 1 && 'Quick research (1 iteration)'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 2 && 'Balanced research (2 iterations) - Recommended'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 3 && 'Thorough research (3 iterations)'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) >= 4 && 'Deep dive research (4+ iterations)'}
+              </p>
+            </div>
           </div>
         </div>
       </fieldset>
 
+
       {/* Integrations: MCP */}
       <fieldset>
-            <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
-            {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
-            <div className="mb-2">
-              <label className="block text-xs mb-1">Admin token (optional)</label>
-              <input
-                className="w-full px-2 py-1 border border-input bg-background rounded"
-                value={mcpAdminToken}
-                onChange={(e) => setMcpAdminToken(e.target.value)}
-                placeholder="X-Admin-Token to reveal full env values"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Provide an admin token to reveal full environment variables when editing a server. Token is sent only to the backend endpoint for verification.</p>
-            </div>
+        <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
+        {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
+        <div className="mb-2">
+          <label className="block text-xs mb-1">Admin token (optional)</label>
+          <input
+            className="w-full px-2 py-1 border border-input bg-background rounded"
+            value={mcpAdminToken}
+            onChange={(e) => setMcpAdminToken(e.target.value)}
+            placeholder="X-Admin-Token to reveal full env values"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Provide an admin token to reveal full environment variables when editing a server. Token is sent only to the backend endpoint for verification.</p>
+        </div>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <button
@@ -626,23 +716,23 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                       <button
                         type="button"
                         onClick={async () => {
+                          try {
+                            // fetch masked or full env if available (pass admin token if provided)
+                            let envObj: Record<string, string> | undefined = undefined;
                             try {
-                              // fetch masked or full env if available (pass admin token if provided)
-                              let envObj: Record<string, string> | undefined = undefined;
-                              try {
-                                const envRes = await getServerEnv(s.id, mcpAdminToken || undefined);
-                                if (envRes?.ok) {
-                                  envObj = envRes.env || envRes.env_masked || undefined;
-                                }
-                              } catch (e) {
-                                // ignore env fetch errors
-                                envObj = undefined;
+                              const envRes = await getServerEnv(s.id, mcpAdminToken || undefined);
+                              if (envRes?.ok) {
+                                envObj = envRes.env || envRes.env_masked || undefined;
                               }
-                              setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {}, env: envObj });
-                              setEditing(true);
-                            } catch (err) {
-                              setMcpError('Failed to prepare edit');
+                            } catch (e) {
+                              // ignore env fetch errors
+                              envObj = undefined;
                             }
+                            setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {}, env: envObj });
+                            setEditing(true);
+                          } catch (err) {
+                            setMcpError('Failed to prepare edit');
+                          }
                         }}
                         className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80"
                       >

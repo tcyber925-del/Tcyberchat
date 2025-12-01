@@ -8,7 +8,7 @@ function sleep(ms: number) {
 }
 
 export async function fetchWithTimeoutAndRetry(url: string, options: FetchOptions = {}) {
-  const { timeoutMs = 8000, retries = 1, signal: outerSignal, ...fetchOpts } = options;
+  const { timeoutMs = 60000, retries = 1, signal: outerSignal, ...fetchOpts } = options;
 
   let attempt = 0;
   let lastError: any = null;
@@ -52,7 +52,7 @@ export async function fetchWithTimeoutAndRetry(url: string, options: FetchOption
       // Exponential backoff before retrying
       await sleep(200 * Math.pow(2, attempt - 1));
     } finally {
-      try { clearTimeout(undefined as any); } catch {}
+      try { clearTimeout(undefined as any); } catch { }
     }
   }
 

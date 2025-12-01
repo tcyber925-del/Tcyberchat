@@ -211,7 +211,10 @@ except Exception:  # pragma: no cover
     EventSourceResponse = None  # type: ignore
 
 @router.get("/deep-research/stream")
-async def deep_research_stream(request: Request, query: str, model: str | None = None, maxIterations: int = 2, dep: None = Depends(lambda request: rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5"))))):
+async def deep_research_stream(request: Request, query: str, model: str | None = None, maxIterations: int = 2):
+    # Manual rate limit check
+    await rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5")))
+    
     enabled = os.getenv("DEEP_RESEARCH_ENABLED", "false").lower() == "true"
     if not enabled:
         return {"error": "Deep research feature is disabled. Set DEEP_RESEARCH_ENABLED=true to enable."}

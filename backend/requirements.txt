@@ -44,14 +44,26 @@ pymupdf
 python-docx
 pytesseract
 opencv-python
+lxml
 
 # Utilities
 python-dotenv
 httpx
 
-# Web Search (optional - install providers as needed)
-duckduckgo-search>=5.0.0
+# Web Search providers
 tavily-python>=0.3.0
+duckduckgo-search>=5.0.0
+google-search-results
+ddgs
+primp
+h2
+
+
+
+# Deep Research and Groq
+deepagents
+groq>=0.36.0
+langchain-groq>=1.1.0
 
 # Development dependencies
 pytest
@@ -59,10 +71,6 @@ pytest-asyncio
 black
 ruff
 pre-commit
-tavily-python
-duckduckgo-search
-google-search-results
-ddgs
 
 # MCP SDK
 mcp      

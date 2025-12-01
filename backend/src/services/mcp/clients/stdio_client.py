@@ -29,6 +29,67 @@ class StdioMcpConnection:
     async def start(self) -> None:
         """Spawn the MCP server process and connect via stdio."""
         try:
+            # Fast dev path: if set, delegate startup to the external runner
+            # process which isolates the MCP anyio-based stdio client from
+            # the webserver asyncio event loop. This avoids cancel-scope and
+            # read() concurrency issues during local development.
+            if os.environ.get('MCP_STDIO_RUNNER_ONLY') == '1':
+                import json
+                import sys
+
+                # Find backend dir by walking upward until we hit a folder
+                # named 'backend'. This mirrors earlier backend discovery.
+                backend_dir = None
+                try:
+                    cur = os.path.abspath(__file__)
+                    cur_dir = os.path.dirname(cur)
+                    while True:
+                        if os.path.basename(cur_dir) == 'backend':
+                            backend_dir = cur_dir
+                            break
+                        parent = os.path.dirname(cur_dir)
+                        if parent == cur_dir or not parent:
+                            break
+                        cur_dir = parent
+                except Exception:
+                    backend_dir = None
+                if not backend_dir:
+                    backend_dir = os.getcwd()
+
+                runner_script = os.path.join(backend_dir, 'scripts', 'mcp_stdio_runner.py')
+
+                payload = {
+                    'command': self._command,
+                    'args': self._args or [],
+                    'env': self._env or {},
+                    'cwd': backend_dir,
+                    'timeout': int(os.environ.get('MCP_STDIO_START_TIMEOUT', '60')),
+                    'attempts': int(os.environ.get('MCP_STDIO_RUNNER_ATTEMPTS', '3')),
+                }
+
+                def _run_runner():
+                    try:
+                        p = subprocess.run([sys.executable, runner_script], input=json.dumps(payload), text=True, capture_output=True)
+                        out = p.stdout.strip()
+                        if not out:
+                            raise RuntimeError(f"Runner produced no output, rc={p.returncode}, err={p.stderr}")
+                        try:
+                            return json.loads(out)
+                        except Exception:
+                            raise RuntimeError(f"Runner returned non-json output: {out}\nerr={p.stderr}")
+                    except Exception as e:
+                        raise
+
+                # Run the blocking runner in a thread to avoid blocking the
+                # asyncio loop. The runner itself will perform the MCP SDK
+                # startup and return a structured JSON result.
+                result = await asyncio.to_thread(_run_runner)
+                if not isinstance(result, dict) or not result.get('ok'):
+                    raise RuntimeError(f"External runner failed: {result}")
+                # Runner succeeded; we treat the external process as the
+                # MCP provider for dev purposes (no ClientSession created
+                # in-process).
+                return
             # Log details about the command we will spawn for easier debugging
             try:
                 logger.info("Starting stdio MCP with command=%s args=%s env_keys=%s cwd=%s PATH=%s",
@@ -48,19 +109,27 @@ class StdioMcpConnection:
                 orig_subproc_create = asyncio.subprocess.create_subprocess_exec
             diag_log = None
             try:
-                diag_log = os.path.join(os.getcwd(), 'logs', f"mcp_stdio_child_{int(time.time())}.log")
+                # Ensure logs directory exists and create two files:
+                # - diag_log: general spawn/diagnostic entries (mcp_stdio_diag_<ts>.log)
+                # - child_log: captured child stdout/stderr (mcp_stdio_child_<ts>.log)
+                logs_dir = os.path.join(os.getcwd(), 'logs')
+                try:
+                    os.makedirs(logs_dir, exist_ok=True)
+                except Exception:
+                    pass
+                diag_log = os.path.join(logs_dir, f"mcp_stdio_diag_{int(time.time())}.log")
+                child_log = os.path.join(logs_dir, f"mcp_stdio_child_{int(time.time())}.log")
 
                 async def _wrapped_create_subprocess_exec(*p, **kw):
-                    # Ensure pipes are created so the SDK receives stdio streams.
-                    # NOTE: we intentionally do NOT read/drain these asyncio
-                    # streams here because the MCP SDK/anyio code will also read
-                    # from them; reading from the same stream concurrently causes
-                    # "read() called while another coroutine is already waiting"
-                    # errors. For diagnostics, use the proxy flow (where the
-                    # backend spawns the real child) which drains stderr/stdout
-                    # into the diag log without conflicting with the SDK.
-                    kw.setdefault('stdout', asyncio.subprocess.PIPE)
-                    kw.setdefault('stderr', asyncio.subprocess.PIPE)
+                    # Force pipes so we can capture diagnostic output. The SDK
+                    # sometimes passes explicit stdout/stderr values (eg
+                    # sys.stderr) which prevents setdefault from taking effect.
+                    # For reliable diagnostics we override and force PIPEs here
+                    # (this is only for diagnostics; we avoid draining these
+                    # streams concurrently to prevent read() races with the
+                    # SDK's anyio readers).
+                    kw['stdout'] = asyncio.subprocess.PIPE
+                    kw['stderr'] = asyncio.subprocess.PIPE
                     # Log the subprocess spawn attempt (args/kw) even if
                     # creation fails or is cancelled, so we can debug
                     # platform-specific spawn failures.
@@ -137,11 +206,12 @@ class StdioMcpConnection:
                             pass
 
                     try:
+                        # Drain child stdout/stderr into dedicated child_log
                         if proc.stdout is not None:
-                            t = threading.Thread(target=_drain_stream, args=(proc.stdout, diag_log), daemon=True)
+                            t = threading.Thread(target=_drain_stream, args=(proc.stdout, child_log), daemon=True)
                             t.start()
                         if proc.stderr is not None:
-                            t2 = threading.Thread(target=_drain_stream, args=(proc.stderr, diag_log), daemon=True)
+                            t2 = threading.Thread(target=_drain_stream, args=(proc.stderr, child_log), daemon=True)
                             t2.start()
                     except Exception:
                         pass
@@ -200,30 +270,20 @@ class StdioMcpConnection:
                         # paths introduced by various start methods.
                         backend_dir = None
                         try:
-                            # Compute an unambiguous `backend` directory by
-                            # locating the last path component named 'backend'
-                            # in this file's absolute path. This avoids cases
-                            # where relative constructions produce duplicated
-                            # 'backend/backend' segments.
-                            p = os.path.abspath(__file__)
-                            comps = [c for c in p.split(os.path.sep) if c]
-                            indices = [i for i, c in enumerate(comps) if c == 'backend']
-                            if indices:
-                                last_idx = indices[-1]
-                                # Rebuild path up to and including that 'backend'
-                                # Use os.path.join to produce a valid platform path
-                                backend_dir = os.path.join(*comps[: last_idx + 1])
-                            else:
-                                # Fallback: walk upward until we find a folder named 'backend'
-                                cur = os.path.dirname(p)
-                                while True:
-                                    if os.path.basename(cur) == 'backend':
-                                        backend_dir = cur
-                                        break
-                                    parent = os.path.dirname(cur)
-                                    if parent == cur:
-                                        break
-                                    cur = parent
+                            # Walk upward from this file to find a directory
+                            # named 'backend' and use its absolute path. This
+                            # is robust on Windows and avoids mixing drive
+                            # letters or path separator reconstruction issues.
+                            cur = os.path.abspath(__file__)
+                            cur_dir = os.path.dirname(cur)
+                            while True:
+                                if os.path.basename(cur_dir) == 'backend':
+                                    backend_dir = cur_dir
+                                    break
+                                parent = os.path.dirname(cur_dir)
+                                if parent == cur_dir or not parent:
+                                    break
+                                cur_dir = parent
                         except Exception:
                             backend_dir = None
                         if not backend_dir:
