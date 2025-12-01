@@ -15,6 +15,7 @@ from src.clients.gemini_client import GeminiClient
 from src.clients.llama_cpp_client import LlamaCppClient
 from src.clients.openrouter_client import OpenRouterClient
 from src.clients.groq_client import GroqClient
+from src.clients.ollama_client import OllamaClient
 
 # Load environment variables
 load_dotenv()
@@ -28,6 +29,9 @@ class AIService:
     _llama_cpp_client: LlamaCppClient | None = None
     _llama_cpp_models: list[str] = []
     _llama_cpp_last_fetch: float = 0
+    _ollama_client: OllamaClient | None = None
+    _ollama_models: list[str] = []
+    _ollama_last_fetch: float = 0
 
     def __init__(self, model_name: str = "default"):
         self.model_name = model_name
@@ -76,12 +80,27 @@ class AIService:
 
         # Initialize Llama.cpp client
         llama_server_url = os.getenv("LLAMA_CPP_SERVER_URL", "http://localhost:8080")
+        # Initialize Llama.cpp client
+        llama_server_url = os.getenv("LLAMA_CPP_SERVER_URL", "http://localhost:8080")
         if not AIService._llama_cpp_client:
             AIService._llama_cpp_client = LlamaCppClient(base_url=llama_server_url)
+
+        # Initialize Ollama client
+        ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        if not AIService._ollama_client:
+            AIService._ollama_client = OllamaClient(base_url=ollama_server_url)
 
     async def _get_provider_for_model(self, model_name: str) -> str:
         """Determine which AI provider to use for a given model name."""
         await self._fetch_llama_cpp_models_if_needed()
+        await self._fetch_ollama_models_if_needed()
+
+        # Check for exact match in known local models first
+        # This handles models with colons in their names (e.g. "kimi-k2-thinking:cloud")
+        if model_name in self._ollama_models:
+            return "ollama"
+        if model_name in self._llama_cpp_models:
+            return "llama.cpp"
 
         # Handle provider prefixes (e.g., "google: models/gemini-2.5-flash", "openrouter: openai/gpt-3.5-turbo")
         # Only treat as provider prefix if the part before colon is a known provider name (not a model path)
@@ -98,6 +117,8 @@ class AIService:
                     return "groq"
                 elif provider_prefix == "llama.cpp":
                     return "llama.cpp"
+                elif provider_prefix == "ollama":
+                    return "ollama"
                 # If prefix doesn't match known providers, continue with normal logic
                 # Use the part after the colon as the model name
                 model_name = parts[1].strip()
@@ -133,6 +154,20 @@ class AIService:
         if "llama" in model_name.lower():
             return "llama.cpp"
 
+        # Handle Ollama models
+        if model_name.startswith("ollama:"):
+            lookup_name = model_name.split(":", 1)[1]
+            if lookup_name in self._ollama_models:
+                return "ollama"
+            for m in self._ollama_models:
+                if m.startswith(lookup_name):
+                    return "ollama"
+        
+
+
+        if base_model_name in self._ollama_models:
+            return "ollama"
+
         return "unknown"
 
     async def generate_streaming_response(
@@ -158,6 +193,19 @@ class AIService:
                 )
                 async for chunk in self._llama_cpp_client.generate_stream(
                     messages, model=self.model_name, max_tokens=max_tokens
+                ):
+                    yield chunk
+            elif provider == "ollama" and self._ollama_client:
+                logger.info(
+                    f"Attempting streaming response with Ollama using model: {self.model_name}..."
+                )
+                # Handle model name with prefix
+                actual_model = self.model_name
+                if ":" in self.model_name and self.model_name.lower().startswith("ollama:"):
+                    actual_model = self.model_name.split(":", 1)[1].strip()
+                
+                async for chunk in self._ollama_client.generate_stream(
+                    messages, model=actual_model, max_tokens=max_tokens
                 ):
                     yield chunk
             elif provider == "google" and self.gemini_client:
@@ -310,6 +358,18 @@ class AIService:
                 )
                 response_text = await self._llama_cpp_client.generate(
                     messages, model=self.model_name, max_tokens=max_tokens
+                )
+            elif provider == "ollama" and self._ollama_client:
+                logger.info(
+                    f"Attempting non-streaming response with Ollama using model: {self.model_name}..."
+                )
+                # Handle model name with prefix
+                actual_model = self.model_name
+                if ":" in self.model_name and self.model_name.lower().startswith("ollama:"):
+                    actual_model = self.model_name.split(":", 1)[1].strip()
+
+                response_text = await self._ollama_client.generate(
+                    messages, model=actual_model, max_tokens=max_tokens
                 )
             elif provider == "google" and self.gemini_client:
                 logger.info(
@@ -514,6 +574,10 @@ class AIService:
         for model_name in self._llama_cpp_models:
             available_models.append({"name": model_name, "provider": "llama.cpp"})
 
+        await self._fetch_ollama_models_if_needed()
+        for model_name in self._ollama_models:
+            available_models.append({"name": model_name, "provider": "ollama"})
+
         if not available_models:
             return [{"name": "mock-model", "provider": "none"}]
 
@@ -543,6 +607,26 @@ class AIService:
                     cls._llama_cpp_models = []
             else:
                 cls._llama_cpp_models = []
+
+    @classmethod
+    async def _fetch_ollama_models_if_needed(cls):
+        """Fetch models from the Ollama server if they haven't been fetched recently."""
+        current_time = time.time()
+        # Cache for 5 minutes
+        if current_time - cls._ollama_last_fetch > 300:
+            if cls._ollama_client:
+                try:
+                    logger.info("Fetching available models from Ollama server...")
+                    cls._ollama_models = (
+                        await cls._ollama_client.get_available_models()
+                    )
+                    cls._ollama_last_fetch = current_time
+                    logger.info(f"Found Ollama models: {cls._ollama_models}")
+                except Exception as e:
+                    logger.warning(f"Could not retrieve Ollama models: {e}")
+                    cls._ollama_models = []
+            else:
+                cls._ollama_models = []
 
     def _construct_full_prompt(
         self, prompt: str, context: list[str] | None = None
@@ -574,7 +658,15 @@ async def aget_ai_service(model_name: str | None = None) -> AIService:
             if AIService._llama_cpp_models:
                 model_name = AIService._llama_cpp_models[0]
             else:
-                model_name = "mock-model"
+                # Fallback to the first available ollama model
+                ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                if not AIService._ollama_client:
+                    AIService._ollama_client = OllamaClient(base_url=ollama_server_url)
+                await AIService._fetch_ollama_models_if_needed()
+                if AIService._ollama_models:
+                    model_name = AIService._ollama_models[0]
+                else:
+                    model_name = "mock-model"
 
     if model_name not in _ai_service_instance_cache:
         _ai_service_instance_cache[model_name] = AIService(model_name)

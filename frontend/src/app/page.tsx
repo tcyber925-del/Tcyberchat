@@ -320,11 +320,11 @@ export default function Home() {
         <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
-      <div className="flex flex-col flex-grow">
+      <div className="flex flex-col flex-grow overflow-x-hidden">
         <header className="flex items-center p-4 border-b border-border">
           <h1 className="text-xl font-bold">TcyberChatbot</h1>
         </header>
-        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto scroll-smooth">
+        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto overflow-x-hidden scroll-smooth">
           <div>
             <div>
               {messages.length === 0 && !isLoading && !streamingMessage ? (
@@ -394,8 +394,8 @@ export default function Home() {
                         onEdit={
                           isUserMessage
                             ? (content) => {
-                                handleEditMessage(m.id, content);
-                              }
+                              handleEditMessage(m.id, content);
+                            }
                             : undefined
                         }
                       >
@@ -487,7 +487,7 @@ export default function Home() {
                 onFileAttach={handleAttachmentClick}
                 onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
                 webSearchEnabled={webSearchEnabled}
-onDeepResearch={async () => {
+                onDeepResearch={async () => {
                   const text = input?.trim();
                   if (!text) {
                     showToast('Enter a question to run Deep Research.', 'warning');
@@ -523,7 +523,7 @@ onDeepResearch={async () => {
                         try {
                           const payload = JSON.parse((e as any).data);
                           if (payload?.step) setDeepStep(payload.step);
-                        } catch {}
+                        } catch { }
                       });
                       es.addEventListener('final', (e: MessageEvent) => {
                         try {
@@ -539,7 +539,7 @@ onDeepResearch={async () => {
                           };
                           setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
                           setInput('');
-                        } catch {}
+                        } catch { }
                         es.close();
                         deepStreamRef.current = null;
                         setIsDeepRunning(false);
@@ -573,7 +573,7 @@ onDeepResearch={async () => {
                       const msg = e instanceof Error ? e.message : String(e);
                       showToast(`Deep research failed: ${msg}`, 'error');
                     }
-                    try { deepStreamRef.current?.close(); } catch {}
+                    try { deepStreamRef.current?.close(); } catch { }
                     deepStreamRef.current = null;
                   } finally {
                     setIsDeepRunning(false);
@@ -645,7 +645,7 @@ onDeepResearch={async () => {
                       type="button"
                       variant="secondary"
                       onClick={() => {
-                        try { deepStreamRef.current?.close(); } catch {}
+                        try { deepStreamRef.current?.close(); } catch { }
                         deepStreamRef.current = null;
                         deepAbortRef.current?.abort();
                       }}
