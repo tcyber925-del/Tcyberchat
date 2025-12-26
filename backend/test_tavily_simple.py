@@ -1,47 +1,76 @@
 #!/usr/bin/env python3
-"""Simple Tavily test to verify API key"""
+"""
+Simple Tavily API test to check error details
+"""
 
+import asyncio
 import os
+from dotenv import load_dotenv
 
-# Load .env
-try:
-    from dotenv import load_dotenv
+# Load environment variables
+load_dotenv()
 
-    load_dotenv()
-except:
-    env_path = os.path.join(os.path.dirname(__file__), ".env")
-    if os.path.exists(env_path):
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, value = line.split("=", 1)
-                    os.environ[key.strip()] = value.strip()
-
-api_key = os.getenv("TAVILY_API_KEY")
-print(f"API Key: {api_key[:10]}...{api_key[-4:] if api_key else 'NOT SET'}")
-print(
-    f"Key type: {'DEV' if api_key and 'dev' in api_key.lower() else 'PROD' if api_key else 'NONE'}"
-)
-
-if api_key:
+async def test_tavily():
+    """Test Tavily API directly"""
     try:
         from tavily import TavilyClient
-
+        
+        api_key = os.getenv("TAVILY_API_KEY")
+        if not api_key:
+            print("❌ TAVILY_API_KEY not found in environment")
+            return
+        
+        print(f"✓ API Key found (length: {len(api_key)})")
+        print(f"  Key starts with: {api_key[:10]}...")
+        
+        # Initialize client
         client = TavilyClient(api_key=api_key)
-        print("\nTesting with minimal query...")
-        result = client.search(query="AI", max_results=1)
-        print(f"✓ Success! Got {len(result.get('results', []))} result(s)")
-        if result.get("results"):
-            print(f"  First result: {result['results'][0].get('title', 'N/A')[:50]}")
+        print("✓ Client initialized")
+        
+        # Try a simple search with basic depth (free tier)
+        print("\n🔍 Testing with 'basic' search depth (free tier)...")
+        try:
+            response = client.search(
+                query="Python programming",
+                max_results=1,
+                search_depth="basic"  # Use basic instead of advanced
+            )
+            print(f"✅ Basic search successful!")
+            print(f"   Found {len(response.get('results', []))} results")
+            if response.get('results'):
+                print(f"   First result: {response['results'][0].get('title', 'N/A')}")
+        except Exception as e:
+            print(f"❌ Basic search failed: {e}")
+            print(f"   Error type: {type(e).__name__}")
+            
+        # Try advanced search
+        print("\n🔍 Testing with 'advanced' search depth...")
+        try:
+            response = client.search(
+                query="Python programming",
+                max_results=1,
+                search_depth="advanced"
+            )
+            print(f"✅ Advanced search successful!")
+            print(f"   Found {len(response.get('results', []))} results")
+        except Exception as e:
+            print(f"❌ Advanced search failed: {e}")
+            print(f"   Error type: {type(e).__name__}")
+            if "forbidden" in str(e).lower() or "ForbiddenError" in str(type(e).__name__):
+                print("\n💡 Possible causes:")
+                print("   - API key is invalid or expired")
+                print("   - Free tier doesn't support 'advanced' search depth")
+                print("   - API quota/limit reached")
+                print("   - Account needs upgrade")
+                print("\n📝 Check your plan at: https://app.tavily.com/")
+            
+    except ImportError:
+        print("❌ tavily package not installed")
+        print("   Install with: pip install tavily-python")
     except Exception as e:
-        print(f"\n✗ Error: {type(e).__name__}: {e}")
-        if "Forbidden" in str(e):
-            print("\n⚠ ForbiddenError usually means:")
-            print("  1. API key is invalid or expired")
-            print("  2. API key doesn't have required permissions")
-            print("  3. Dev API keys may have restrictions")
-            print("  4. Rate limit exceeded")
-            print("\n  Try getting a new API key from https://tavily.com")
-else:
-    print("✗ TAVILY_API_KEY not set")
+        print(f"❌ Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+
+if __name__ == "__main__":
+    asyncio.run(test_tavily())

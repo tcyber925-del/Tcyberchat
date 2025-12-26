@@ -1,0 +1,31 @@
+fastapi
+uvicorn[standard]
+pydantic
+sqlalchemy
+alembic
+python-dotenv
+httpx
+prometheus_client
+redis
+aiofiles
+python-multipart
+
+# Optional runtime dependencies required by some agent modules
+# Add langgraph to support deep_research graph imports used by the backend
+langgraph
+
+# Runtime LLM and RAG runtime
+langchain==0.3.27
+# Add a minimal set of RAG dependencies for container builds to enable Chroma and
+# community embeddings while avoiding a full heavy ML stack by default.
+langchain-community==0.3.27
+langchain-huggingface==0.3.0
+langchain-text-splitters==0.3.9
+chromadb
+
+# NOTE: This trimmed requirements file is intended for building the Docker image
+# in CI / container environments. It now includes the minimal RAG/runtime
+# dependencies to enable vectorstore & embeddings support. For the full ML
+# environment (transformers, torch, large models) use `requirements.txt`.
+
+psycopg2-binary

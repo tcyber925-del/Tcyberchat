@@ -1,0 +1,127 @@
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\ai_service.py", line 504, in __getattr__
+    raise AttributeError(name)
+AttributeError: get_available_models
+2025-11-24 14:32:07,635 - main - INFO - Response: GET /api/integrations/mcp/health -> 200 (1.518s)
+2025-11-24 14:32:11,505 - main - INFO - Request: GET /api/integrations/mcp/servers from 127.0.0.1
+2025-11-24 14:32:11,532 - main - INFO - Response: GET /api/integrations/mcp/servers -> 200 (0.027s)
+2025-11-24 14:33:01,325 - main - INFO - Request: GET /api/integrations/mcp/health from 127.0.0.1
+2025-11-24 14:33:01,333 - src.api.integrations_mcp - ERROR - MCP health check failed: get_available_models
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\integrations_mcp.py", line 174, in mcp_health
+    models = ai_service.get_available_models()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\ai_service.py", line 504, in __getattr__
+    raise AttributeError(name)
+AttributeError: get_available_models
+2025-11-24 14:33:01,333 - main - INFO - Response: GET /api/integrations/mcp/health -> 200 (0.009s)
+2025-11-24 14:33:19,125 - main - INFO - Request: GET /api/integrations/mcp/servers from 127.0.0.1
+2025-11-24 14:33:19,133 - main - INFO - Response: GET /api/integrations/mcp/servers -> 200 (0.008s)
+2025-11-24 14:37:30,019 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 14:37:32,559 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.540s)
+2025-11-24 14:37:47,525 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 14:37:47,530 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.006s)
+2025-11-24 15:01:34,474 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:01:34,483 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.009s)
+2025-11-24 15:01:41,949 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:01:41,999 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.051s)
+2025-11-24 15:02:40,041 - main - INFO - Application shutting down...
+2025-11-24 15:06:59,430 - main - INFO - Application starting up...
+2025-11-24 15:06:59,432 - main - INFO - Application shutting down...
+2025-11-24 15:06:59,443 - main - INFO - Application starting up...
+2025-11-24 15:14:47,869 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:14:48,668 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.800s)
+2025-11-24 15:17:15,732 - main - INFO - Application shutting down...
+2025-11-24 15:20:23,945 - main - INFO - Application starting up...
+2025-11-24 15:20:24,061 - main - INFO - Application shutting down...
+2025-11-24 15:26:15,128 - main - INFO - Application starting up...
+2025-11-24 15:26:15,139 - main - INFO - Application shutting down...
+2025-11-24 15:28:31,626 - main - INFO - Application starting up...
+2025-11-24 15:28:31,631 - main - INFO - Application shutting down...
+2025-11-24 15:28:31,688 - main - INFO - Application starting up...
+2025-11-24 15:28:31,782 - main - INFO - Application shutting down...
+2025-11-24 15:31:00,183 - main - INFO - Application starting up...
+2025-11-24 15:31:00,185 - main - INFO - Application shutting down...
+2025-11-24 15:36:31,800 - main - INFO - Application starting up...
+2025-11-24 15:37:36,131 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:37:37,250 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (1.119s)
+2025-11-24 15:38:05,016 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:38:05,037 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.021s)
+2025-11-24 15:38:39,255 - main - INFO - Application shutting down...
+2025-11-24 15:39:54,493 - main - INFO - Application starting up...
+2025-11-24 15:39:54,518 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 15:39:55,074 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.556s)
+2025-11-24 15:40:59,220 - main - INFO - Application shutting down...
+2025-11-24 15:42:11,743 - main - INFO - Application starting up...
+2025-11-24 16:35:32,233 - main - INFO - Application shutting down...
+2025-11-24 16:49:22,717 - main - INFO - Application starting up...
+2025-11-24 16:49:23,357 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:49:23,377 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:49:23,398 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:49:23,400 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:49:25,381 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.024s)
+2025-11-24 16:49:25,478 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.102s)
+2025-11-24 16:49:25,559 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.161s)
+2025-11-24 16:49:25,632 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.233s)
+2025-11-24 16:50:17,113 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:50:17,122 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.009s)
+2025-11-24 16:50:23,097 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:50:23,109 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.011s)
+2025-11-24 16:51:19,180 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:51:19,183 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.003s)
+2025-11-24 16:51:30,819 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 16:51:30,822 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.003s)
+2025-11-24 16:53:39,058 - main - INFO - Application shutting down...
+2025-11-24 17:02:56,582 - main - INFO - Application starting up...
+2025-11-24 17:02:56,597 - main - INFO - Application shutting down...
+2025-11-24 17:03:46,879 - main - INFO - Application starting up...
+2025-11-24 17:03:47,020 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:03:49,124 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (2.104s)
+2025-11-24 17:03:57,948 - main - INFO - Request: GET /api/integrations/mcp/health from 127.0.0.1
+2025-11-24 17:03:57,949 - src.api.integrations_mcp - ERROR - MCP health check failed: get_available_models
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\integrations_mcp.py", line 174, in mcp_health
+    models = ai_service.get_available_models()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\ai_service.py", line 504, in __getattr__
+    raise AttributeError(name)
+AttributeError: get_available_models
+2025-11-24 17:03:58,076 - main - INFO - Response: GET /api/integrations/mcp/health -> 200 (0.129s)
+2025-11-24 17:07:00,145 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:07:00,145 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.000s)
+2025-11-24 17:07:15,878 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:07:15,885 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.007s)
+2025-11-24 17:29:31,410 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:29:31,410 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.000s)
+2025-11-24 17:29:47,803 - main - INFO - Request: GET /api/integrations/mcp/health from 127.0.0.1
+2025-11-24 17:29:47,807 - src.api.integrations_mcp - ERROR - MCP health check failed: get_available_models
+Traceback (most recent call last):
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\api\integrations_mcp.py", line 174, in mcp_health
+    models = ai_service.get_available_models()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Tcyber\Documents\PROJECTS\TcyberChatbot\backend\src\services\ai_service.py", line 504, in __getattr__
+    raise AttributeError(name)
+AttributeError: get_available_models
+2025-11-24 17:29:47,927 - main - INFO - Response: GET /api/integrations/mcp/health -> 200 (0.125s)
+2025-11-24 17:29:51,707 - main - INFO - Request: GET /api/integrations/mcp/servers from 127.0.0.1
+2025-11-24 17:29:51,707 - main - INFO - Response: GET /api/integrations/mcp/servers -> 200 (0.000s)
+2025-11-24 17:30:11,209 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:30:11,234 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.025s)
+2025-11-24 17:31:04,611 - main - INFO - Request: GET /api/integrations/mcp/servers from 127.0.0.1
+2025-11-24 17:31:04,611 - main - INFO - Response: GET /api/integrations/mcp/servers -> 200 (0.000s)
+2025-11-24 17:32:39,416 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:32:39,426 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.010s)
+2025-11-24 17:33:48,205 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:33:48,239 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.034s)
+2025-11-24 17:35:18,597 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:35:18,836 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.239s)
+2025-11-24 17:40:15,614 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:40:15,713 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.099s)
+2025-11-24 17:41:15,021 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 17:41:15,122 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.101s)
+2025-11-24 18:41:16,279 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 18:41:18,014 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (1.746s)
+2025-11-24 18:44:21,116 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 18:44:21,124 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.008s)
+2025-11-24 18:54:47,992 - main - INFO - Request: POST /api/integrations/mcp/test-connection from 127.0.0.1
+2025-11-24 18:54:48,030 - main - INFO - Response: POST /api/integrations/mcp/test-connection -> 200 (0.038s)
+2025-11-24 18:59:52,010 - main - INFO - Application starting up...

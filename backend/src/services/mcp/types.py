@@ -10,11 +10,13 @@ from typing import Optional, Dict, List, Any
 @dataclass
 class McpServerConfig:
     id: str
-    transport: str  # "stdio" | "wss"
+    transport: str  # "stdio" | "wss" | "sse"
     enabled: bool = True
     # stdio
     command: Optional[str] = None
     args: Optional[List[str]] = None
+    # stdio environment variables
+    env: Optional[Dict[str, str]] = None
     # wss
     url: Optional[str] = None
     headers: Optional[Dict[str, str]] = None

@@ -2,10 +2,10 @@
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
-import { deepResearch } from '@/lib/api/chat';
+import { deepResearch, deepResearchStream } from '@/lib/api/chat';
 import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
-import { Message as ChatMessageType } from '@/types/message';
+import { Message } from '@/types/message';
 import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
@@ -320,11 +320,11 @@ export default function Home() {
         <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
-      <div className="flex flex-col flex-grow">
+      <div className="flex flex-col flex-grow overflow-x-hidden">
         <header className="flex items-center p-4 border-b border-border">
           <h1 className="text-xl font-bold">TcyberChatbot</h1>
         </header>
-        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto scroll-smooth">
+        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto overflow-x-hidden scroll-smooth">
           <div>
             <div>
               {messages.length === 0 && !isLoading && !streamingMessage ? (
@@ -374,7 +374,7 @@ export default function Home() {
                 </div>
               ) : (
                 <Chat>
-                  {messages.map((m: ChatMessageType) => {
+                  {messages.map((m: Message) => {
                     // Normalize role: some messages may use `type` or `role`, and older code used 'ai'
                     const rawRole = (m as any).role ?? (m as any).type ?? 'assistant';
                     const role = rawRole === 'ai' ? 'assistant' : rawRole;
@@ -388,14 +388,14 @@ export default function Home() {
                         messageId={m.id}
                         meta={(m as any).metadata}
                         citations={m.citations as any}
-                        onCopy={(text) => {
+                        onCopy={(text: string) => {
                           showToast('Message copied to clipboard!', 'success');
                         }}
                         onEdit={
                           isUserMessage
                             ? (content) => {
-                                handleEditMessage(m.id, content);
-                              }
+                              handleEditMessage(m.id, content);
+                            }
                             : undefined
                         }
                       >
@@ -415,7 +415,7 @@ export default function Home() {
                       content={streamingMessage.content}
                       timestamp={streamingMessage.timestamp}
                       isStreaming={isStreaming}
-                      onCopy={(text) => {
+                      onCopy={(text: string) => {
                         showToast('Message copied to clipboard!', 'success');
                       }}
                     >
@@ -487,7 +487,7 @@ export default function Home() {
                 onFileAttach={handleAttachmentClick}
                 onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
                 webSearchEnabled={webSearchEnabled}
-onDeepResearch={async () => {
+                onDeepResearch={async () => {
                   const text = input?.trim();
                   if (!text) {
                     showToast('Enter a question to run Deep Research.', 'warning');
@@ -504,14 +504,14 @@ onDeepResearch={async () => {
                     setDeepStep('plan');
                     showToast('Running deep research...', 'info');
                     // Append the user message
-                    const userMsg = {
+                    const userMsg: Message = {
                       id: 'u-' + Date.now().toString(36),
                       content: text,
                       timestamp: new Date(),
                       role: 'user',
                       conversationId: '',
-                    } as any;
-                    setMessages((prev) => [...prev, userMsg]);
+                    };
+                    setMessages((prev: Message[]): Message[] => [...prev, userMsg]);
 
                     const iterations = settings.deepResearchDefaultIterations ?? 2;
                     const model = settings.selectedModel;
@@ -523,12 +523,12 @@ onDeepResearch={async () => {
                         try {
                           const payload = JSON.parse((e as any).data);
                           if (payload?.step) setDeepStep(payload.step);
-                        } catch {}
+                        } catch { }
                       });
                       es.addEventListener('final', (e: MessageEvent) => {
                         try {
                           const payload = JSON.parse((e as any).data);
-                          const assistantMsg = {
+                          const assistantMsg: Message = {
                             id: 'a-' + (Date.now() + 1).toString(36),
                             content: payload.answer || 'No answer generated.',
                             timestamp: new Date(),
@@ -536,10 +536,10 @@ onDeepResearch={async () => {
                             conversationId: '',
                             citations: Array.isArray(payload.citations) ? payload.citations : [],
                             metadata: { deepResearch: true, ...payload.metadata },
-                          } as any;
-                          setMessages((prev) => [...prev, assistantMsg]);
+                          };
+                          setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
                           setInput('');
-                        } catch {}
+                        } catch { }
                         es.close();
                         deepStreamRef.current = null;
                         setIsDeepRunning(false);
@@ -554,7 +554,7 @@ onDeepResearch={async () => {
                     } catch {
                       // Fallback to non-stream
                       const res = await deepResearch(text, model, iterations, ctrl.signal);
-                      const assistantMsg = {
+                      const assistantMsg: Message = {
                         id: 'a-' + (Date.now() + 1).toString(36),
                         content: res.answer || 'No answer generated.',
                         timestamp: new Date(),
@@ -562,8 +562,8 @@ onDeepResearch={async () => {
                         conversationId: '',
                         citations: Array.isArray(res.citations) ? res.citations : [],
                         metadata: { deepResearch: true, ...res.metadata },
-                      } as any;
-                      setMessages((prev) => [...prev, assistantMsg]);
+                      };
+                      setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
                       setInput('');
                     }
                   } catch (e) {
@@ -573,7 +573,7 @@ onDeepResearch={async () => {
                       const msg = e instanceof Error ? e.message : String(e);
                       showToast(`Deep research failed: ${msg}`, 'error');
                     }
-                    try { deepStreamRef.current?.close(); } catch {}
+                    try { deepStreamRef.current?.close(); } catch { }
                     deepStreamRef.current = null;
                   } finally {
                     setIsDeepRunning(false);
@@ -645,7 +645,7 @@ onDeepResearch={async () => {
                       type="button"
                       variant="secondary"
                       onClick={() => {
-                        try { deepStreamRef.current?.close(); } catch {}
+                        try { deepStreamRef.current?.close(); } catch { }
                         deepStreamRef.current = null;
                         deepAbortRef.current?.abort();
                       }}

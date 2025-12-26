@@ -1,5 +1,5 @@
 """
-MultiMcpClient — manages connections to multiple MCP servers (stdio and WSS).
+MultiMcpClient — manages connections to multiple MCP servers (stdio, WSS, and SSE).
 This is a scaffold designed to be extended with a real MCP SDK.
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ from ..redis_client import get_redis
 from .types import McpMultiConfig, McpServerConfig, McpServerState, McpTool
 from .clients.ws_client import WsMcpConnection
 from .clients.stdio_client import StdioMcpConnection
+from .clients.sse_client import SseMcpConnection
 
 
 class MultiMcpClient:
@@ -39,6 +40,7 @@ class MultiMcpClient:
                             enabled=bool(s.get("enabled", True)),
                             command=s.get("command"),
                             args=s.get("args") or [],
+                            env=s.get("env") or {},
                             url=s.get("url"),
                             headers=s.get("headers") or {},
                             tags=s.get("tags") or [],
@@ -64,6 +66,8 @@ class MultiMcpClient:
                     "healthy": st.healthy,
                     "tools": [t.name for t in st.tools],
                     "last_error": st.last_error,
+                    # indicate presence of env without exposing values
+                    "env_present": bool(st.config.env),
                 }
             )
         return out
@@ -79,6 +83,7 @@ class MultiMcpClient:
             enabled=bool(cfg.get("enabled", True)),
             command=cfg.get("command"),
             args=cfg.get("args") or [],
+            env=cfg.get("env") or {},
             url=cfg.get("url"),
             headers=cfg.get("headers") or {},
             tags=cfg.get("tags") or [],
@@ -104,8 +109,10 @@ class MultiMcpClient:
                 conn = None
                 if st.config.transport == "wss" and st.config.url:
                     conn = WsMcpConnection(st.config.url, headers=st.config.headers)
+                elif st.config.transport == "sse" and st.config.url:
+                    conn = SseMcpConnection(st.config.url, headers=st.config.headers)
                 elif st.config.transport == "stdio" and st.config.command:
-                    conn = StdioMcpConnection(st.config.command, st.config.args)
+                    conn = StdioMcpConnection(st.config.command, st.config.args, env=st.config.env)
                 st._conn = conn  # attach dynamically
                 if conn:
                     await conn.start()

@@ -221,17 +221,49 @@ app = FastAPI(
 )
 
 # Configure CORS for frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
-    ],  # Frontend development server (allow common dev hosts)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Allow configuration via environment variables for flexible dev setups:
+# - ALLOWED_ORIGINS: comma-separated list of allowed origins (e.g. http://localhost:3001,http://127.0.0.1:3001)
+# - ALLOW_ORIGIN_REGEX: if set, will be passed to `allow_origin_regex` (useful for localhost with any port)
+_allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+_allow_origin_regex_env = os.getenv("ALLOW_ORIGIN_REGEX")
+
+if _allow_origin_regex_env:
+    logger.info(f"Configuring CORS with allow_origin_regex={_allow_origin_regex_env}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=_allow_origin_regex_env,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    if _allowed_origins_env:
+        try:
+            origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+        except Exception:
+            origins = None
+    else:
+        origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://0.0.0.0:3000",
+            # Frontend dev server may run on port 3001 in some setups
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
+
+    if origins:
+        logger.info(f"Configuring CORS with allow_origins={origins}")
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        # Fallback: be explicit about not allowing any origins if parsing failed
+        logger.warning("No valid CORS origins configured; default CORS disabled")
 
 
 # Custom logging middleware
@@ -420,8 +452,35 @@ async def health_check():
 @app.get("/api/v1/models")
 async def get_models():
     """Get a list of all available AI models (local and cloud)."""
-    ai_service = await get_ai_service()
-    return await ai_service.get_available_models()
+    import asyncio
+    
+    try:
+        # Add 10-second timeout to prevent hanging
+        ai_service = await asyncio.wait_for(get_ai_service(), timeout=10.0)
+        models = await asyncio.wait_for(ai_service.get_available_models(), timeout=5.0)
+        return models
+    except asyncio.TimeoutError:
+        logger.error("Timeout fetching models - returning basic cloud models only")
+        # Return a minimal set of models on timeout
+        basic_models = []
+        if os.getenv("GROQ_API_KEY"):
+            basic_models.extend([
+                {"name": "openai/gpt-oss-120b", "provider": "groq"},
+                {"name": "llama-3.3-70b-versatile", "provider": "groq"},
+            ])
+        if os.getenv("GEMINI_API_KEY"):
+            basic_models.append({"name": "models/gemini-2.0-flash-exp", "provider": "google"})
+        if os.getenv("OPENROUTER_API_KEY"):
+            basic_models.append({"name": "openai/gpt-oss-20b:free", "provider": "openrouter"})
+        
+        if not basic_models:
+            basic_models = [{"name": "mock-model", "provider": "none"}]
+        
+        return basic_models
+    except Exception as e:
+        logger.error(f"Error fetching models: {e}")
+        return [{"name": "mock-model", "provider": "none"}]
+
 
 
 if __name__ == "__main__":

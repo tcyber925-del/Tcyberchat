@@ -3,21 +3,22 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSettings } from '@/lib/context/settings-context';
 import { getAvailableModels, type AvailableModel } from '@/lib/api/models';
-<<<<<<< HEAD
 import { getMcpHealth, initMcpModel } from '@/lib/api/mcp';
-=======
 import {
   listMcpServers,
   upsertMcpServer,
   disableMcpServer,
   warmConnect,
   fetchDocViaMcp,
+  testConnection,
+  getServerEnv,
   type McpServer,
   type McpServerUpsert,
 } from '@/lib/api/integrations-mcp';
 import { KeyValueEditor } from '@/components/ui/KeyValueEditor';
 import { ToastProvider, useToast } from '@/components/ui/ToastProvider';
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
+import { cn } from '@/lib/utils';
+
 
 interface SettingsPanelProps {
   onClose?: () => void;
@@ -45,11 +46,13 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [mcpError, setMcpError] = useState<string | null>(null);
   const [newServer, setNewServer] = useState<McpServerUpsert>({ id: '', transport: 'wss', enabled: true, headers: {} });
   const [editing, setEditing] = useState(false);
+  const [mcpAdminToken, setMcpAdminToken] = useState<string>('');
+  const [testConnLoading, setTestConnLoading] = useState(false);
   const [testFetchUrl, setTestFetchUrl] = useState('');
   const [testFetchServer, setTestFetchServer] = useState<string>('auto');
   const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
   const [testFetchTags, setTestFetchTags] = useState<string>('');
-  const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string } | null>(null);
+  const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string; structuredContent?: any } | null>(null);
 
   const isSettingsDirty = useMemo(
     () => JSON.stringify(localSettings) !== JSON.stringify(settings),
@@ -125,13 +128,8 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
         const models = await getAvailableModels({ signal: ac.signal });
         if (models && models.length > 0) {
           setAvailableModels(models);
-<<<<<<< HEAD
-          if (!models.some(m => m.name === settings.selectedModel)) {
-            setLocalSettings(prev => ({ ...prev, selectedModel: models[0].name }));
-=======
           if (!models.some((m) => m.name === settings.selectedModel)) {
             setLocalSettings((prev) => ({ ...prev, selectedModel: models[0].name }));
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
           }
         } else {
           setError('No models returned from the backend.');
@@ -147,18 +145,6 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
         setModelsLoading(false);
       }
     };
-<<<<<<< HEAD
-
-    // Debounce initial fetch to avoid rapid open/close causing duplicate work
-    timer = window.setTimeout(() => { fetchModels(); }, DEBOUNCE_MS);
-
-    return () => {
-      ac.abort();
-      if (timer) clearTimeout(timer);
-      if (pollTimer) clearTimeout(pollTimer);
-    };
-  }, []);
-=======
     const fetchMcp = async () => {
       setMcpLoading(true);
       setMcpError(null);
@@ -174,7 +160,6 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
     fetchModels();
     fetchMcp();
   }, [settings.selectedModel]);
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
 
   // Poll MCP status periodically
   useEffect(() => {
@@ -182,7 +167,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
       try {
         const data = await listMcpServers();
         setMcpServers(data.servers || []);
-      } catch {}
+      } catch { }
     }, 15000);
     return () => clearInterval(id);
   }, []);
@@ -256,93 +241,159 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
       }}
       onKeyDown={(e) => e.key === 'Escape' && onClose?.()}
     >
-      {/* AI Model Selection */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-foreground mb-2">
+      {/* Enhanced AI Model Selection */}
+      <fieldset className="space-y-4">
+        <legend className="block text-sm font-medium text-foreground mb-3">
           AI Model Configuration
         </legend>
-        {error && <p className="text-sm text-destructive">Error: {error}</p>}
-        <div className="space-y-2">
-          <div className="flex space-x-4">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="providerType"
-                value="ollama"
-                checked={providerType === 'ollama'}
-                onChange={() => handleProviderChange('ollama')}
-                disabled={modelsLoading || ollamaModels.length === 0}
-              />
-              <span className="ml-2">Local (Ollama)</span>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="providerType"
-                value="cloud"
-                checked={providerType === 'cloud'}
-                onChange={() => handleProviderChange('cloud')}
-                disabled={modelsLoading || cloudModels.length === 0}
-              />
-              <span className="ml-2">Cloud Models</span>
-            </label>
+        {error && <p className="text-sm text-destructive bg-destructive/10 p-2 rounded-md">⚠️ {error}</p>}
+
+        <div className="space-y-3">
+          {/* Provider Type Selection with Enhanced UI */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => handleProviderChange('ollama')}
+              disabled={modelsLoading || ollamaModels.length === 0}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all',
+                'font-medium text-sm',
+                providerType === 'ollama'
+                  ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                  : 'border-border bg-background hover:bg-accent hover:border-accent-foreground/20',
+                (modelsLoading || ollamaModels.length === 0) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z" />
+              </svg>
+              <span>Local (Ollama)</span>
+              {ollamaModels.length > 0 && (
+                <span className="ml-auto text-xs bg-background px-2 py-0.5 rounded-full">
+                  {ollamaModels.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleProviderChange('cloud')}
+              disabled={modelsLoading || cloudModels.length === 0}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border-2 transition-all',
+                'font-medium text-sm',
+                providerType === 'cloud'
+                  ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                  : 'border-border bg-background hover:bg-accent hover:border-accent-foreground/20',
+                (modelsLoading || cloudModels.length === 0) && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+              </svg>
+              <span>Cloud Models</span>
+              {cloudModels.length > 0 && (
+                <span className="ml-auto text-xs bg-background px-2 py-0.5 rounded-full">
+                  {cloudModels.length}
+                </span>
+              )}
+            </button>
           </div>
-          <label htmlFor="selectedModel" className="block text-sm font-medium text-foreground">
-            AI Model
-          </label>
-          <select
-            id="selectedModel"
-            name="selectedModel"
-            value={localSettings.selectedModel}
-            onChange={handleChange}
-            disabled={
-              modelsLoading ||
-              (providerType === 'ollama' ? ollamaModels.length === 0 : cloudModels.length === 0)
-            }
-            className="w-full px-3 py-2 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            {modelsLoading ? (
-              <option>Loading models...</option>
-            ) : (
-              (providerType === 'ollama' ? ollamaModels : cloudModels).map((model) => (
-                <option key={model.name} value={model.name}>
-                  {model.provider === 'ollama'
-                    ? `${model.name} (${formatModelSize(model.size)})`
-                    : `${model.provider}: ${model.name}`}
-                </option>
-              ))
+
+          {/* Enhanced Model Dropdown */}
+          <div>
+            <label htmlFor="selectedModel" className="block text-sm font-medium text-foreground mb-2">
+              Select Model
+            </label>
+            <div className="relative">
+              <select
+                id="selectedModel"
+                name="selectedModel"
+                value={localSettings.selectedModel}
+                onChange={handleChange}
+                disabled={
+                  modelsLoading ||
+                  (providerType === 'ollama' ? ollamaModels.length === 0 : cloudModels.length === 0)
+                }
+                className={cn(
+                  'w-full px-4 py-3 pr-10 border-2 border-input bg-background rounded-lg shadow-sm',
+                  'text-sm font-medium',
+                  'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
+                  'transition-all duration-200',
+                  'appearance-none cursor-pointer',
+                  'hover:border-primary/50',
+                )}
+              >
+                {modelsLoading ? (
+                  <option>⏳ Loading models...</option>
+                ) : (
+                  (providerType === 'ollama' ? ollamaModels : cloudModels).map((model) => {
+                    const isReasoning = model.name.includes('reasoning') ||
+                      model.name.includes('gpt-oss') ||
+                      model.name.includes('o1') ||
+                      model.name.includes('o3');
+                    const isGroq = model.provider === 'groq';
+
+                    let displayName = '';
+                    if (model.provider === 'ollama') {
+                      displayName = `${model.name} (${formatModelSize(model.size)})`;
+                    } else {
+                      const prefix = isGroq ? '⚡ Groq' : model.provider;
+                      const suffix = isReasoning ? ' 🧠 Reasoning' : '';
+                      displayName = `${prefix}: ${model.name}${suffix}`;
+                    }
+
+                    return (
+                      <option key={model.name} value={model.name}>
+                        {displayName}
+                      </option>
+                    );
+                  })
+                )}
+              </select>
+              {/* Custom dropdown arrow */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="h-5 w-5 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Model Info Card */}
+            {!modelsLoading && (
+              <div className="mt-3 p-3 bg-muted/50 rounded-lg border border-border">
+                <div className="flex items-start gap-2 text-xs">
+                  <svg className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground">
+                      {providerType === 'ollama'
+                        ? 'Local models run on your machine with full privacy.'
+                        : 'Cloud models provide access to the latest AI capabilities.'}
+                    </p>
+                    {cloudModels.some(m => m.provider === 'groq' && m.name === localSettings.selectedModel) && (
+                      <p className="text-violet-600 dark:text-violet-400 font-medium">
+                        ⚡ Groq provides ultra-fast inference with LPU technology
+                      </p>
+                    )}
+                    {(localSettings.selectedModel.includes('reasoning') ||
+                      localSettings.selectedModel.includes('gpt-oss') ||
+                      localSettings.selectedModel.includes('o1') ||
+                      localSettings.selectedModel.includes('o3')) && (
+                        <p className="text-indigo-600 dark:text-indigo-400 font-medium">
+                          🧠 Reasoning model - optimized for complex problem-solving
+                        </p>
+                      )}
+                  </div>
+                </div>
+              </div>
             )}
-          </select>
+          </div>
         </div>
       </fieldset>
 
-<<<<<<< HEAD
-      {/* MCP Health / Init status */}
-      <div>
-        {mcpHealth && !mcpHealth.ok && (
-          <div className="text-sm text-warning space-y-2">
-            <p>MCP health check failed: {mcpHealth.error || 'unknown'}</p>
-            <div className="flex space-x-2">
-              <button type="button" onClick={handleRefreshHealth} className="px-3 py-1 text-sm bg-secondary rounded">Retry Health</button>
-            </div>
-          </div>
-        )}
 
-        {mcpHealth && mcpHealth.ok && mcpHealth.ai && (!mcpHealth.ai.available_models || mcpHealth.ai.available_models === 0) && (
-          <div className="text-sm text-muted space-y-2">
-            <p>Model appears to be initializing or not available yet.</p>
-            <div className="flex items-center space-x-2">
-              <button type="button" onClick={handleInitModel} disabled={initInProgress} className="px-3 py-1 text-sm bg-primary text-white rounded">
-                {initInProgress ? 'Initializing…' : 'Warm Model'}
-              </button>
-              <button type="button" onClick={handleRefreshHealth} className="px-3 py-1 text-sm bg-secondary rounded">Check Status</button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Other settings fields... */}
-=======
       {/* Appearance Settings */}
       <fieldset>
         <legend className="block text-sm font-medium text-foreground mb-2">Appearance</legend>
@@ -354,11 +405,10 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
             {(['light', 'dark', 'system'] as const).map((themeOption) => (
               <label
                 key={themeOption}
-                className={`relative flex-1 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                  localSettings.theme === themeOption
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:bg-background/50'
-                }`}
+                className={`relative flex-1 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${localSettings.theme === themeOption
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/50'
+                  }`}
               >
                 <input
                   type="radio"
@@ -374,57 +424,110 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
           </div>
         </div>
       </fieldset>
->>>>>>> aa2c529f261fabe2c2e39c5042ca04341943e25f
 
-      {/* Feature Flags */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-foreground mb-2">Features</legend>
-        <div className="space-y-3">
-          <label className="flex items-center gap-2">
+      {/* Enhanced Features Section */}
+      <fieldset className="space-y-4">
+        <legend className="block text-sm font-medium text-foreground mb-3">Features</legend>
+        <div className="space-y-4">
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
               name="showSourcesPanel"
               checked={localSettings.showSourcesPanel}
               onChange={handleChange}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Show Sources panel under assistant messages</span>
+            <span className="text-sm group-hover:text-foreground transition-colors">
+              Show Sources panel under assistant messages
+            </span>
           </label>
-          <label className="flex items-center gap-2">
+
+          <label className="flex items-center gap-2 cursor-pointer group">
             <input
               type="checkbox"
               name="showWebDebugBadges"
               checked={localSettings.showWebDebugBadges}
               onChange={handleChange}
+              className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
             />
-            <span className="text-sm">Show web debug badges (dev-only)</span>
+            <span className="text-sm group-hover:text-foreground transition-colors">
+              Show web debug badges (dev-only)
+            </span>
           </label>
-          <div className="flex items-center gap-2">
-            <label className="text-sm w-56" htmlFor="deepResearchDefaultIterations">
-              Deep Research default iterations
-            </label>
-            <input
-              id="deepResearchDefaultIterations"
-              name="deepResearchDefaultIterations"
-              type="number"
-              min={1}
-              max={5}
-              value={localSettings.deepResearchDefaultIterations ?? 2}
-              onChange={handleChange}
-              className="w-20 px-2 py-1 border border-input bg-background rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+
+          {/* Enhanced Deep Research Settings */}
+          <div className="p-4 bg-gradient-to-br from-violet-50 to-indigo-50 dark:from-violet-950/20 dark:to-indigo-950/20 rounded-lg border-2 border-violet-200 dark:border-violet-800">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="p-2 bg-violet-100 dark:bg-violet-900/50 rounded-lg">
+                <svg className="h-5 w-5 text-violet-600 dark:text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-violet-900 dark:text-violet-100 mb-1">
+                  Deep Research Settings
+                </h4>
+                <p className="text-xs text-violet-700 dark:text-violet-300">
+                  Configure how the AI conducts multi-step research with web search and synthesis
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-violet-900 dark:text-violet-100 min-w-[140px]" htmlFor="deepResearchDefaultIterations">
+                Research Iterations
+              </label>
+              <div className="flex items-center gap-2 flex-1">
+                <input
+                  id="deepResearchDefaultIterations"
+                  name="deepResearchDefaultIterations"
+                  type="range"
+                  min={1}
+                  max={5}
+                  value={localSettings.deepResearchDefaultIterations ?? 2}
+                  onChange={handleChange}
+                  className="flex-1 h-2 bg-violet-200 dark:bg-violet-800 rounded-lg appearance-none cursor-pointer accent-violet-600"
+                />
+                <div className="flex items-center justify-center w-12 h-8 bg-violet-600 text-white text-sm font-bold rounded-md">
+                  {localSettings.deepResearchDefaultIterations ?? 2}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 p-2 bg-white/50 dark:bg-black/20 rounded border border-violet-200 dark:border-violet-800">
+              <p className="text-xs text-violet-700 dark:text-violet-300">
+                <strong>Tip:</strong> Higher iterations = more thorough research but slower response.
+                {' '}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 1 && 'Quick research (1 iteration)'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 2 && 'Balanced research (2 iterations) - Recommended'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) === 3 && 'Thorough research (3 iterations)'}
+                {(localSettings.deepResearchDefaultIterations ?? 2) >= 4 && 'Deep dive research (4+ iterations)'}
+              </p>
+            </div>
           </div>
         </div>
       </fieldset>
+
 
       {/* Integrations: MCP */}
       <fieldset>
         <legend className="block text-sm font-medium text-foreground mb-2">Integrations: MCP</legend>
         {mcpError && <p className="text-sm text-destructive">Error: {mcpError}</p>}
+        <div className="mb-2">
+          <label className="block text-xs mb-1">Admin token (optional)</label>
+          <input
+            className="w-full px-2 py-1 border border-input bg-background rounded"
+            value={mcpAdminToken}
+            onChange={(e) => setMcpAdminToken(e.target.value)}
+            placeholder="X-Admin-Token to reveal full env values"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Provide an admin token to reveal full environment variables when editing a server. Token is sent only to the backend endpoint for verification.</p>
+        </div>
         <div className="space-y-4">
           <div className="flex items-center gap-2">
             <button
               type="button"
-                onClick={async () => {
+              onClick={async () => {
                 setMcpLoading(true);
                 try {
                   await warmConnect();
@@ -443,6 +546,51 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
             >
               {mcpLoading ? 'Connecting…' : 'Warm Connect'}
             </button>
+            <div className="flex-1" />
+            <button
+              type="button"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify({ servers: mcpServers }, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'mcp-config.json';
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+            >
+              Export Config
+            </button>
+            <label className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80 cursor-pointer">
+              Import Config
+              <input
+                type="file"
+                className="hidden"
+                accept=".json"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    const text = await file.text();
+                    const json = JSON.parse(text);
+                    if (Array.isArray(json.servers)) {
+                      for (const s of json.servers) {
+                        await upsertMcpServer(s);
+                      }
+                      const data = await listMcpServers();
+                      setMcpServers(data.servers || []);
+                      showToast({ variant: 'success', title: 'Config imported' });
+                    } else {
+                      throw new Error('Invalid config format');
+                    }
+                  } catch (err: any) {
+                    showToast({ variant: 'error', title: 'Import failed', description: err.message });
+                  }
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
 
           {/* Servers list */}
@@ -506,6 +654,9 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                         {s.last_error && (
                           <span className="text-[10px] text-rose-700">error: {s.last_error}</span>
                         )}
+                        {(s as any).env_present && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-800">env</span>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -564,9 +715,24 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {} });
-                          setEditing(true);
+                        onClick={async () => {
+                          try {
+                            // fetch masked or full env if available (pass admin token if provided)
+                            let envObj: Record<string, string> | undefined = undefined;
+                            try {
+                              const envRes = await getServerEnv(s.id, mcpAdminToken || undefined);
+                              if (envRes?.ok) {
+                                envObj = envRes.env || envRes.env_masked || undefined;
+                              }
+                            } catch (e) {
+                              // ignore env fetch errors
+                              envObj = undefined;
+                            }
+                            setNewServer({ id: s.id, transport: s.transport as any, enabled: s.enabled, tags: s.tags || [], headers: {}, env: envObj });
+                            setEditing(true);
+                          } catch (err) {
+                            setMcpError('Failed to prepare edit');
+                          }
                         }}
                         className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80"
                       >
@@ -599,8 +765,9 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   value={newServer.transport}
                   onChange={(e) => setNewServer((p) => ({ ...p, transport: e.target.value as any }))}
                 >
-                  <option value="wss">wss</option>
-                  <option value="stdio">stdio</option>
+                  <option value="wss">WebSocket (WSS)</option>
+                  <option value="sse">SSE (HTTP)</option>
+                  <option value="stdio">Stdio (Local)</option>
                 </select>
               </div>
               <div>
@@ -614,15 +781,17 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                   <option value="false">false</option>
                 </select>
               </div>
-              {newServer.transport === 'wss' ? (
+              {newServer.transport === 'wss' || newServer.transport === 'sse' ? (
                 <>
                   <div className="md:col-span-2">
-                    <label className="block text-xs mb-1">WSS URL</label>
+                    <label className="block text-xs mb-1">
+                      {newServer.transport === 'wss' ? 'WebSocket URL' : 'SSE Endpoint URL'}
+                    </label>
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.url || ''}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
-                      placeholder="wss://..."
+                      onChange={(e) => { setNewServer((p) => ({ ...p, url: e.target.value })); setEditing(true); }}
+                      placeholder={newServer.transport === 'wss' ? "wss://api.example.com/mcp" : "http://localhost:8000/sse"}
                     />
                   </div>
                   <div className="md:col-span-2">
@@ -635,7 +804,23 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                       }}
                       addLabel="Add header"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Sent as additional request headers when connecting.</p>
+                    <div className="flex gap-2 mt-1">
+                      <p className="text-xs text-muted-foreground flex-1">Sent as additional request headers.</p>
+                      <select
+                        className="text-[10px] px-1 py-0.5 border rounded bg-background"
+                        onChange={(e) => {
+                          if (!e.target.value) return;
+                          setNewServer(p => ({ ...p, headers: { ...(p.headers || {}), [e.target.value]: '' } }));
+                          setEditing(true);
+                          e.target.value = '';
+                        }}
+                      >
+                        <option value="">+ Preset</option>
+                        <option value="Authorization">Authorization</option>
+                        <option value="X-API-Key">X-API-Key</option>
+                        <option value="User-Agent">User-Agent</option>
+                      </select>
+                    </div>
                   </div>
                 </>
               ) : (
@@ -645,7 +830,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={newServer.command || ''}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
+                      onChange={(e) => { setNewServer((p) => ({ ...p, command: e.target.value })); setEditing(true); }}
                       placeholder="node"
                     />
                   </div>
@@ -654,9 +839,21 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     <input
                       className="w-full px-2 py-1 border border-input bg-background rounded"
                       value={(newServer.args || []).join(',')}
-                  onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
+                      onChange={(e) => { setNewServer((p) => ({ ...p, args: (e.target.value || '').split(',').map((s) => s.trim()).filter(Boolean) })); setEditing(true); }}
                       placeholder="/path/to/server.js,--flag"
                     />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs mb-1">Env (key / value)</label>
+                    <KeyValueEditor
+                      value={(newServer.env as Record<string, string>) || {}}
+                      onChange={(next) => {
+                        setNewServer((p) => ({ ...p, env: next }));
+                        setEditing(true);
+                      }}
+                      addLabel="Add env var"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Environment variables passed to stdio servers when started.</p>
                   </div>
                 </>
               )}
@@ -711,6 +908,29 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 className="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground rounded hover:bg-primary/90"
               >
                 Save Server
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setTestConnLoading(true);
+                  try {
+                    const res = await testConnection(newServer);
+                    if (res.ok) {
+                      const toolNames = res.tools?.map((t: any) => t.name).join(', ') || 'none';
+                      showToast({ variant: 'success', title: 'Connection Successful', description: `Found tools: ${toolNames}` });
+                    } else {
+                      showToast({ variant: 'error', title: 'Connection Failed', description: res.error });
+                    }
+                  } catch (e: any) {
+                    showToast({ variant: 'error', title: 'Connection Error', description: e.message });
+                  } finally {
+                    setTestConnLoading(false);
+                  }
+                }}
+                disabled={testConnLoading}
+                className="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
+              >
+                {testConnLoading ? 'Testing...' : 'Test Connection'}
               </button>
             </div>
           </div>
@@ -782,7 +1002,10 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                     if (res.error) {
                       setTestFetchResult({ error: res.error });
                     } else {
-                      setTestFetchResult({ snippet: res.citation?.snippet || (res.content ? res.content.slice(0, 200) : '') });
+                      setTestFetchResult({
+                        snippet: res.citation?.snippet || (res.content ? res.content.slice(0, 200) : ''),
+                        structuredContent: res.structuredContent,
+                      });
                     }
                   } catch (e: any) {
                     setTestFetchResult({ error: e?.message || 'Test fetch failed' });
@@ -799,7 +1022,15 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 {testFetchResult.error ? (
                   <p className="text-destructive">Error: {testFetchResult.error}</p>
                 ) : (
-                  <p className="text-muted-foreground">Snippet: {testFetchResult.snippet || '(no preview)'}</p>
+                  <>
+                    <p className="text-muted-foreground">Snippet: {testFetchResult.snippet || '(no preview)'}</p>
+                    {testFetchResult.structuredContent && (
+                      <div className="mt-2">
+                        <label className="block text-xs mb-1">Structured Content</label>
+                        <pre className="max-h-60 overflow-auto bg-surface p-2 rounded text-xs">{JSON.stringify(testFetchResult.structuredContent, null, 2)}</pre>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -809,53 +1040,55 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
 
       <div className="h-10" />
       {/* Sticky dirty-state footer */}
-      {(isSettingsDirty || editing) && (
-        <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
-          <div className="text-xs text-muted-foreground flex-1">
-            You have unsaved changes{editing ? ' (MCP server form)' : ''}.
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
-              onClick={handleCancelChanges}
-            >
-              Discard Changes
-            </button>
-            <button
-              type="button"
-              className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleSave}
-              disabled={!isSettingsDirty}
-            >
-              Save Settings
-            </button>
-            {editing && (
+      {
+        (isSettingsDirty || editing) && (
+          <div className="sticky bottom-0 inset-x-0 bg-background/95 backdrop-blur border-t shadow-sm px-3 py-2 flex items-center gap-2 z-40">
+            <div className="text-xs text-muted-foreground flex-1">
+              You have unsaved changes{editing ? ' (MCP server form)' : ''}.
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="px-2 py-1 text-xs rounded bg-secondary hover:bg-secondary/80"
+                onClick={handleCancelChanges}
+              >
+                Discard Changes
+              </button>
               <button
                 type="button"
                 className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
-                onClick={async () => {
-                  try {
-                    if (!newServer.id) throw new Error('Server id is required');
-                    const payload = { ...newServer };
-                    await upsertMcpServer(payload);
-                    const data = await listMcpServers();
-                    setMcpServers(data.servers || []);
-                    setEditing(false);
-                    showToast({ variant: 'success', title: `Saved ${payload.id}` });
-                  } catch (e: any) {
-                    setMcpError(e?.message || 'Upsert failed');
-                    showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
-                  }
-                }}
+                onClick={handleSave}
+                disabled={!isSettingsDirty}
               >
-                Save Server
+                Save Settings
               </button>
-            )}
+              {editing && (
+                <button
+                  type="button"
+                  className="px-2 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                  onClick={async () => {
+                    try {
+                      if (!newServer.id) throw new Error('Server id is required');
+                      const payload = { ...newServer };
+                      await upsertMcpServer(payload);
+                      const data = await listMcpServers();
+                      setMcpServers(data.servers || []);
+                      setEditing(false);
+                      showToast({ variant: 'success', title: `Saved ${payload.id}` });
+                    } catch (e: any) {
+                      setMcpError(e?.message || 'Upsert failed');
+                      showToast({ variant: 'error', title: 'Save failed', description: String(e?.message || '') });
+                    }
+                  }}
+                >
+                  Save Server
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </form>
+        )
+      }
+    </form >
   );
 };
 

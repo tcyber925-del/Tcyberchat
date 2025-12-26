@@ -15,10 +15,15 @@ try:
 except Exception:
     try:
         from langchain_community.embeddings import (
-            SentenceTransformerEmbeddings as LCEmbeddings,  # type: ignore
+            HuggingFaceEmbeddings as LCEmbeddings,  # type: ignore
         )
     except Exception:
-        LCEmbeddings = None  # type: ignore
+        try:
+            from langchain_community.embeddings import (
+                SentenceTransformerEmbeddings as LCEmbeddings,  # type: ignore
+            )
+        except Exception:
+            LCEmbeddings = None  # type: ignore
 
 from .rag_adapter import (
     LANGCHAIN_PRESENT,
@@ -101,26 +106,104 @@ if not LANGCHAIN_AVAILABLE:
     RecursiveCharacterTextSplitter = _Stub
     ConversationBufferWindowMemory = _Stub
 else:
-    from langchain.chains.combine_documents import create_stuff_documents_chain
-    from langchain.chains.history_aware_retriever import create_history_aware_retriever
-    from langchain.chains.retrieval import create_retrieval_chain
-    from langchain.retrievers import EnsembleRetriever
-    from langchain.retrievers.document_compressors import (
-        DocumentCompressorPipeline,
-        EmbeddingsFilter,
-    )
-    from langchain_community.embeddings import SentenceTransformerEmbeddings
-    from langchain_community.retrievers import BM25Retriever
-    from langchain_core.callbacks import BaseCallbackHandler
-    from langchain_core.documents import Document as LangChainDocument
-    from langchain_core.language_models import BaseLLM
-    from langchain_core.messages import AIMessage, HumanMessage
-    from langchain_core.outputs import Generation, LLMResult
-    from langchain_core.prompts import (
-        ChatPromptTemplate,
-        MessagesPlaceholder,
-        PromptTemplate,
-    )
+    # Try importing from the newer split layout first (langchain_core + langchain_community),
+    # then fall back to the older integrated `langchain` layout. If neither is available,
+    # set up safe internal stubs so the app remains operational (with reduced features).
+    try:
+        # Prefer langchain_core layout
+        from langchain_core.chains.combine_documents import create_stuff_documents_chain
+        from langchain_core.chains.history_aware_retriever import create_history_aware_retriever
+        from langchain_core.chains.retrieval import create_retrieval_chain
+        from langchain_core.retrievers import EnsembleRetriever
+        from langchain_core.retrievers.document_compressors import (
+            DocumentCompressorPipeline,
+            EmbeddingsFilter,
+        )
+        # Community packages
+        from langchain_community.embeddings import SentenceTransformerEmbeddings
+        from langchain_community.retrievers import BM25Retriever
+
+        # Core primitives
+        from langchain_core.callbacks import BaseCallbackHandler
+        from langchain_core.documents import Document as LangChainDocument
+        from langchain_core.language_models import BaseLLM
+        from langchain_core.messages import AIMessage, HumanMessage
+        from langchain_core.outputs import Generation, LLMResult
+        from langchain_core.prompts import (
+            ChatPromptTemplate,
+            MessagesPlaceholder,
+            PromptTemplate,
+        )
+        LANGCHAIN_AVAILABLE = True
+    except Exception:
+        try:
+            # Fallback: older single-package layout
+            from langchain.chains.combine_documents import create_stuff_documents_chain
+            from langchain.chains.history_aware_retriever import create_history_aware_retriever
+            from langchain.chains.retrieval import create_retrieval_chain
+            from langchain.retrievers import EnsembleRetriever
+            from langchain.retrievers.document_compressors import (
+                DocumentCompressorPipeline,
+                EmbeddingsFilter,
+            )
+            # Community packages
+            from langchain_community.embeddings import SentenceTransformerEmbeddings
+            from langchain_community.retrievers import BM25Retriever
+            # Core primitives (may live under langchain in older layout)
+            try:
+                from langchain.callbacks import BaseCallbackHandler
+                from langchain.documents import Document as LangChainDocument
+                from langchain.language_models import BaseLLM
+                from langchain.messages import AIMessage, HumanMessage
+                from langchain.outputs import Generation, LLMResult
+                from langchain.prompts import (
+                    ChatPromptTemplate,
+                    MessagesPlaceholder,
+                    PromptTemplate,
+                )
+            except Exception:
+                # Best-effort: some submodules may be in langchain_core even if langchain exists
+                from langchain_core.callbacks import BaseCallbackHandler
+                from langchain_core.documents import Document as LangChainDocument
+                from langchain_core.language_models import BaseLLM
+                from langchain_core.messages import AIMessage, HumanMessage
+                from langchain_core.outputs import Generation, LLMResult
+                from langchain_core.prompts import (
+                    ChatPromptTemplate,
+                    MessagesPlaceholder,
+                    PromptTemplate,
+                )
+            LANGCHAIN_AVAILABLE = True
+        except Exception as e:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"LangChain import failed or incompatible: {e}; falling back to internal stubs"
+            )
+            LANGCHAIN_AVAILABLE = False
+
+            # Minimal stubs to keep the system running without LangChain features
+            def _mk_stub():
+                return _Stub
+
+            create_stuff_documents_chain = lambda *a, **k: _Stub()
+            create_history_aware_retriever = lambda *a, **k: _Stub()
+            create_retrieval_chain = lambda *a, **k: _Stub()
+            EnsembleRetriever = _Stub
+            DocumentCompressorPipeline = _Stub
+            EmbeddingsFilter = _Stub
+            SentenceTransformerEmbeddings = _Stub
+            BM25Retriever = _Stub
+            BaseCallbackHandler = object
+            LangChainDocument = _Stub
+            BaseLLM = object
+            AIMessage = str
+            HumanMessage = str
+            Generation = dict
+            LLMResult = dict
+            ChatPromptTemplate = _Stub
+            MessagesPlaceholder = _Stub
+            PromptTemplate = _Stub
 
 # Import AI service lazily inside the service to avoid optional dependency failures
 # IMPORTANT: avoid importing the database/chroma at module import time. Use lazy resolution
@@ -1515,7 +1598,7 @@ Answer:"""
                         yield {"content": "AI service not available", "done": False}
 
             yield {
-                "content": full_response_content,
+                "content": "",
                 "done": True,
                 "citations": citations,
                 "context_chunks_used": len(citations),

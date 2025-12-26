@@ -1,0 +1,44 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+
+# Logs and data (mounted as volumes in production)
+logs/
+*.log
+data/
+uploads/
+
+# Tests (not needed in production image)
+tests/
+test_*.py
+conftest.py
+pytest.ini
+
+# Documentation
+*.md
+docs/
+
+# Development files
+.env
+.env.*
+.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+.github/
+
+# Scripts (development only)
+scripts/

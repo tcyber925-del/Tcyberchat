@@ -15,19 +15,24 @@ class WsMcpConnection:
         self._connect_timeout = connect_timeout
         self._session = None
         self._client = None
+        self._context = None
 
     async def start(self) -> None:
         """Connect to the MCP server via WebSocket."""
         try:
             from mcp.client.session import ClientSession
-            from mcp.client.websocket import websocket_client
+            # Prefer SDK-provided websocket client if available, otherwise fall back to local adapter
+            try:
+                from mcp.client.websocket import websocket_client  # type: ignore
+            except Exception:
+                from ..clients.websocket_client import websocket_client
 
             # Create websocket transport and session
-            async with websocket_client(self._url, headers=self._headers or {}) as (read, write):
-                self._session = ClientSession(read, write)
-                await self._session.initialize()
-                # Keep session alive – in production, manage lifecycle properly
-                self._client = self._session
+            self._context = websocket_client(self._url, headers=self._headers or {})
+            read, write = await self._context.__aenter__()
+            self._session = ClientSession(read, write)
+            await self._session.initialize()
+            self._client = self._session
         except Exception as e:
             # Failed to connect or SDK not available
             self._session = None
@@ -36,13 +41,15 @@ class WsMcpConnection:
 
     async def stop(self) -> None:
         """Close the MCP client session."""
-        if self._session is not None:
+        if self._context is not None:
             try:
-                # MCP SDK sessions may not have explicit close; context manager handles it
-                self._session = None
-                self._client = None
+                await self._context.__aexit__(None, None, None)
             except Exception:
                 pass
+            finally:
+                self._session = None
+                self._client = None
+                self._context = None
 
     async def list_tools(self) -> List[Dict[str, Any]]:
         """List available tools from the MCP server."""
@@ -68,13 +75,19 @@ class WsMcpConnection:
         try:
             result = await self._client.call_tool(name, params)
             # MCP SDK returns CallToolResult with content list
+            out: Dict[str, Any] = {}
             if hasattr(result, "content"):
                 # Combine content blocks
                 content_text = ""
                 for block in result.content:
                     if hasattr(block, "text"):
                         content_text += block.text
-                return {"content": content_text, "isError": getattr(result, "isError", False)}
+                out["content"] = content_text
+            if hasattr(result, "structuredContent") and getattr(result, "structuredContent") is not None:
+                out["structuredContent"] = getattr(result, "structuredContent")
+            out["isError"] = getattr(result, "isError", False)
+            if out:
+                return out
             return {"result": str(result)}
         except Exception as e:
             return {"error": str(e)}

@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@plugin '@tailwindcss/typography';
 @import 'tw-animate-css';
 @import '../lib/styles/themes.css';
 
@@ -117,6 +118,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -138,12 +140,18 @@
   .animate-pulse-subtle {
     animation: pulseSubtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
+
+  .break-anywhere {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -154,6 +162,7 @@
     transform: translateY(20px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -161,6 +170,7 @@
 }
 
 @keyframes bounceSubtle {
+
   0%,
   20%,
   50%,
@@ -168,19 +178,23 @@
   100% {
     transform: translateY(0);
   }
+
   40% {
     transform: translateY(-5px);
   }
+
   60% {
     transform: translateY(-2px);
   }
 }
 
 @keyframes pulseSubtle {
+
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.8;
   }

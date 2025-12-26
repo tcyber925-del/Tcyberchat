@@ -13,7 +13,7 @@ export interface McpHealthResponse {
 
 export async function getMcpHealth(signal?: AbortSignal): Promise<McpHealthResponse> {
   try {
-    const res = await fetchJsonWithRetries<McpHealthResponse>(`${API_BASE_URL}/api/integrations/mcp/health`, { timeoutMs: 5000, retries: 0, signal });
+    const res = await fetchJsonWithRetries<McpHealthResponse>(`${API_BASE_URL}/api/integrations/mcp/health`, { timeoutMs: 15000, retries: 0, signal });
     return res;
   } catch (err) {
     console.error('Failed to fetch MCP health:', err);

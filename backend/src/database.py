@@ -14,8 +14,9 @@ from sqlalchemy.orm import DeclarativeBase, sessionmaker
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/chatbot.db")
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./data/chroma_db")
 
-# Ensure data directories exist
-os.makedirs(os.path.dirname(DATABASE_URL.replace("sqlite:///", "")), exist_ok=True)
+# Ensure data directories exist (only for SQLite local file)
+if DATABASE_URL.startswith("sqlite"):
+    os.makedirs(os.path.dirname(DATABASE_URL.replace("sqlite:///", "")), exist_ok=True)
 os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
 
 # SQLAlchemy setup

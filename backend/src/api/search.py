@@ -36,7 +36,7 @@ async def search(
         # In a full implementation, this would also search conversations
         if type in ["all", "documents"]:
             raw_results = await rag_service.search_relevant_chunks(
-                query=q.strip(), limit=limit
+                query=q.strip(), limit=limit, use_compression=True
             )
 
             # Normalize results to contract shape expected by callers/tests

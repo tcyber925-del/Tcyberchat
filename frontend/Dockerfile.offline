@@ -1,0 +1,76 @@
+# ==================================================================================================
+# Offline Frontend Dockerfile (for air-gapped / restricted networks)
+#
+# This Dockerfile expects you to provide two offline artifacts under `frontend/offline/` in the repo
+#   1) pnpm.tgz            - a packed pnpm release (e.g. `npm pack pnpm@8.12.1` -> `pnpm-8.12.1.tgz`) renamed to pnpm.tgz
+#   2) prebuilt.tar.gz     - a tarball containing the built Next.js standalone output and required assets
+#                           Example contents: .next/standalone/frontend  (and optionally .next/static, public)
+#
+# The offline build flow:
+#   - Install pnpm from the local tarball (no network required)
+#   - Extract the `prebuilt.tar.gz` into the build context
+#   - Copy the prebuilt standalone output into the production image
+#
+# Note: This is intentionally conservative and will fail fast if the offline artifacts are missing.
+# ==================================================================================================
+
+FROM node:20-alpine AS builder
+
+WORKDIR /app/frontend
+
+# Copy package files for metadata only (we're not fetching packages during offline build)
+COPY frontend/package.json ./package.json
+COPY pnpm-lock.yaml ./pnpm-lock.yaml
+
+# Copy the local pnpm tarball (required)
+COPY frontend/offline/pnpm.tgz /tmp/pnpm.tgz
+RUN if [ -f /tmp/pnpm.tgz ]; then \
+      echo "Installing pnpm from local tarball..." && npm install -g /tmp/pnpm.tgz --no-audit --no-fund || true; \
+    else \
+      echo "ERROR: Missing frontend/offline/pnpm.tgz - create it with 'npm pack pnpm@<version>'" && exit 1; \
+    fi
+
+# Copy prebuilt archive produced by a machine with network access
+# The archive must contain the built standalone folder: .next/standalone/frontend
+COPY frontend/offline/prebuilt.tar.gz /tmp/prebuilt.tar.gz
+RUN if [ -f /tmp/prebuilt.tar.gz ]; then \
+      echo "Extracting prebuilt artifacts..." && tar -xzf /tmp/prebuilt.tar.gz -C /app/frontend ; \
+    else \
+      echo "ERROR: Missing frontend/offline/prebuilt.tar.gz - create it after running 'pnpm build'" && exit 1; \
+    fi
+
+# ------------------------------------------------------------------------------
+# Production image (same layout as the normal Dockerfile production stage)
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS production
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nextjs
+
+# Copy built standalone app from builder into /app/frontend
+COPY --from=builder /app/frontend/.next/standalone/frontend /app/frontend
+
+# Also copy any top-level assets produced by the build
+COPY --from=builder /app/frontend/.next/static /app/frontend/.next/static
+COPY --from=builder /app/frontend/public /app/frontend/public
+
+# Ensure runtime dependencies are available (we do not run pnpm install here as dependencies should be present in the prebuilt archive)
+# If you need to install runtime dependencies offline, include node_modules in the prebuilt archive.
+
+RUN chown -R nextjs:nodejs /app /app/frontend || true
+
+USER nextjs
+WORKDIR /app/frontend
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -q --spider http://localhost:3000 || exit 1
+
+CMD ["node", "server.js"]

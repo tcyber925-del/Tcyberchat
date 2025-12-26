@@ -1,0 +1,153 @@
+# ==============================================================================
+# TcyberChatbot Docker Compose Configuration
+# Production-ready multi-service orchestration
+# ==============================================================================
+#
+# Usage:
+#   docker compose build      # Build all images
+#   docker compose up -d      # Start all services
+#   docker compose logs -f    # View logs
+#   docker compose down       # Stop services
+#   docker compose down -v    # Stop services and remove volumes
+#
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # Nginx Reverse Proxy
+  # ============================================================================
+  nginx:
+    image: nginx:alpine
+    container_name: tcyber_nginx
+    ports:
+      - "8080:80" # Access at http://localhost:8080
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - tcyber_network
+
+  # ============================================================================
+  # Next.js Frontend
+  # ============================================================================
+  frontend:
+    image: tcyber_frontend:latest
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        USE_PREBUILT: ${USE_PREBUILT:-0}
+        PNPM_VERSION: ${PNPM_VERSION:-8.12.1}
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    container_name: tcyber_frontend
+    environment:
+      - NODE_ENV=production
+      - BACKEND_INTERNAL_URL=http://backend:8000
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - tcyber_network
+
+  # ============================================================================
+  # FastAPI Backend
+  # ============================================================================
+  backend:
+    image: tcyber_backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: tcyber_backend
+    env_file:
+      - ./backend/.env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # ALLOWED_ORIGINS is the variable name used in main.py
+      - ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000,http://127.0.0.1:8080,http://127.0.0.1:3000,http://0.0.0.0:8080,http://0.0.0.0:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persistent storage for data
+      - backend_data:/app/data
+      - backend_uploads:/app/uploads
+      - backend_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s # ML models may take time to load
+    restart: unless-stopped
+    networks:
+      - tcyber_network
+
+  # ============================================================================
+  # Redis Cache
+  # ============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: tcyber_redis
+    command: [ "redis-server", "--save", "", "--appendonly", "no" ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - tcyber_network
+
+  # ============================================================================
+  # Postgres Database
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: tcyber_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-tcyber}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-tcyber_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - tcyber_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tcyber -d tcyber_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ==============================================================================
+# Networks
+# ==============================================================================
+networks:
+  tcyber_network:
+    driver: bridge
+
+# ==============================================================================
+# Volumes
+# ==============================================================================
+volumes:
+  backend_data:
+    driver: local
+  backend_uploads:
+    driver: local
+  backend_logs:
+    driver: local
+  postgres_data:
+    driver: local

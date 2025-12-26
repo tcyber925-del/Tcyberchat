@@ -23,7 +23,7 @@ Chat.displayName = 'Chat';
 interface ChatMessageProps extends React.ComponentPropsWithoutRef<'div'> {
   role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
   content?: string; // Raw content for copying
-  onCopy?: (content: string) => void; // Optional copy callback
+  onCopy?: any; // Optional copy callback (typed as any to avoid DOM prop conflict)
   onEdit?: (content: string) => void; // Optional edit callback (for user messages)
   timestamp?: Date; // Optional timestamp for the message
   isStreaming?: boolean; // Whether this message is currently streaming
@@ -104,7 +104,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         const textFromChildren = childrenArray
           .map((child) => {
             if (typeof child === 'string') return child;
-            if (React.isValidElement(child) && child.props?.children) {
+            if (React.isValidElement(child) && (child as any).props?.children) {
               // Recursively extract text from nested children
               const extractText = (node: any): string => {
                 if (typeof node === 'string') return node;
@@ -112,12 +112,12 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                 if (Array.isArray(node)) {
                   return node.map(extractText).join('');
                 }
-                if (React.isValidElement(node) && node.props?.children) {
-                  return extractText(node.props.children);
+                if (React.isValidElement(node) && (node as any).props?.children) {
+                  return extractText((node as any).props.children);
                 }
                 return '';
               };
-              return extractText(child.props.children);
+              return extractText((child as any).props.children);
             }
             return '';
           })
@@ -181,21 +181,21 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
           className={cn(
             'flex flex-col',
             isUser
-              ? 'items-end max-w-[80%] md:max-w-[70%]'
-              : 'items-start max-w-[80%] md:max-w-[70%]',
+              ? 'items-end max-w-[80%] md:max-w-[70%] min-w-0'
+              : 'items-start max-w-[80%] md:max-w-[70%] min-w-0',
           )}
         >
           {/* Message bubble */}
           <div
             className={cn(
-              'relative rounded-2xl px-4 py-3 shadow-sm transition-all duration-200',
+              'relative rounded-2xl px-4 py-3 shadow-sm transition-all duration-200 overflow-hidden',
               'hover:shadow-md',
               isStreaming && 'animate-pulse-subtle',
               bubbleClasses,
               isUser ? 'rounded-br-md' : 'rounded-bl-md',
             )}
           >
-            <div className="prose prose-sm dark:prose-invert max-w-none">{children}</div>
+            <div className="prose prose-sm dark:prose-invert max-w-none break-anywhere w-full whitespace-normal">{children}</div>
 
             {/* Action buttons - appears on hover */}
             <div
@@ -278,7 +278,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                   let host = '';
                   try {
                     host = url ? new URL(url).hostname.replace('www.', '') : '';
-                  } catch {}
+                  } catch { }
                   const title = c.title || host || 'Source';
                   const snippet = (c.snippet || '').slice(0, 140);
                   return (
@@ -292,45 +292,45 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                       <div className="text-xs font-medium text-foreground line-clamp-1">
                         {title}
                       </div>
-{/* Trust and domain badges */}
-{typeof c.trust === 'number' || host ? (
-  <div className="mt-1 flex items-center gap-1">
-    {typeof c.trust === 'number' && (
-      <span
-        className={cn(
-          'text-[10px] px-1 py-0.5 rounded',
-          c.trust >= 0.75
-            ? 'bg-green-100 text-green-700'
-            : c.trust >= 0.5
-              ? 'bg-yellow-100 text-yellow-700'
-              : 'bg-red-100 text-red-700',
-        )}
-        title={`Trust score: ${(c.trust * 100).toFixed(0)}%`}
-      >
-        {c.trust >= 0.75 ? 'High' : c.trust >= 0.5 ? 'Med' : 'Low'} trust
-      </span>
-    )}
-    {c.suspicious && (
-      <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700" title="Possible prompt injection filtered">
-        suspicious
-      </span>
-    )}
-    {host && (
-      <span className="text-[10px] px-1 py-0.5 rounded bg-accent/40 text-muted-foreground">
-        {host}
-      </span>
-    )}
-  </div>
-) : null}
-{snippet && (
-  <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
-    {snippet}
-  </div>
-)}
-{/* Show a top quote if available */}
-{Array.isArray(c.quotes) && c.quotes.length > 0 && (
-  <div className="text-[11px] text-foreground mt-1 italic line-clamp-2">“{c.quotes[0]}”</div>
-)}
+                      {/* Trust and domain badges */}
+                      {typeof c.trust === 'number' || host ? (
+                        <div className="mt-1 flex items-center gap-1">
+                          {typeof c.trust === 'number' && (
+                            <span
+                              className={cn(
+                                'text-[10px] px-1 py-0.5 rounded',
+                                c.trust >= 0.75
+                                  ? 'bg-green-100 text-green-700'
+                                  : c.trust >= 0.5
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-red-100 text-red-700',
+                              )}
+                              title={`Trust score: ${(c.trust * 100).toFixed(0)}%`}
+                            >
+                              {c.trust >= 0.75 ? 'High' : c.trust >= 0.5 ? 'Med' : 'Low'} trust
+                            </span>
+                          )}
+                          {c.suspicious && (
+                            <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700" title="Possible prompt injection filtered">
+                              suspicious
+                            </span>
+                          )}
+                          {host && (
+                            <span className="text-[10px] px-1 py-0.5 rounded bg-accent/40 text-muted-foreground">
+                              {host}
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+                      {snippet && (
+                        <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2">
+                          {snippet}
+                        </div>
+                      )}
+                      {/* Show a top quote if available */}
+                      {Array.isArray(c.quotes) && c.quotes.length > 0 && (
+                        <div className="text-[11px] text-foreground mt-1 italic line-clamp-2">“{c.quotes[0]}”</div>
+                      )}
                     </a>
                   );
                 })}

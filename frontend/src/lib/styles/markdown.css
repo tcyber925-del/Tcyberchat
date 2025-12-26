@@ -7,6 +7,8 @@
   margin-bottom: 0.75rem;
   line-height: 1.7;
   word-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .markdown-container p:last-child {
@@ -61,7 +63,7 @@
   line-height: 1.6;
 }
 
-.markdown-container li > p {
+.markdown-container li>p {
   margin-bottom: 0.5rem;
 }
 
@@ -167,7 +169,7 @@
 }
 
 /* Citations section styling */
-.markdown-container hr + p {
+.markdown-container hr+p {
   font-weight: 600;
   margin-top: 1rem;
   margin-bottom: 0.5rem;

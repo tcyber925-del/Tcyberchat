@@ -25,12 +25,15 @@ class LlamaCppClient:
             base_url (str): The base URL of the llama.cpp server.
         """
         self.base_url = base_url
-        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=None)
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(10.0, connect=2.0))
         logger.info(f"Llama.cpp client initialized for server at {self.base_url}")
 
     async def get_available_models(self) -> list[str]:
         """
-        Retrieves the list of available models from the server.
+        Get the list of available models from the llama.cpp server.
+
+        Returns:
+            List[str]: A list of model IDs.
         """
         try:
             response = await self.client.get("/v1/models")

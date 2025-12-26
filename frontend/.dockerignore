@@ -1,0 +1,32 @@
+# Dependencies (installed fresh in Docker)
+node_modules/
+
+# Next.js build output (rebuilt in Docker)
+.next/
+.swc/
+
+# Test files
+tests/
+test-results/
+playwright-report/
+jest.config.js
+jest.setup.js
+playwright.config.ts
+
+# Documentation
+*.md
+
+# Environment files
+.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore
+
+# Frontend nested folder (if any)
+frontend/
