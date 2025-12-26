@@ -1,3 +1,4 @@
+````markdown
 # Backend
 
 This folder contains the backend FastAPI application and tests for the Local First Chatbot.
@@ -34,6 +35,7 @@ Recommended CI change:
 	the real packages. The shims will continue to act as fallbacks for quick local runs where installing
 	optional deps is not desirable.
 
+<<<<<<< HEAD
 **Open PR & Labels**
 
 - A pre-filled Pull Request page for the `feat/move-shims` branch is available; open it in your browser and click "Create pull request" to submit the branch for review. Example:
@@ -66,3 +68,6 @@ gh pr edit <pr-number> --add-label tests --add-label ci --add-label bugfix
 gh pr comment <pr-number> --body "Local test results: 198 passed, 9 skipped. Ready for CI verification."
 ```
 
+=======
+````
+>>>>>>> 98ae03f7b46feafbba0808aa71e6aa203051f0e5
