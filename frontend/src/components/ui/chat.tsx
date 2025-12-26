@@ -23,7 +23,7 @@ Chat.displayName = 'Chat';
 interface ChatMessageProps extends React.ComponentPropsWithoutRef<'div'> {
   role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
   content?: string; // Raw content for copying
-  onCopy?: (content: string) => void; // Optional copy callback
+  onCopy?: any; // Optional copy callback (typed as any to avoid DOM prop conflict)
   onEdit?: (content: string) => void; // Optional edit callback (for user messages)
   timestamp?: Date; // Optional timestamp for the message
   isStreaming?: boolean; // Whether this message is currently streaming
@@ -104,7 +104,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         const textFromChildren = childrenArray
           .map((child) => {
             if (typeof child === 'string') return child;
-            if (React.isValidElement(child) && child.props?.children) {
+            if (React.isValidElement(child) && (child as any).props?.children) {
               // Recursively extract text from nested children
               const extractText = (node: any): string => {
                 if (typeof node === 'string') return node;
@@ -112,12 +112,12 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                 if (Array.isArray(node)) {
                   return node.map(extractText).join('');
                 }
-                if (React.isValidElement(node) && node.props?.children) {
-                  return extractText(node.props.children);
+                if (React.isValidElement(node) && (node as any).props?.children) {
+                  return extractText((node as any).props.children);
                 }
                 return '';
               };
-              return extractText(child.props.children);
+              return extractText((child as any).props.children);
             }
             return '';
           })

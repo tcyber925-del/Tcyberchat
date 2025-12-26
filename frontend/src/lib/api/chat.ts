@@ -6,7 +6,17 @@ export async function sendMessageStreaming(
   documentId?: string,
   enableWebSearch?: boolean,
   onChunk?: (chunk: string) => void,
-  onComplete?: (finalMessage: { content: string; messageId?: string; citations?: any[] }) => void,
+  onComplete?: (
+    finalMessage: {
+      content: string;
+      messageId?: string;
+      citations?: any[];
+      webSearchUsed?: boolean;
+      webSearchResultsCount?: number;
+      webProvider?: string;
+      webImpl?: string;
+    },
+  ) => void,
   onError?: (err: Error) => void,
 ) {
   const response = await fetch('/api/chat', {

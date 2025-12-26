@@ -57,13 +57,14 @@ google-search-results
 ddgs
 primp
 h2
+firecrawl-py>=1.0.0
 
 
 
 # Deep Research and Groq
 deepagents
-groq>=0.36.0
-langchain-groq>=1.1.0
+# groq>=0.36.0  # disabled: causes langchain-core version conflict during pip resolution
+# langchain-groq>=1.1.0  # disabled: requires langchain-core>=1.1 which conflicts with langchain 0.3.x
 
 # Development dependencies
 pytest
@@ -79,3 +80,4 @@ fakeredis
 
 redis
 prometheus_client
+psycopg2-binary

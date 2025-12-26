@@ -4,7 +4,7 @@ import google.generativeai as genai
 
 # IMPORTANT: Replace 'YOUR_API_KEY_HERE' with your actual Gemini API key.
 # Alternatively, ensure GEMINI_API_KEY is set as an environment variable.
-API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAzxyrTis09q3mHKEznBbzvWz_uAb6DWfo")
+API_KEY = os.getenv("GEMINI_API_KEY", "Your_API_KEY_HERE")
 
 if API_KEY == "YOUR_API_KEY_HERE":
     print(

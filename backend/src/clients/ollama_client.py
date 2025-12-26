@@ -24,9 +24,9 @@ class OllamaClient:
 
         Args:
             base_url (str, optional): The base URL of the Ollama server.
-                                      Defaults to OLLAMA_BASE_URL env var or http://localhost:11434.
+                                      Defaults to OLLAMA_BASE_URL env var or http://localhost:11501.
         """
-        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11501")
         # Ensure no trailing slash
         self.base_url = self.base_url.rstrip("/")
         self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(30.0, connect=5.0))

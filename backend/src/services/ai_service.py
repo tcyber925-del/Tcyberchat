@@ -86,7 +86,7 @@ class AIService:
             AIService._llama_cpp_client = LlamaCppClient(base_url=llama_server_url)
 
         # Initialize Ollama client
-        ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11501")
         if not AIService._ollama_client:
             AIService._ollama_client = OllamaClient(base_url=ollama_server_url)
 
@@ -659,7 +659,7 @@ async def aget_ai_service(model_name: str | None = None) -> AIService:
                 model_name = AIService._llama_cpp_models[0]
             else:
                 # Fallback to the first available ollama model
-                ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+                ollama_server_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11501")
                 if not AIService._ollama_client:
                     AIService._ollama_client = OllamaClient(base_url=ollama_server_url)
                 await AIService._fetch_ollama_models_if_needed()

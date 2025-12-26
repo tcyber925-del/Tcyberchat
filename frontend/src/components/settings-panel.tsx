@@ -654,7 +654,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                         {s.last_error && (
                           <span className="text-[10px] text-rose-700">error: {s.last_error}</span>
                         )}
-                        {s.env_present && (
+                        {(s as any).env_present && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] bg-indigo-100 text-indigo-800">env</span>
                         )}
                       </div>

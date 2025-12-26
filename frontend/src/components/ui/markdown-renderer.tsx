@@ -38,7 +38,8 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
         remarkPlugins={[remarkGfm, remarkBreaks]}
         components={{
           // Enhanced code block rendering with syntax highlighting
-          code({ node, inline, className, children, ...props }) {
+          code(props: any) {
+            const { node, inline, className, children, ...rest } = props;
             const match = /language-(\w+)/.exec(className || '');
             const language = match ? match[1] : '';
             const codeString = String(children).replace(/\n$/, '');
@@ -59,7 +60,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                     fontSize: '0.875rem',
                     lineHeight: '1.5',
                   }}
-                  {...props}
+                  {...rest}
                 >
                   {codeString}
                 </SyntaxHighlighter>
@@ -70,7 +71,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
                   'relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-medium',
                   className,
                 )}
-                {...props}
+                {...rest}
               >
                 {children}
               </code>

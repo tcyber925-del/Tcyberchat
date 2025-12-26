@@ -221,17 +221,49 @@ app = FastAPI(
 )
 
 # Configure CORS for frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://0.0.0.0:3000",
-    ],  # Frontend development server (allow common dev hosts)
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Allow configuration via environment variables for flexible dev setups:
+# - ALLOWED_ORIGINS: comma-separated list of allowed origins (e.g. http://localhost:3001,http://127.0.0.1:3001)
+# - ALLOW_ORIGIN_REGEX: if set, will be passed to `allow_origin_regex` (useful for localhost with any port)
+_allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+_allow_origin_regex_env = os.getenv("ALLOW_ORIGIN_REGEX")
+
+if _allow_origin_regex_env:
+    logger.info(f"Configuring CORS with allow_origin_regex={_allow_origin_regex_env}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=_allow_origin_regex_env,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    if _allowed_origins_env:
+        try:
+            origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+        except Exception:
+            origins = None
+    else:
+        origins = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "http://0.0.0.0:3000",
+            # Frontend dev server may run on port 3001 in some setups
+            "http://localhost:3001",
+            "http://127.0.0.1:3001",
+        ]
+
+    if origins:
+        logger.info(f"Configuring CORS with allow_origins={origins}")
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    else:
+        # Fallback: be explicit about not allowing any origins if parsing failed
+        logger.warning("No valid CORS origins configured; default CORS disabled")
 
 
 # Custom logging middleware

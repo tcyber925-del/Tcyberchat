@@ -388,7 +388,7 @@ export default function Home() {
                         messageId={m.id}
                         meta={(m as any).metadata}
                         citations={m.citations as any}
-                        onCopy={(text) => {
+                        onCopy={(text: string) => {
                           showToast('Message copied to clipboard!', 'success');
                         }}
                         onEdit={
@@ -415,7 +415,7 @@ export default function Home() {
                       content={streamingMessage.content}
                       timestamp={streamingMessage.timestamp}
                       isStreaming={isStreaming}
-                      onCopy={(text) => {
+                      onCopy={(text: string) => {
                         showToast('Message copied to clipboard!', 'success');
                       }}
                     >

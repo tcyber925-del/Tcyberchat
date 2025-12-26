@@ -31,7 +31,7 @@ interface ChatContextType {
   currentSession: ChatSession | null;
   setCurrentSession: (session: ChatSession | null) => void;
   messages: Message[];
-  setMessages: (messages: Message[]) => void;
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
   documents: Document[];
   setDocuments: (documents: Document[]) => void;
   selectedDocumentId: string | null; // Add selectedDocumentId
@@ -164,8 +164,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const fetchModels = async () => {
       try {
         const allModels = await getModels();
-        const local = (allModels || []).filter((m) => m.provider === 'llama.cpp');
-        const cloud = (allModels || []).filter((m) => m.provider !== 'llama.cpp');
+        const local = (allModels || []).filter((m: any) => m.provider === 'llama.cpp');
+        const cloud = (allModels || []).filter((m: any) => m.provider !== 'llama.cpp');
         setLocalModels(local);
         setCloudModels(cloud);
       } catch (err) {

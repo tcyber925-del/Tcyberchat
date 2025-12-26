@@ -33,6 +33,11 @@ try:
 except Exception:  # pragma: no cover
     TavilyClient = None  # type: ignore
 
+try:
+    from firecrawl import Firecrawl as FirecrawlClient  # type: ignore
+except Exception:  # pragma: no cover
+    FirecrawlClient = None  # type: ignore
+
 
 @dataclass
 class SearchResult:
@@ -395,6 +400,151 @@ class TavilyProvider(WebSearchProvider):
             raise
 
 
+class FirecrawlProvider(WebSearchProvider):
+    """Firecrawl provider for deep web scraping and search (LLM-ready markdown)"""
+
+    def __init__(self, api_key: str | None = None):
+        self.name = "firecrawl"
+        self.api_key = api_key or os.getenv("FIRECRAWL_API_KEY")
+        self._client = None
+        self._available = None
+
+    def is_available(self) -> bool:
+        """Check if Firecrawl is available (API key configured)"""
+        if not self.api_key:
+            self._available = False
+            return False
+        if self._available is None:
+            if FirecrawlClient is None:
+                logger.warning(
+                    "firecrawl-py not installed. Install with: pip install firecrawl-py"
+                )
+                self._available = False
+            else:
+                self._available = True
+        return self._available
+
+    def _get_client(self):
+        """Get or create Firecrawl client instance"""
+        if self._client is None and self.is_available():
+            self._client = FirecrawlClient(api_key=self.api_key)
+        return self._client
+
+    async def search(
+        self, query: str, max_results: int = 5, **kwargs
+    ) -> list[SearchResult]:
+        """Search using Firecrawl's web search API
+
+        Args:
+            query: Search query string
+            max_results: Maximum number of results to return
+            **kwargs: Additional arguments (ignored for compatibility)
+        """
+        if not self.is_available():
+            raise RuntimeError(
+                "Firecrawl provider not available (API key not configured)"
+            )
+
+        try:
+            client = self._get_client()
+            loop = asyncio.get_event_loop()
+
+            # Use Firecrawl search endpoint
+            response = await loop.run_in_executor(
+                None, lambda: client.search(query=query, limit=max_results)
+            )
+
+            search_results = []
+            # Handle SDK v4.x object-based response (SearchData with .web list)
+            results_data = []
+            
+            # Check if response has .web attribute (SDK v4.x object format)
+            if hasattr(response, 'web') and response.web:
+                results_data = response.web
+            elif isinstance(response, dict):
+                # Fallback for dict-based response (older SDK or direct API)
+                data = response.get("data", response)
+                if isinstance(data, dict):
+                    results_data = data.get("web", []) or []
+                elif isinstance(data, list):
+                    results_data = data
+            elif isinstance(response, list):
+                results_data = response
+
+            for i, result in enumerate(results_data[:max_results]):
+                try:
+                    # Handle both object and dict formats
+                    if hasattr(result, 'title'):
+                        # SDK v4.x object format
+                        title = getattr(result, 'title', 'No title') or 'No title'
+                        url = getattr(result, 'url', '') or ''
+                        description = getattr(result, 'description', '') or ''
+                    else:
+                        # Dict format fallback
+                        title = result.get("title", "No title")
+                        url = result.get("url", "")
+                        description = result.get("description", result.get("content", ""))
+                    
+                    search_result = SearchResult(
+                        title=title,
+                        url=url,
+                        snippet=description[:500] if description else "",
+                        source="web_search",
+                        relevance_score=max(0.1, 1.0 - (i * 0.1)),
+                        timestamp=datetime.now(),
+                    )
+                    search_results.append(search_result)
+                except Exception as e:
+                    logger.warning(f"Error processing Firecrawl result: {e}")
+                    continue
+
+            logger.info(
+                f"Firecrawl search returned {len(search_results)} results for: {query[:50]}"
+            )
+            return search_results
+
+        except Exception as e:
+            logger.error(f"Firecrawl search failed: {e}", exc_info=True)
+            raise
+
+    async def scrape(self, url: str, formats: list[str] = None) -> dict:
+        """Scrape a single URL and get LLM-ready markdown
+
+        Args:
+            url: URL to scrape
+            formats: Output formats (default: ["markdown"])
+
+        Returns:
+            Dict with markdown, html, and metadata
+        """
+        if not self.is_available():
+            raise RuntimeError("Firecrawl provider not available")
+
+        try:
+            client = self._get_client()
+            loop = asyncio.get_event_loop()
+
+            formats = formats or ["markdown"]
+            response = await loop.run_in_executor(
+                None, lambda: client.scrape(url, formats=formats)
+            )
+
+            # Handle response structure
+            if isinstance(response, dict):
+                data = response.get("data", response)
+                return {
+                    "markdown": data.get("markdown", ""),
+                    "html": data.get("html", ""),
+                    "metadata": data.get("metadata", {}),
+                    "url": url,
+                }
+            return {"markdown": str(response), "html": "", "metadata": {}, "url": url}
+
+        except Exception as e:
+            logger.error(f"Firecrawl scrape failed for {url}: {e}")
+            raise
+
+
 class WebSearchService:
     """Main web search service with provider fallback and caching"""
 
@@ -411,7 +561,7 @@ class WebSearchService:
         Initialize web search service
 
         Args:
-            provider: Primary provider name ("duckduckgo" or "tavily")
+            provider: Primary provider name ("duckduckgo", "tavily", "serpapi", or "firecrawl")
             cache_ttl: Cache time-to-live in seconds
             rate_limit: Maximum requests per minute
             enable_cache: Enable result caching
@@ -429,6 +579,7 @@ class WebSearchService:
         self.duckduckgo = DuckDuckGoProvider()
         self.serpapi = SerpAPIProvider()
         self.tavily = TavilyProvider()
+        self.firecrawl = FirecrawlProvider()
 
         # Initialize optional LangChain providers lazily
         self.lc_duckduckgo = None
@@ -495,6 +646,8 @@ class WebSearchService:
             return self.serpapi if self.serpapi.is_available() else None
         elif provider_name == "tavily":
             return self.tavily if self.tavily.is_available() else None
+        elif provider_name == "firecrawl":
+            return self.firecrawl if self.firecrawl.is_available() else None
         return None
 
     def _get_custom_provider(self, provider_name: str) -> WebSearchProvider | None:
@@ -505,6 +658,8 @@ class WebSearchService:
             return self.serpapi if self.serpapi.is_available() else None
         if provider_name == "tavily":
             return self.tavily if self.tavily.is_available() else None
+        if provider_name == "firecrawl":
+            return self.firecrawl if self.firecrawl.is_available() else None
         return None
 
     def _get_fallback_provider(self) -> WebSearchProvider | None:
@@ -522,6 +677,12 @@ class WebSearchService:
             cand_serp = self._get_provider("serpapi")
             if cand_serp is not None:
                 return cand_serp
+            return self._get_provider("duckduckgo")
+        elif self.provider_name == "firecrawl":
+            # For firecrawl, prefer tavily, then duckduckgo
+            cand_tavily = self._get_provider("tavily")
+            if cand_tavily is not None:
+                return cand_tavily
             return self._get_provider("duckduckgo")
         return None
 

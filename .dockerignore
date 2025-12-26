@@ -1,0 +1,52 @@
+# Git
+.git
+.gitignore
+.github
+
+# IDE/Editor
+.vscode
+.cursor
+.roo
+.kilocode
+.specify
+.gittools
+
+# Python
+__pycache__
+*.pyc
+.venv
+.pytest_cache
+.ruff_cache
+
+# Node
+node_modules
+.next
+.swc
+
+# Documentation (not needed in image)
+*.md
+docs/
+
+# Logs & temp
+logs/
+*.log
+tmp/
+uploads/
+
+# Large files
+*.bundle
+
+# Test files
+tests/
+test-results/
+playwright-report/
+
+# Environment files (will be mounted or passed as env)
+.env
+.env.*
+
+# Build artifacts
+TcyberChatbot-cleaned/
+repo-mirror.git/
+!frontend/.next
+!frontend/.next/**
