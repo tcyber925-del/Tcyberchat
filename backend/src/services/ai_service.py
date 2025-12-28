@@ -95,140 +95,134 @@ class AIService:
         await self._fetch_llama_cpp_models_if_needed()
         await self._fetch_ollama_models_if_needed()
 
-        # Check for exact match in known local models first
-        # This handles models with colons in their names (e.g. "kimi-k2-thinking:cloud")
-        if model_name in self._ollama_models:
+        # 1. PRIORITY: Check for exact match in known local models first.
+        # This prevents names like "llama3.2:1b" or "kimi-k2-thinking:cloud" from being misidentified
+        # as having a provider prefix just because they contain a colon.
+        ollama_names = [m.get("name") for m in self._ollama_models if isinstance(m, dict)]
+        if model_name in ollama_names:
             return "ollama"
-        if model_name in self._llama_cpp_models:
+
+        llama_cpp_names = [
+            m.get("name") if isinstance(m, dict) else m for m in self._llama_cpp_models
+        ]
+        if model_name in llama_cpp_names:
             return "llama.cpp"
 
-        # Handle provider prefixes (e.g., "google: models/gemini-2.5-flash", "openrouter: openai/gpt-3.5-turbo")
-        # Only treat as provider prefix if the part before colon is a known provider name (not a model path)
+        # 2. Check for explicit provider prefixes
         if ":" in model_name:
             parts = model_name.split(":", 1)
-            provider_prefix = parts[0].lower().strip()
-            # Only treat as provider prefix if it's a simple provider name (not a path like "openai/gpt-oss-20b")
-            if "/" not in provider_prefix:
-                if provider_prefix in ("google", "gemini"):
-                    return "google"
-                elif provider_prefix in ("openrouter", "openai"):
-                    return "openrouter"
-                elif provider_prefix == "groq":
-                    return "groq"
-                elif provider_prefix == "llama.cpp":
-                    return "llama.cpp"
-                elif provider_prefix == "ollama":
-                    return "ollama"
-                # If prefix doesn't match known providers, continue with normal logic
-                # Use the part after the colon as the model name
-                model_name = parts[1].strip()
-            # If there's a "/" in the prefix, it's likely a model path (e.g., "openai/gpt-oss-20b:free")
-            # Continue with normal logic using the full model_name
+            prefix = parts[0].lower().strip()
+            if prefix in ("google", "gemini"):
+                return "google"
+            elif prefix in ("openrouter", "openai"):
+                return "openrouter"
+            elif prefix == "groq":
+                return "groq"
+            elif prefix == "ollama":
+                return "ollama"
+            elif prefix == "llama.cpp":
+                return "llama.cpp"
 
-        # Normalize model name by removing version/tag if present
-        base_model_name = model_name.split(":")[0]
+        # 3. Check for known legacy names (without prefixes)
+        # Groq models often have "openai/" or "llama-" prefixes
+        groq_models = [
+            "openai/gpt-oss-120b", "openai/gpt-oss-20b",
+            "llama-3.3-70b-versatile", "llama-3.1-70b-versatile",
+            "mixtral-8x7b-32768"
+        ]
+        if any(m in model_name for m in groq_models):
+            return "groq"
 
-        # Provider-specific checks first
-        if model_name.startswith(("gemini", "models/")):
+        # Google models
+        if model_name.startswith(("models/gemini", "gemini-")):
             return "google"
 
-        if "/" in model_name or model_name.startswith(
-            ("openai/", "google/", "mistralai/", "meta-llama/")
-        ):
+        # 4. Fallback patterns
+        if "/" in model_name:
             return "openrouter"
 
-        # Handle llama.cpp models, which may have a prefix
         if model_name.startswith("llama.cpp:"):
-            lookup_name = model_name.split(":", 1)[1]
-            # Check for exact match or if a loaded model starts with the requested name
-            if lookup_name in self._llama_cpp_models:
-                return "llama.cpp"
-            for m in self._llama_cpp_models:
-                if m.startswith(lookup_name):
-                    return "llama.cpp"
-
-        if base_model_name in self._llama_cpp_models:
             return "llama.cpp"
 
-        # Fallback for llama.cpp models if server is down or model not listed
-        if "llama" in model_name.lower():
-            return "llama.cpp"
-
-        # Handle Ollama models
-        if model_name.startswith("ollama:"):
-            lookup_name = model_name.split(":", 1)[1]
-            if lookup_name in self._ollama_models:
-                return "ollama"
-            for m in self._ollama_models:
-                if m.startswith(lookup_name):
-                    return "ollama"
-        
-
-
-        if base_model_name in self._ollama_models:
+        # Fallback to local Ollama if everything else fails but it contains a tag
+        if ":" in model_name and not model_name.startswith(("http", "/")):
             return "ollama"
 
-        return "unknown"
+        return "openrouter"
+
+    async def _resolve_model_info(self, model_name: str) -> tuple[str, str]:
+        """Resolve both provider and clean model name."""
+        provider = await self._get_provider_for_model(model_name)
+        actual_model = model_name
+
+        # Check for explicit provider prefix first
+        if ":" in model_name:
+            parts = model_name.split(":", 1)
+            prefix = parts[0].lower().strip()
+
+            # Map of prefixes to providers
+            prefix_map = {
+                "google": "google",
+                "gemini": "google",
+                "openrouter": "openrouter",
+                "openai": "openrouter",
+                "groq": "groq",
+                "ollama": "ollama",
+                "llama.cpp": "llama.cpp",
+            }
+
+            if prefix in prefix_map and prefix_map[prefix] == provider:
+                actual_model = parts[1].strip()
+
+        return provider, actual_model
 
     async def generate_streaming_response(
-        self, prompt: str, context: list[str] | None = None, max_tokens: int = 1024
+        self,
+        prompt: str,
+        context: list[str] | None = None,
+        max_tokens: int = 1024,
+        messages: list[dict[str, str]] | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Generate streaming AI response with optional context
         Yields response chunks as they become available
         """
-        provider = await self._get_provider_for_model(self.model_name)
+        provider, actual_model = await self._resolve_model_info(self.model_name)
 
-        messages = []
-        if context:
-            messages.append(
-                {"role": "system", "content": "Context:\n" + "\n".join(context)}
-            )
-        messages.append({"role": "user", "content": prompt})
+        if not messages:
+            messages = []
+            if context:
+                messages.append(
+                    {"role": "system", "content": "Context:\n" + "\n".join(context)}
+                )
+            messages.append({"role": "user", "content": prompt})
 
         try:
             if provider == "llama.cpp" and self._llama_cpp_client:
                 logger.info(
-                    f"Attempting streaming response with Llama.cpp using model: {self.model_name}..."
+                    f"Attempting streaming response with Llama.cpp using model: {actual_model}..."
                 )
                 async for chunk in self._llama_cpp_client.generate_stream(
-                    messages, model=self.model_name, max_tokens=max_tokens
+                    messages, model=actual_model, max_tokens=max_tokens
                 ):
                     yield chunk
             elif provider == "ollama" and self._ollama_client:
                 logger.info(
-                    f"Attempting streaming response with Ollama using model: {self.model_name}..."
+                    f"Attempting streaming response with Ollama using model: {actual_model}..."
                 )
-                # Handle model name with prefix
-                actual_model = self.model_name
-                if ":" in self.model_name and self.model_name.lower().startswith("ollama:"):
-                    actual_model = self.model_name.split(":", 1)[1].strip()
-                
                 async for chunk in self._ollama_client.generate_stream(
                     messages, model=actual_model, max_tokens=max_tokens
                 ):
                     yield chunk
             elif provider == "google" and self.gemini_client:
                 logger.info(
-                    f"Attempting streaming response with Google Gemini using model: {self.model_name}..."
+                    f"Attempting streaming response with Google Gemini using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Use the selected model, not the hardcoded one
-                # Extract model name (remove provider prefix if present, e.g., "google: models/gemini-2.5-flash" -> "models/gemini-2.5-flash")
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    # Check if the first part is a provider prefix
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix in ("google", "gemini"):
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
                 # Create a new client with the correct model if needed
                 if self.gemini_client.model_name != actual_model:
                     try:
-                        from ..clients.gemini_client import GeminiClient
+                        from src.clients.gemini_client import GeminiClient
 
                         gemini_key = os.getenv("GEMINI_API_KEY")
                         if gemini_key:
@@ -266,25 +260,13 @@ class AIService:
                     yield chunk
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(
-                    f"Attempting streaming response with OpenRouter using model: {self.model_name}..."
+                    f"Attempting streaming response with OpenRouter using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Use the selected model, not the hardcoded one
-                # Extract model name (remove provider prefix if present, e.g., "openrouter: openai/gpt-3.5-turbo" -> "openai/gpt-3.5-turbo")
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    # Check if the first part is a provider prefix
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix in ("openrouter", "openai"):
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
                 # Create a new client with the correct model if needed
                 if self.openrouter_client.model != actual_model:
                     try:
-                        from ..clients.openrouter_client import OpenRouterClient
+                        from src.clients.openrouter_client import OpenRouterClient
 
                         openrouter_key = os.getenv("OPENROUTER_API_KEY")
                         if openrouter_key:
@@ -297,19 +279,9 @@ class AIService:
                     yield chunk
             elif provider == "groq" and self.groq_client:
                 logger.info(
-                    f"Attempting streaming response with Groq using model: {self.model_name}..."
+                    f"Attempting streaming response with Groq using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Extract model name
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix == "groq":
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
                 # Update model if needed
                 if self.groq_client.model_name != actual_model:
                     try:
@@ -321,7 +293,7 @@ class AIService:
                     except Exception as e:
                         logger.warning(f"Failed to update Groq client model: {e}")
                 if self.groq_client:
-                    async for chunk in self.groq_client.generate_stream(full_prompt):
+                    async for chunk in self.groq_client.generate_stream(full_prompt, max_tokens=max_tokens):
                         yield chunk
             else:
                 logger.error(f"No suitable provider found for model: {self.model_name}")
@@ -339,10 +311,10 @@ class AIService:
         Returns dict with response text and metadata
         """
         start_time = time.time()
-        provider = await self._get_provider_for_model(self.model_name)
-        model_used = self.model_name
-        error_message = None
+        provider, actual_model = await self._resolve_model_info(self.model_name)
+        model_used = actual_model
         response_text = ""
+        error_message = None
 
         messages = []
         if context:
@@ -354,42 +326,27 @@ class AIService:
         try:
             if provider == "llama.cpp" and self._llama_cpp_client:
                 logger.info(
-                    f"Attempting non-streaming response with Llama.cpp using model: {self.model_name}..."
+                    f"Attempting non-streaming response with Llama.cpp using model: {actual_model}..."
                 )
                 response_text = await self._llama_cpp_client.generate(
-                    messages, model=self.model_name, max_tokens=max_tokens
+                    messages, model=actual_model, max_tokens=max_tokens
                 )
             elif provider == "ollama" and self._ollama_client:
                 logger.info(
-                    f"Attempting non-streaming response with Ollama using model: {self.model_name}..."
+                    f"Attempting non-streaming response with Ollama using model: {actual_model}..."
                 )
-                # Handle model name with prefix
-                actual_model = self.model_name
-                if ":" in self.model_name and self.model_name.lower().startswith("ollama:"):
-                    actual_model = self.model_name.split(":", 1)[1].strip()
-
                 response_text = await self._ollama_client.generate(
                     messages, model=actual_model, max_tokens=max_tokens
                 )
             elif provider == "google" and self.gemini_client:
                 logger.info(
-                    f"Attempting non-streaming response with Google Gemini using model: {self.model_name}..."
+                    f"Attempting non-streaming response with Google Gemini using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Use the selected model, not the hardcoded one
-                # Extract model name (remove provider prefix if present)
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix in ("google", "gemini"):
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
+                # Update model if needed
                 if self.gemini_client.model_name != actual_model:
                     try:
-                        from ..clients.gemini_client import GeminiClient
+                        from src.clients.gemini_client import GeminiClient
 
                         gemini_key = os.getenv("GEMINI_API_KEY")
                         if gemini_key:
@@ -432,23 +389,13 @@ class AIService:
                     )
             elif provider == "openrouter" and self.openrouter_client:
                 logger.info(
-                    f"Attempting non-streaming response with OpenRouter using model: {self.model_name}..."
+                    f"Attempting non-streaming response with OpenRouter using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Use the selected model, not the hardcoded one
-                # Extract model name (remove provider prefix if present)
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix in ("openrouter", "openai"):
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
+                # Update model if needed
                 if self.openrouter_client.model != actual_model:
                     try:
-                        from ..clients.openrouter_client import OpenRouterClient
+                        from src.clients.openrouter_client import OpenRouterClient
 
                         openrouter_key = os.getenv("OPENROUTER_API_KEY")
                         if openrouter_key:
@@ -463,19 +410,9 @@ class AIService:
                     )
             elif provider == "groq" and self.groq_client:
                 logger.info(
-                    f"Attempting non-streaming response with Groq using model: {self.model_name}..."
+                    f"Attempting non-streaming response with Groq using model: {actual_model}..."
                 )
                 full_prompt = self._construct_full_prompt(prompt, context)
-                # Extract model name
-                if ":" in self.model_name:
-                    parts = self.model_name.split(":", 1)
-                    provider_prefix = parts[0].lower().strip()
-                    if provider_prefix == "groq":
-                        actual_model = parts[1].strip()
-                    else:
-                        actual_model = self.model_name
-                else:
-                    actual_model = self.model_name
                 # Update model if needed
                 if self.groq_client.model_name != actual_model:
                     try:
@@ -504,7 +441,7 @@ class AIService:
             response_text = f"I apologize, but there was an error generating the response: {error_message}"
 
         return {
-            "response": response_text,
+            "content": response_text,
             "model": model_used,
             "processing_time": time.time() - start_time,
             "error": error_message,
@@ -533,41 +470,41 @@ class AIService:
         if self.openrouter_client:
             # This is a simplification. In a real scenario, you might fetch models from OpenRouter API
             available_models.append(
-                {"name": "openai/gpt-oss-20b:free", "provider": "openrouter"}
+                {"name": "openrouter:openai/gpt-oss-20b:free", "provider": "openrouter"}
             )
             available_models.append(
-                {"name": "google/gemini-flash-1.5", "provider": "openrouter"}
+                {"name": "openrouter:google/gemini-flash-1.5", "provider": "openrouter"}
             )
 
         if self.gemini_client:
             available_models.append(
-                {"name": "models/gemini-2.0-flash-exp", "provider": "google"}
+                {"name": "google:models/gemini-2.0-flash-exp", "provider": "google"}
             )
             available_models.append(
-                {"name": "models/gemini-1.5-flash", "provider": "google"}
+                {"name": "google:models/gemini-1.5-flash", "provider": "google"}
             )
             available_models.append(
-                {"name": "models/gemini-1.5-pro", "provider": "google"}
+                {"name": "google:models/gemini-1.5-pro", "provider": "google"}
             )
 
         # Add Groq models if client is available
         if self.groq_client:
             # Reasoning models (optimized for complex problem-solving)
             available_models.append(
-                {"name": "openai/gpt-oss-120b", "provider": "groq"}
+                {"name": "groq:openai/gpt-oss-120b", "provider": "groq"}
             )
             available_models.append(
-                {"name": "openai/gpt-oss-20b", "provider": "groq"}
+                {"name": "groq:openai/gpt-oss-20b", "provider": "groq"}
             )
             # Standard fast models
             available_models.append(
-                {"name": "llama-3.3-70b-versatile", "provider": "groq"}
+                {"name": "groq:llama-3.3-70b-versatile", "provider": "groq"}
             )
             available_models.append(
-                {"name": "llama-3.1-70b-versatile", "provider": "groq"}
+                {"name": "groq:llama-3.1-70b-versatile", "provider": "groq"}
             )
             available_models.append(
-                {"name": "mixtral-8x7b-32768", "provider": "groq"}
+                {"name": "groq:mixtral-8x7b-32768", "provider": "groq"}
             )
 
         await self._fetch_llama_cpp_models_if_needed()
@@ -575,8 +512,16 @@ class AIService:
             available_models.append({"name": model_name, "provider": "llama.cpp"})
 
         await self._fetch_ollama_models_if_needed()
-        for model_name in self._ollama_models:
-            available_models.append({"name": model_name, "provider": "ollama"})
+        for model_data in self._ollama_models:
+            if isinstance(model_data, dict):
+                available_models.append({
+                    "name": model_data.get("name", "unknown"),
+                    "provider": "ollama",
+                    "size": model_data.get("size", 0),
+                    "modified_at": model_data.get("modified_at", "")
+                })
+            else:
+                available_models.append({"name": str(model_data), "provider": "ollama"})
 
         if not available_models:
             return [{"name": "mock-model", "provider": "none"}]

@@ -1,3 +1,4 @@
+# Core FastAPI dependencies
 fastapi
 uvicorn[standard]
 pydantic
@@ -9,6 +10,10 @@ prometheus_client
 redis
 aiofiles
 python-multipart
+sse-starlette
+groq
+google-generativeai
+openai
 
 # Optional runtime dependencies required by some agent modules
 # Add langgraph to support deep_research graph imports used by the backend
@@ -23,9 +28,10 @@ langchain-huggingface==0.3.0
 langchain-text-splitters==0.3.9
 chromadb
 
+# Database
+psycopg2-binary
+
 # NOTE: This trimmed requirements file is intended for building the Docker image
 # in CI / container environments. It now includes the minimal RAG/runtime
 # dependencies to enable vectorstore & embeddings support. For the full ML
 # environment (transformers, torch, large models) use `requirements.txt`.
-
-psycopg2-binary

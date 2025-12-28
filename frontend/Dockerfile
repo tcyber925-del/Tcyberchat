@@ -8,11 +8,19 @@
 # ------------------------------------------------------------------------------
 FROM node:20-alpine AS deps
 
+# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
+RUN apk add --no-cache libc6-compat
+
 # Set working directory
 WORKDIR /app
 
 # Use Corepack to activate pnpm
 RUN corepack enable && corepack prepare pnpm@8.12.1 --activate
+
+# Configure pnpm for network resilience
+RUN pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-maxtimeout 60000 && \
+    pnpm config set fetch-timeout 60000
 
 # Copy package files
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./

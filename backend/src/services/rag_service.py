@@ -296,7 +296,7 @@ class RAGService:
                     self.model_name = "stub"
 
                 async def generate_response(self, prompt: str):
-                    return {"response": "(AI stub) " + str(prompt)}
+                    return {"content": "(AI stub) " + str(prompt)}
 
                 async def generate_streaming_response(self, prompt: str):
                     # simple async generator
@@ -347,7 +347,7 @@ class RAGService:
                 self.model_name = "stub"
 
             async def generate_response(self, prompt: str):
-                return {"response": "(AI stub) " + str(prompt)}
+                return {"content": "(AI stub) " + str(prompt)}
 
             async def generate_streaming_response(self, prompt: str):
                 async def gen():
@@ -677,14 +677,14 @@ class RAGService:
                         ):
                             try:
                                 self.callback_handler.on_chain_end(
-                                    {"response": response}
+                                    {"content": response}
                                 )
                             except TypeError:
                                 pass
 
                         # Ensure string return
                         if isinstance(response, dict):
-                            return str(response.get("response", ""))
+                            return str(response.get("content", ""))
                         return str(response)
 
                     def _call(self, prompt: str, **kwargs) -> str:
@@ -1942,7 +1942,7 @@ Answer:"""
                                 else str(content)[:200]
                             )
                             return {
-                                "response": snippet,
+                                "content": snippet,
                                 "citations": [
                                     {"docId": str(doc.id), "snippet": snippet}
                                 ],
@@ -2166,7 +2166,7 @@ Answer:"""
                                             else content[:200]
                                         )
                                         return {
-                                            "response": snippet,
+                                            "content": snippet,
                                             "citations": [
                                                 {
                                                     "docId": str(doc.id),
@@ -2217,7 +2217,7 @@ Answer:"""
                                     else str(content)[:200]
                                 )
                                 return {
-                                    "response": snippet,
+                                    "content": snippet,
                                     "citations": [
                                         {"docId": str(doc.id), "snippet": snippet}
                                     ],
@@ -2266,7 +2266,7 @@ Answer:"""
                 rb = self._rule_based_answer(query)
                 if rb:
                     return {
-                        "response": rb,
+                        "content": rb,
                         "citations": [],
                         "context_chunks_used": 0,
                         "rag_enabled": False,
@@ -2315,7 +2315,7 @@ Answer:"""
                                 else str(content)[:200]
                             )
                             return {
-                                "response": snippet,
+                                "content": snippet,
                                 "citations": [
                                     {"docId": str(doc.id), "snippet": snippet}
                                 ],
@@ -2359,7 +2359,7 @@ Answer:"""
             rb = self._rule_based_answer(query)
             if rb:
                 return {
-                    "response": rb,
+                    "content": rb,
                     "citations": [],
                     "context_chunks_used": 0,
                     "rag_enabled": False,
@@ -2518,7 +2518,7 @@ Answer:"""
             citations.extend(web_search_citations)
 
             return {
-                "response": result.get("answer", ""),
+                "content": result.get("answer", ""),
                 "citations": citations,
                 "context_chunks_used": len(
                     [c for c in citations if c.get("source") == "document"]
@@ -2732,7 +2732,7 @@ Answer:"""
             citations.extend(web_search_citations)
 
             return {
-                "response": result.get("answer", ""),
+                "content": result.get("answer", ""),
                 "citations": citations,
                 "context_chunks_used": len(
                     [c for c in citations if c.get("source") == "document"]
@@ -3142,7 +3142,7 @@ if not LANGCHAIN_AVAILABLE:
                         self.model_name = "stub"
 
                     async def generate_response(self, prompt: str):
-                        return {"response": "(AI stub) " + str(prompt)}
+                        return {"content": "(AI stub) " + str(prompt)}
 
                     async def generate_streaming_response(self, prompt: str):
                         async def gen():
@@ -3166,7 +3166,7 @@ if not LANGCHAIN_AVAILABLE:
                     self.model_name = "stub"
 
                 async def generate_response(self, prompt: str):
-                    return {"response": "(AI stub) " + str(prompt)}
+                    return {"content": "(AI stub) " + str(prompt)}
 
                 async def generate_streaming_response(self, prompt: str):
                     async def gen():
@@ -3211,12 +3211,12 @@ if not LANGCHAIN_AVAILABLE:
                 resp = await ai_service.generate_response(prompt=query)
                 if isinstance(resp, dict):
                     return {
-                        "response": resp.get("response", ""),
+                        "content": resp.get("content", ""),
                         "citations": resp.get("citations", []),
                     }
-                return {"response": str(resp), "citations": []}
+                return {"content": str(resp), "citations": []}
             except Exception as e:
-                return {"response": "", "citations": [], "error": str(e)}
+                return {"content": "", "citations": [], "error": str(e)}
 
         async def add_document_with_chunking(
             self,
