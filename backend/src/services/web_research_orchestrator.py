@@ -134,7 +134,7 @@ class WebResearchOrchestrator:
 
         if not results:
             return {
-                "response": "No recent results found.",
+                "content": "No recent results found.",
                 "citations": [],
                 "web_provider": provider_name,
                 "web_impl": impl,
@@ -418,7 +418,7 @@ class WebResearchOrchestrator:
         ai_service = await _get_ai_service(model_name)
         # Use non-stream generate_response with 'context' set to None; pack goes in prompt
         result = await ai_service.generate_response(prompt, context=None)
-        text = result.get("response", "") if isinstance(result, dict) else str(result)
+        text = result.get("content", "") if isinstance(result, dict) else str(result)
 
         # 5) Build citations mapping with optional quotes and trust
         def _extract_quotes(text: str, query: str, max_quotes: int = 2) -> list[str]:
@@ -460,7 +460,7 @@ class WebResearchOrchestrator:
             )
 
         final = {
-            "response": text or "No recent results found.",
+            "content": text or "No recent results found.",
             "citations": citations,
             "web_provider": provider_name,
             "web_impl": impl,

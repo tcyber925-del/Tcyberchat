@@ -19,7 +19,7 @@ export async function sendMessageStreaming(
   ) => void,
   onError?: (err: Error) => void,
 ) {
-  const response = await fetch('/api/chat', {
+  const response = await fetch('/api/chat/stream', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -90,8 +90,9 @@ export async function sendMessageStreaming(
               if (data) {
                 try {
                   const parsed = JSON.parse(data);
+                  const content = parsed.content || parsed.response || '';
                   onComplete?.({
-                    content: parsed.content,
+                    content,
                     messageId: parsed.messageId,
                     citations: parsed.citations,
                     webSearchUsed: parsed.webSearchUsed,
@@ -141,6 +142,19 @@ export async function sendMessageStreaming(
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (!line) continue;
+          // Robustness: if it looks like JSON even without SSE markers, try to parse it
+          if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+            try {
+              const parsed = JSON.parse(line);
+              const content = parsed.content || parsed.response || '';
+              if (content) {
+                onChunk?.(content);
+                continue;
+              }
+            } catch (e) {
+              // fall through to raw chunk
+            }
+          }
           onChunk?.(line);
         }
       }
@@ -149,22 +163,34 @@ export async function sendMessageStreaming(
     // Flush any remaining buffer
     if (buffer.trim()) {
       const remaining = buffer.trim();
-      if (sawSSE) {
-        try {
+      try {
+        if (remaining.startsWith('{') && remaining.endsWith('}')) {
           const parsed = JSON.parse(remaining);
-          onComplete?.({
-            content: parsed.content,
-            messageId: parsed.messageId,
-            citations: parsed.citations,
-            webSearchUsed: parsed.webSearchUsed,
-            webSearchResultsCount: parsed.webSearchResultsCount,
-            webProvider: parsed.webProvider,
-            webImpl: parsed.webImpl,
-          });
-        } catch (e) {
-          // If not JSON, call onChunk with remaining
-          onChunk?.(remaining);
+          const content = parsed.content || parsed.response || parsed.error || '';
+          if (content) {
+            onChunk?.(content);
+            if (onComplete) {
+              onComplete({
+                content,
+                messageId: parsed.messageId,
+                citations: parsed.citations,
+                webSearchUsed: parsed.webSearchUsed,
+                webSearchResultsCount: parsed.webSearchResultsCount,
+                webProvider: parsed.webProvider,
+                webImpl: parsed.webImpl,
+              });
+              return;
+            }
+          }
         }
+      } catch (e) {
+        // Not JSON, treat as raw
+      }
+
+      if (sawSSE) {
+        // We already tried parsing above, if it failed or wasn't what we expected, 
+        // just treat as raw chunk if not already completed
+        onChunk?.(remaining);
       } else {
         onChunk?.(remaining);
       }
@@ -174,7 +200,7 @@ export async function sendMessageStreaming(
   } finally {
     try {
       reader.releaseLock();
-    } catch {}
+    } catch { }
   }
 }
 

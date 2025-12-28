@@ -29,22 +29,22 @@ class OllamaClient:
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11501")
         # Ensure no trailing slash
         self.base_url = self.base_url.rstrip("/")
-        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(30.0, connect=5.0))
+        self.client = httpx.AsyncClient(base_url=self.base_url, timeout=httpx.Timeout(300.0, connect=5.0))
         logger.info(f"Ollama client initialized for server at {self.base_url}")
 
-    async def get_available_models(self) -> list[str]:
+    async def get_available_models(self) -> list[dict[str, Any]]:
         """
         Get the list of available models from the Ollama server.
 
         Returns:
-            List[str]: A list of model names.
+            List[Dict[str, Any]]: A list of model dictionaries.
         """
         try:
             response = await self.client.get("/api/tags")
             response.raise_for_status()
             data = response.json()
-            # Format: {"models": [{"name": "llama2", ...}, ...]}
-            return [model["name"] for model in data.get("models", [])]
+            # Format: {"models": [{"name": "llama2", "size": 1234, ...}, ...]}
+            return data.get("models", [])
         except (httpx.RequestError, json.JSONDecodeError) as e:
             logger.error(
                 f"Failed to get available models from Ollama server: {e}",

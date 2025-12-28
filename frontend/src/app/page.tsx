@@ -155,8 +155,8 @@ export default function Home() {
   );
 
   const handleNewChat = useCallback(() => {
-    setMessages([]); // Clear the chat messages
-  }, [setMessages]);
+    selectSession(null); // Proper reset: clears messages AND conversationId
+  }, [selectSession]);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);

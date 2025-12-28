@@ -3,11 +3,15 @@ export const dynamic = 'force-dynamic';
 // Proxy this API to the local backend stream endpoint which returns SSE.
 export async function POST(req: Request) {
   // Determine backend URL with multiple fallbacks:
-  // 1. BACKEND_CHAT_URL (explicit full URL, may include path)
-  // 2. NEXT_PUBLIC_API_URL (frontend env commonly used for backend base URL)
-  // 3. default to local backend used by this repo
+  // 1. BACKEND_INTERNAL_URL (docker service name for server-side calls)
+  // 2. BACKEND_CHAT_URL (explicit override)
+  // 3. NEXT_PUBLIC_API_URL (frontend env)
+  // 4. default to local backend
   let backend =
-    process.env.BACKEND_CHAT_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+    process.env.BACKEND_INTERNAL_URL ??
+    process.env.BACKEND_CHAT_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    'http://localhost:8000';
 
   // If the provided backend does not include a /chat path, append the streaming path.
   // Allow callers to provide either the base URL (e.g. http://localhost:8000) or

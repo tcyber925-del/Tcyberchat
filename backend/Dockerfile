@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv for fast package management via pip
+RUN pip install --default-timeout=1000 uv
+
 WORKDIR /app
 
 # ------------------------------------------------------------------------------
@@ -35,11 +38,13 @@ COPY requirements.txt requirements.docker.txt ./
 # Prefer trimmed Docker requirements for faster, more reliable builds inside
 # containerized environments. If `requirements.docker.txt` is present, install it;
 # otherwise fall back to the full `requirements.txt`.
+# Use uv for significantly faster installation
+ENV UV_SYSTEM_PYTHON=1
 RUN if [ -s requirements.docker.txt ]; then \
-            pip install --no-cache-dir -r requirements.docker.txt ; \
-        else \
-            pip install --no-cache-dir -r requirements.txt ; \
-        fi
+    uv pip install --no-cache-dir -r requirements.docker.txt ; \
+    else \
+    uv pip install --no-cache-dir -r requirements.txt ; \
+    fi
 
 # ------------------------------------------------------------------------------
 # Stage 3: Production image

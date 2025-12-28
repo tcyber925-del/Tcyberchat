@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import JSON, Boolean, Column, DateTime, ForeignKey, String
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
 from ..database import Base
@@ -33,7 +34,7 @@ class Conversation(Base):
     retention_policy = Column(String(100), nullable=True)
 
     # Optional document association for document-specific chats
-    document_id = Column(String(36), ForeignKey("documents.id"), nullable=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
 
     # Relationships
     messages = relationship(

@@ -27,7 +27,7 @@ class UpdateConversationRequest(BaseModel):
 
 @router.get("/")
 async def list_conversations(limit: int = 50, db: Session = Depends(get_db)):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     convs = chat_service.get_conversations(limit=limit)
     return [c.to_dict() for c in convs]
 
@@ -36,7 +36,7 @@ async def list_conversations(limit: int = 50, db: Session = Depends(get_db)):
 async def create_conversation(
     request: CreateConversationRequest = Body(...), db: Session = Depends(get_db)
 ):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     conv = chat_service.create_conversation(
         title=request.title, document_id=request.documentId
     )
@@ -45,7 +45,7 @@ async def create_conversation(
 
 @router.get("/{conversation_id}")
 async def get_conversation(conversation_id: str, db: Session = Depends(get_db)):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     conv = chat_service.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -60,7 +60,7 @@ async def update_conversation(
     request: UpdateConversationRequest = Body(...),
     db: Session = Depends(get_db),
 ):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     conv = None
     if request.title is not None:
         conv = chat_service.update_conversation_title(conversation_id, request.title)
@@ -75,7 +75,7 @@ async def update_conversation(
 
 @router.delete("/{conversation_id}")
 async def delete_conversation(conversation_id: str, db: Session = Depends(get_db)):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     success = chat_service.delete_conversation(conversation_id)
     if not success:
         raise HTTPException(status_code=404, detail="Conversation not found")
@@ -84,7 +84,7 @@ async def delete_conversation(conversation_id: str, db: Session = Depends(get_db
 
 @router.post("/{conversation_id}/export")
 async def export_conversation(conversation_id: str, db: Session = Depends(get_db)):
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     conv = chat_service.get_conversation(conversation_id)
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")

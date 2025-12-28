@@ -436,17 +436,21 @@ async def root():
 async def health_check():
     """Detailed health check with real service status"""
     db_status = get_database_status()
+    is_healthy = db_status["overall_status"] == "healthy"
 
-    return {
-        "status": "healthy" if db_status["overall_status"] == "healthy" else "degraded",
-        "version": "1.0.0",
-        "services": {
-            "database": db_status["sqlalchemy"]["status"],
-            "vector_store": db_status["chromadb"]["status"],
-            "ollama": "not_checked",  # TODO: Add Ollama health check
-        },
-        "database_details": db_status,
-    }
+    return JSONResponse(
+        status_code=200 if is_healthy else 503,
+        content={
+            "status": "healthy" if is_healthy else "degraded",
+            "version": "1.0.0",
+            "services": {
+                "database": db_status["sqlalchemy"]["status"],
+                "vector_store": db_status["chromadb"]["status"],
+                "ollama": "not_checked",  # TODO: Add Ollama health check
+            },
+            "database_details": db_status,
+        }
+    )
 
 
 @app.get("/api/v1/models")
@@ -457,29 +461,29 @@ async def get_models():
     try:
         # Add 10-second timeout to prevent hanging
         ai_service = await asyncio.wait_for(get_ai_service(), timeout=10.0)
-        models = await asyncio.wait_for(ai_service.get_available_models(), timeout=5.0)
-        return models
-    except asyncio.TimeoutError:
-        logger.error("Timeout fetching models - returning basic cloud models only")
-        # Return a minimal set of models on timeout
-        basic_models = []
-        if os.getenv("GROQ_API_KEY"):
-            basic_models.extend([
-                {"name": "openai/gpt-oss-120b", "provider": "groq"},
-                {"name": "llama-3.3-70b-versatile", "provider": "groq"},
-            ])
-        if os.getenv("GEMINI_API_KEY"):
-            basic_models.append({"name": "models/gemini-2.0-flash-exp", "provider": "google"})
-        if os.getenv("OPENROUTER_API_KEY"):
-            basic_models.append({"name": "openai/gpt-oss-20b:free", "provider": "openrouter"})
+        models = await asyncio.wait_for(ai_service.get_available_models(), timeout=10.0)
         
-        if not basic_models:
-            basic_models = [{"name": "mock-model", "provider": "none"}]
-        
-        return basic_models
+        # Consistent formatting
+        formatted_models = []
+        for model in models:
+            size = model.get("size", 0)
+            if isinstance(size, str) and size == "unknown":
+                size = 0
+            elif not isinstance(size, (int, float)):
+                size = 0
+
+            formatted_models.append({
+                "name": model.get("name", "unknown"),
+                "size": int(size),
+                "modified_at": model.get("modified_at", ""),
+                "provider": model.get("provider", "unknown"),
+            })
+            
+        return {"models": formatted_models}
     except Exception as e:
         logger.error(f"Error fetching models: {e}")
-        return [{"name": "mock-model", "provider": "none"}]
+        # Return a minimal set of models on failure
+        return {"models": [{"name": "mock-model", "provider": "none"}], "error": str(e)}
 
 
 

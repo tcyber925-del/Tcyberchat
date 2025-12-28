@@ -17,7 +17,7 @@ class MediaContent(Base):
     __tablename__ = "media_content"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    message_id = Column(UUID(as_uuid=True), ForeignKey("messages.id"), nullable=False)
+    message_id = Column(String(36), ForeignKey("messages.id"), nullable=False)
 
     # Content type and data
     type = Column(

@@ -203,6 +203,6 @@ class ChatService:
 
 
 # Dependency injection function
-def get_chat_service(db: Session = next(get_db())) -> ChatService:
+def get_chat_service(db: Session) -> ChatService:
     """Get ChatService instance with database session"""
     return ChatService(db)

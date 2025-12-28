@@ -43,7 +43,7 @@ if os.getenv("DEV_MOCK_AI") == "1":
                 yield chunk
 
         async def generate_response(self, prompt, context=None):
-            return {"response": "Hello world", "model": "dummy"}
+            return {"content": "Hello world", "model": "dummy"}
 
     class _DummyRAG:
         async def generate_rag_streaming_response(
@@ -86,7 +86,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
     if not request.message or not request.message.strip():
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
@@ -151,7 +151,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                                 citations=[{"docId": str(doc.id), "snippet": snippet}],
                             )
                             return {
-                                "response": snippet,
+                                "content": snippet,
                                 "messageId": str(ai_message.id),
                                 "citations": [
                                     {"docId": str(doc.id), "snippet": snippet}
@@ -303,7 +303,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                         prompt=request.message.strip(),
                         context=context_messages if context_messages else None,
                     )
-                    response_text = ai_result.get("response", "")
+                    response_text = ai_result.get("content") or ai_result.get("response") or ""
                     # capture model metadata when available
                     ai_message = chat_service.add_message(
                         conversation_id=conversation_id,
@@ -330,7 +330,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                 raise
 
         return {
-            "response": response_text,
+            "content": response_text,
             "messageId": str(ai_message.id),
             "citations": getattr(ai_message, "citations", []),
         }
@@ -380,7 +380,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
     except Exception:
         pass
 
-    chat_service = get_chat_service()
+    chat_service = get_chat_service(db)
     ai_service = await get_ai_service(request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()

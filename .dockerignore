@@ -18,14 +18,26 @@ __pycache__
 .pytest_cache
 .ruff_cache
 
-# Node
+# Node - IMPORTANT: Use ** to catch all nested directories
 node_modules
+**/node_modules
+**/.pnpm-store
+**/.pnpm
 .next
 .swc
+**/.turbo
+backend/
+.swc
+**/.turbo
+
+# pnpm specific
+pnpm-lock.yaml
+# Note: We copy pnpm-lock.yaml explicitly in Dockerfile, exclude from general context
 
 # Documentation (not needed in image)
 *.md
 docs/
+!README.md
 
 # Logs & temp
 logs/
@@ -35,6 +47,7 @@ uploads/
 
 # Large files
 *.bundle
+ci-pymupdf.bundle
 
 # Test files
 tests/
@@ -48,5 +61,9 @@ playwright-report/
 # Build artifacts
 TcyberChatbot-cleaned/
 repo-mirror.git/
-!frontend/.next
-!frontend/.next/**
+-p/
+data/
+
+# Keep Next.js build output? No, we build in container.
+.next
+frontend/.next
