@@ -206,7 +206,7 @@ export async function sendMessageStreaming(
 
 // getModels - fetches the list of available AI models
 export async function getModels() {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://0.0.0.0:8000';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
   const response = await fetch(`${API_BASE_URL}/api/v1/models`);
   if (!response.ok) {
     const text = await response.text().catch(() => response.statusText);
@@ -219,7 +219,7 @@ export async function getModels() {
 // getConversations - fetches all conversations
 export async function getConversations(limit: number = 50): Promise<any[]> {
   try {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations?limit=${limit}`);
     if (!response.ok) {
       const text = await response.text().catch(() => response.statusText);
@@ -246,7 +246,7 @@ export async function getConversationMessages(conversationId: string): Promise<a
   }
 
   try {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`);
     if (!response.ok) {
       if (response.status === 404) {
@@ -313,7 +313,7 @@ export async function deepResearch(
   maxIterations: number = 2,
   signal?: AbortSignal,
 ) {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
   const res = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -327,19 +327,78 @@ export async function deepResearch(
   return res.json();
 }
 
-// deepResearchStream - SSE stream for deep research steps
+// deepResearchStream - Manual SSE stream reader using POST fetch (more robust through tunnels)
 export function deepResearchStream(
   query: string,
   model?: string,
   maxIterations: number = 2,
 ) {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-  const url = new URL(`${API_BASE_URL}/api/tools/web-search/deep-research/stream`);
-  url.searchParams.set('query', query);
-  if (model) url.searchParams.set('model', model);
-  url.searchParams.set('maxIterations', String(maxIterations));
-  const es = new EventSource(url.toString());
-  return es;
+  const listeners: Record<string, ((e: any) => void)[]> = {};
+  
+  const emit = (event: string, data: any) => {
+    const list = listeners[event] || [];
+    list.forEach(cb => cb({ data }));
+  };
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+  const controller = new AbortController();
+
+  // Async IIFE to process the stream
+  (async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, model, maxIterations }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let currentEvent = 'message';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+
+          if (trimmed.startsWith('event:')) {
+            currentEvent = trimmed.split('event:')[1].trim();
+          } else if (trimmed.startsWith('data:')) {
+            const data = trimmed.split('data:')[1].trim();
+            emit(currentEvent, data);
+            currentEvent = 'message'; // reset for next
+          }
+        }
+      }
+    } catch (err) {
+      if ((err as any).name !== 'AbortError') {
+        emit('error', JSON.stringify({ error: String(err) }));
+      }
+    }
+  })();
+
+  return {
+    addEventListener: (event: string, callback: (e: any) => void) => {
+      if (!listeners[event]) listeners[event] = [];
+      listeners[event].push(callback);
+    },
+    close: () => controller.abort(),
+  };
 }
 
 // deleteConversation - deletes a conversation
@@ -349,7 +408,7 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   }
 
   try {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
       method: 'DELETE',
     });
@@ -381,7 +440,7 @@ export async function updateConversation(
   }
 
   try {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
       method: 'PATCH',
       headers: {
@@ -416,7 +475,7 @@ export async function exportConversation(conversationId: string): Promise<any> {
   }
 
   try {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(
       `${API_BASE_URL}/api/v1/chat/conversations/${conversationId}/export`,
       {

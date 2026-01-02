@@ -210,10 +210,17 @@ try:
 except Exception:  # pragma: no cover
     EventSourceResponse = None  # type: ignore
 
-@router.get("/deep-research/stream")
-async def deep_research_stream(request: Request, query: str, model: str | None = None, maxIterations: int = 2):
+@router.post("/deep-research/stream")
+async def deep_research_stream(request: Request, body: dict = Body(...)):
     # Manual rate limit check
     await rate_limit_dep(request, "deep_research", int(os.getenv("DEEP_RESEARCH_RATE_PER_MIN", "5")))
+    
+    query = str(body.get("query", "")).strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="missing 'query'")
+    
+    model = body.get("model")
+    max_iterations = int(body.get("maxIterations", 2))
     
     enabled = os.getenv("DEEP_RESEARCH_ENABLED", "false").lower() == "true"
     if not enabled:
@@ -224,7 +231,7 @@ async def deep_research_stream(request: Request, query: str, model: str | None =
     from ..agents.deep_research_agent import run_deep_research_stream
 
     async def gen():
-        async for evt in run_deep_research_stream(query=query, model_name=model, max_iterations=int(maxIterations)):
+        async for evt in run_deep_research_stream(query=query, model_name=model, max_iterations=max_iterations):
             # Abort if client disconnects
             if await request.is_disconnected():
                 break

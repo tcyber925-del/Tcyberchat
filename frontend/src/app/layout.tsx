@@ -4,7 +4,8 @@ import './globals.css';
 import { ChatProvider } from '@/lib/context/chat-context';
 import { ThemeProvider } from '@/lib/context/theme-context';
 import { SettingsProvider } from '@/lib/context/settings-context';
-import { ToastProvider } from '@/lib/context/toast-context'; // Import ToastProvider
+import { ToastProvider } from '@/lib/context/toast-context';
+import { ArtifactProvider } from '@/lib/context/artifact-context';
 
 // const geistSans = Geist({
 //   variable: '--font-geist-sans',
@@ -47,9 +48,11 @@ export default function RootLayout({
         <SettingsProvider>
           <ThemeProvider>
             <ToastProvider>
-              {' '}
-              {/* Wrap with ToastProvider */}
-              <ChatProvider>{children}</ChatProvider>
+              <ChatProvider>
+                <ArtifactProvider>
+                  {children}
+                </ArtifactProvider>
+              </ChatProvider>
             </ToastProvider>
           </ThemeProvider>
         </SettingsProvider>

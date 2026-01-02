@@ -47,7 +47,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         PNPM_VERSION: ${PNPM_VERSION:-8.12.1}
-        NEXT_PUBLIC_API_URL: http://localhost:8081
+        NEXT_PUBLIC_API_URL: ""
     container_name: tcyber_frontend
     environment:
       - NODE_ENV=production
@@ -71,6 +71,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: tcyber_backend
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - ./backend/.env
     environment:
@@ -78,6 +79,7 @@ services:
       - REDIS_PORT=6379
       # ALLOWED_ORIGINS is the variable name used in main.py
       - ALLOWED_ORIGINS=http://localhost:8081,http://localhost:8080,http://localhost:3000,http://127.0.0.1:8081,http://127.0.0.1:8080,http://127.0.0.1:3000,http://0.0.0.0:8081,http://0.0.0.0:8080,http://0.0.0.0:3000
+      - ALLOW_ORIGIN_REGEX=https?://.*
       - OLLAMA_BASE_URL=http://host.docker.internal:11501
       - OLLAMA_BASE_URL=http://host.docker.internal:11501
     ports:

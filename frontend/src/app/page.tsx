@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, lazy, useState, useCallback, useRef, useEffect } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { useSettings } from '@/lib/context/settings-context';
 import { deepResearch, deepResearchStream } from '@/lib/api/chat';
 import SettingsPanel from '@/components/settings-panel';
@@ -11,13 +12,35 @@ import { Button } from '@/components/ui/button';
 import { Chat, ChatInput, ChatMessage } from '@/components/ui/chat';
 import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
 import { TypingIndicator } from '@/components/ui/typing-indicator';
-import { ChatInputModal } from '@/components/ui/chat-input-modal';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/lib/context/toast-context';
-import { Plus, Globe } from 'lucide-react';
+import { Plus, Globe, Sparkles } from 'lucide-react';
 
 import Sidebar from '@/components/sidebar';
 import { DocumentIndicator } from '@/components/document-indicator';
+import { DeepResearchProgress } from '@/components/ai-elements/deep-research-progress';
+import { ConversationEmptyState } from '@/components/ai-elements/conversation';
+import { Suggestions, Suggestion } from '@/components/ai-elements/suggestion';
+import { ArtifactSidebar } from '@/components/ai-elements/artifact-sidebar';
+import { useArtifact } from '@/lib/context/artifact-context';
+import { 
+  PromptInput, 
+  PromptInputTextarea, 
+  PromptInputToolbar, 
+  PromptInputTools, 
+  PromptInputSubmit,
+  PromptInputProvider,
+  PromptInputAttachments,
+  PromptInputAttachment,
+  PromptInputActionMenu,
+  PromptInputActionMenuTrigger,
+  PromptInputActionMenuContent,
+  PromptInputActionMenuItem,
+  PromptInputActionAddAttachments,
+  PromptInputSpeechButton,
+  usePromptInputController,
+  type PromptInputMessage
+} from '@/components/ai-elements/prompt-input';
 
 // Lazy load components for performance optimization
 const SettingsDrawer = lazy(() => import('@/components/settings-drawer'));
@@ -29,7 +52,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-export default function Home() {
+function ChatInterface() {
   const {
     messages,
     setMessages,
@@ -46,20 +69,26 @@ export default function Home() {
     deleteDocument,
     selectedDocumentId,
     setSelectedDocumentId,
+    regenerateMessage,
+    forkConversation,
+    switchMessageVersion,
   } = useChat();
   const { settings, isSettingsOpen, toggleSettingsPanel } = useSettings();
   const { showToast } = useToast();
-  const [input, setInput] = useState('');
+  const { setActiveArtifact } = useArtifact();
+  const { textInput } = usePromptInputController();
+  const input = textInput.value;
+  const setInput = textInput.setInput;
+  
   const [isDragging, setIsDragging] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isDeepRunning, setIsDeepRunning] = useState(false);
   const deepAbortRef = useRef<AbortController | null>(null);
-  const deepStreamRef = useRef<EventSource | null>(null);
+  const deepStreamRef = useRef<any>(null);
   const [deepStep, setDeepStep] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const inputContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const handleAttachmentClick = () => {
@@ -160,21 +189,7 @@ export default function Home() {
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
-  }, []);
-
-  const handleEditMessage = useCallback((messageId: string, content: string) => {
-    setEditingMessageId(messageId);
-    setInput(content);
-    // Focus the input field after a short delay to ensure it's rendered
-    setTimeout(() => {
-      inputRef.current?.focus();
-      // Move cursor to end of text
-      if (inputRef.current) {
-        const length = inputRef.current.value.length;
-        inputRef.current.setSelectionRange(length, length);
-      }
-    }, 100);
-  }, []);
+  }, [setInput]);
 
   // Auto-detect if query needs web search
   const shouldUseWebSearch = useCallback((query: string): boolean => {
@@ -199,38 +214,141 @@ export default function Home() {
     return timeSensitiveKeywords.some((keyword) => lowerQuery.includes(keyword));
   }, []);
 
+  const handleDeepResearch = useCallback(async (text: string) => {
+    if (!text) {
+      showToast('Enter a question to run Deep Research.', 'warning');
+      return;
+    }
+    if (isDeepRunning) {
+      deepAbortRef.current?.abort();
+      return;
+    }
+    try {
+      setIsDeepRunning(true);
+      setDeepStep('plan');
+      showToast('Running deep research...', 'info');
+      
+      // Append the user message
+      const userMsg: Message = {
+        id: 'u-' + Date.now().toString(36),
+        type: 'text',
+        content: text,
+        timestamp: new Date(),
+        role: 'user',
+        conversationId: '',
+      };
+      setMessages([...messages, userMsg]);
+
+      const iterations = settings.deepResearchDefaultIterations ?? 2;
+      const model = settings.selectedModel;
+      
+      // Use ref-based cleanup
+      const es = deepResearchStream(text, model, iterations);
+      deepStreamRef.current = es;
+      
+      es.addEventListener('step', (e: any) => {
+        try {
+          const payload = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+          if (payload?.step) setDeepStep(payload.step);
+        } catch { }
+      });
+      
+      es.addEventListener('final', (e: any) => {
+        try {
+          const payload = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+          const assistantMsg: Message = {
+            id: 'a-' + (Date.now() + 1).toString(36),
+            type: 'deep-research',
+            content: payload.answer || 'No answer generated.',
+            timestamp: new Date(),
+            role: 'assistant',
+            conversationId: '',
+            citations: Array.isArray(payload.citations) ? payload.citations : [],
+            iterations: payload.metadata?.iterations || 1,
+            satisfied: payload.metadata?.satisfied ?? true,
+            metadata: { ...payload.metadata, deepResearch: true },
+          };
+          // We need to use the functional update pattern if possible, or get fresh messages
+          // Since our new context setMessages is a simple setter, we use the current messages
+          setMessages([...messages, userMsg, assistantMsg]);
+          setInput('');
+          setDeepResearchEnabled(false);
+          setDeepStep('complete');
+        } catch (err) {
+          console.error('Failed to parse final research result:', err);
+        } finally {
+          setIsDeepRunning(false);
+          deepStreamRef.current = null;
+        }
+      });
+      
+      es.addEventListener('error', (e: any) => {
+        console.error('Deep research error:', e);
+        setIsDeepRunning(false);
+        setDeepStep(null);
+        deepStreamRef.current = null;
+        showToast('Research stream interrupted or failed.', 'error');
+      });
+    } catch (e) {
+      console.error('Deep research launch error:', e);
+      setIsDeepRunning(false);
+      showToast('Could not start deep research.', 'error');
+    }
+  }, [setMessages, settings, showToast, isDeepRunning, setInput]);
+
   const handleSubmitLocal = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      // If already streaming, stop the stream
+    async (message: PromptInputMessage) => {
       if (isStreaming) {
         stopStreaming();
         return;
       }
-      const text = input?.trim();
-      if (!text) return;
+      const text = message.text?.trim();
+      if (!text && (!message.files || message.files.length === 0)) return;
 
-      // Auto-enable web search for time-sensitive queries if not explicitly set
-      const useWebSearch = webSearchEnabled || shouldUseWebSearch(text);
+      if (deepResearchEnabled) {
+        await handleDeepResearch(text || '');
+        return;
+      }
+
+      const useWebSearch = webSearchEnabled || (text ? shouldUseWebSearch(text) : false);
 
       try {
+        let attachedDocumentId = undefined;
+
+        // Handle direct attachments from the prompt input
+        if (message.files && message.files.length > 0) {
+          const firstFile = message.files[0];
+          if (firstFile.originalFile) {
+            try {
+              showToast('Uploading attachment...', 'info');
+              const uploadedDoc = await uploadDocument(firstFile.originalFile);
+              attachedDocumentId = uploadedDoc.id;
+              // Clear attachments from input after successful "send" start
+            } catch (err) {
+              console.error('Failed to upload direct attachment:', err);
+              // Continue without attachment if it fails? Or stop? 
+              // For safety, let's stop and let the user know.
+              return; 
+            }
+          }
+        }
+
         // If editing a message, update it instead of sending a new one
         if (editingMessageId) {
           // Find the message and update it
           const messageToEdit = messages.find((m) => m.id === editingMessageId);
           if (messageToEdit) {
             // Update the message content
-            const updatedMessages = messages.map((m) =>
-              m.id === editingMessageId ? { ...m, content: text, timestamp: new Date() } : m,
+            const updatedMessages: Message[] = messages.map((m) =>
+              m.id === editingMessageId ? ({ ...m, content: text, timestamp: new Date() } as Message) : m,
             );
             setMessages(updatedMessages);
 
             // Resend the edited message
-            await sendStreamingMessage(text, undefined, useWebSearch);
+            await sendStreamingMessage(text || '', undefined, useWebSearch);
 
             // Clear editing state
             setEditingMessageId(null);
-            setInput('');
             setWebSearchEnabled(false);
             if (useWebSearch && !webSearchEnabled) {
               showToast('Message updated and resent with web search!', 'success');
@@ -240,8 +358,10 @@ export default function Home() {
           }
         } else {
           // Normal send
-          await sendStreamingMessage(text, undefined, useWebSearch);
-          setInput('');
+          // If we have an attachedDocumentId, use it. Otherwise use the globally selected one.
+          const docIdToUse = attachedDocumentId || selectedDocumentId || undefined;
+          
+          await sendStreamingMessage(text || '', undefined, useWebSearch, docIdToUse);
           setWebSearchEnabled(false); // Reset web search after sending
           if (useWebSearch && !webSearchEnabled) {
             showToast('Web search enabled automatically for this query', 'info');
@@ -253,11 +373,12 @@ export default function Home() {
       }
     },
     [
-      input,
       sendStreamingMessage,
       isStreaming,
       stopStreaming,
       webSearchEnabled,
+      deepResearchEnabled,
+      handleDeepResearch,
       editingMessageId,
       messages,
       setMessages,
@@ -266,41 +387,34 @@ export default function Home() {
     ],
   );
 
-  const chatRef = useRef<HTMLDivElement | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const handleEditMessage = useCallback((messageId: string, content: string) => {
+    setEditingMessageId(messageId);
+    setInput(content);
+    // Focus the input field after a short delay to ensure it's rendered
+    setTimeout(() => {
+      inputRef.current?.focus();
+      // Move cursor to end of text
+      if (inputRef.current) {
+        const length = inputRef.current.value.length;
+        inputRef.current.setSelectionRange(length, length);
+      }
+    }, 100);
+  }, [setInput]);
 
-  // Smooth auto-scroll when messages or streamingMessage change
-  useEffect(() => {
-    const scrollToBottom = () => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    };
+  const handleSuggestionClick = useCallback((suggestion: string) => {
+    setInput(suggestion);
+    // Submit after a short delay to ensure state update is processed
+    setTimeout(() => {
+      handleSubmitLocal({ text: suggestion, files: [] });
+    }, 10);
+  }, [setInput, handleSubmitLocal]);
 
-    // Small delay to ensure DOM is updated
-    const timeoutId = setTimeout(scrollToBottom, 100);
-    return () => clearTimeout(timeoutId);
-  }, [messages, streamingMessage]);
-
-  // Only render certain debug UI on the client to avoid hydration mismatches
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Close modal when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (inputContainerRef.current && !inputContainerRef.current.contains(event.target as Node)) {
-        setIsModalOpen(false);
-      }
-    };
-
-    if (isModalOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isModalOpen]);
+  if (!mounted) return <div className="flex h-screen items-center justify-center bg-background"><LoadingFallback /></div>;
 
   return (
     <div data-testid="main-layout" className="flex h-screen bg-background text-foreground">
@@ -320,119 +434,160 @@ export default function Home() {
         <SettingsDrawer isOpen={isSettingsOpen} onClose={toggleSettingsPanel} />
       </Suspense>
 
-      <div className="flex flex-col flex-grow overflow-x-hidden">
+      <div className="flex flex-col flex-grow overflow-x-hidden relative">
+        <ArtifactSidebar />
         <header className="flex items-center p-4 border-b border-border">
           <h1 className="text-xl font-bold">TcyberChatbot</h1>
         </header>
-        <main ref={chatRef} className="flex-grow p-4 overflow-y-auto overflow-x-hidden scroll-smooth">
-          <div>
-            <div>
-              {messages.length === 0 && !isLoading && !streamingMessage ? (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 animate-fade-in">
-                  <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center animate-bounce-subtle">
-                    <span className="text-3xl">🤖</span>
-                  </div>
-                  <div className="space-y-2 max-w-md animate-slide-up">
-                    <h2 className="text-2xl font-bold text-foreground">Welcome to TcyberChatbot</h2>
-                    <p className="text-muted-foreground">
-                      Your local-first AI assistant. Upload documents, ask questions, and get
-                      intelligent responses with citations.
+        
+        <div className="flex-grow overflow-hidden relative flex flex-col">
+          {messages.length === 0 && !streamingMessage ? (
+            <div className="flex-grow overflow-y-auto p-4">
+              <ConversationEmptyState
+                title="Welcome to TcyberChatbot"
+                description="Your local-first AI assistant. Upload documents, ask questions, and get intelligent responses with citations."
+                className="min-h-[60vh]"
+              >
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center animate-bounce-subtle mb-4">
+                  <span className="text-3xl">🤖</span>
+                </div>
+                
+                <div className="w-full max-w-2xl mt-8">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-4">Suggested Starters</p>
+                  <Suggestions>
+                    <Suggestion 
+                      suggestion="What can you do?" 
+                      onClick={handleSuggestionClick} 
+                    />
+                    <Suggestion 
+                      suggestion="Analyze my uploaded documents" 
+                      onClick={handleSuggestionClick} 
+                    />
+                    <Suggestion 
+                      suggestion="Search for latest AI news" 
+                      onClick={handleSuggestionClick} 
+                    />
+                    <Suggestion 
+                      suggestion="Explain deep research mode" 
+                      onClick={handleSuggestionClick} 
+                    />
+                  </Suggestions>
+                </div>
+
+                <div
+                  className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl w-full mt-12 animate-slide-up"
+                  style={{ animationDelay: '0.2s' }}
+                >
+                  <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200 text-left">
+                    <div className="text-2xl mb-2">📄</div>
+                    <h3 className="font-semibold mb-1">Document Upload</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Upload PDFs, images, and text files for analysis
                     </p>
                   </div>
-                  <div
-                    className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-2xl w-full animate-slide-up"
-                    style={{ animationDelay: '0.2s' }}
-                  >
-                    <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
-                      <div className="text-2xl mb-2">📄</div>
-                      <h3 className="font-semibold mb-1">Document Upload</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Upload PDFs, images, and text files for analysis
-                      </p>
-                    </div>
-                    <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
-                      <div className="text-2xl mb-2">🎤</div>
-                      <h3 className="font-semibold mb-1">Voice Input</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Record voice messages for hands-free interaction
-                      </p>
-                    </div>
-                    <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200">
-                      <div className="text-2xl mb-2">🔍</div>
-                      <h3 className="font-semibold mb-1">Smart Search</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Get answers with document citations and web search
-                      </p>
-                    </div>
+                  <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200 text-left">
+                    <div className="text-2xl mb-2">🎤</div>
+                    <h3 className="font-semibold mb-1">Voice Input</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Record voice messages for hands-free interaction
+                    </p>
                   </div>
-                  <div
-                    className="text-sm text-muted-foreground max-w-md animate-slide-up"
-                    style={{ animationDelay: '0.4s' }}
-                  >
-                    <p>Start by uploading a document or asking a question below.</p>
+                  <div className="p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow duration-200 text-left">
+                    <div className="text-2xl mb-2">🔍</div>
+                    <h3 className="font-semibold mb-1">Smart Search</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Get answers with document citations and web search
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <Chat>
-                  {messages.map((m: Message) => {
-                    // Normalize role: some messages may use `type` or `role`, and older code used 'ai'
+              </ConversationEmptyState>
+            </div>
+          ) : (
+            <div className="flex-grow relative h-full w-full">
+              <Chat className="h-full w-full overflow-hidden">
+                <Virtuoso
+                  style={{ height: '100%', width: '100%' }}
+                  data={messages}
+                  followOutput="auto"
+                  initialTopMostItemIndex={messages.length - 1}
+                  components={{
+                    Footer: () => streamingMessage ? (
+                      <div className="pt-4 pb-4">
+                        <ChatMessage
+                          key={streamingMessage.id}
+                          role="assistant"
+                          content={(streamingMessage as any).content || ""}
+                          timestamp={streamingMessage.timestamp}
+                          isStreaming={isStreaming}
+                          onCopy={(text: string) => {
+                            showToast('Message copied to clipboard!', 'success');
+                          }}
+                        >
+                          {(streamingMessage as any).content === 'Assistant is typing...' ? (
+                            <TypingIndicator />
+                          ) : (
+                            <MarkdownRenderer content={(streamingMessage as any).content || ""} />
+                          )}
+                        </ChatMessage>
+                      </div>
+                    ) : null
+                  }}
+                  itemContent={(index, m) => {
                     const rawRole = (m as any).role ?? (m as any).type ?? 'assistant';
                     const role = rawRole === 'ai' ? 'assistant' : rawRole;
                     const isUserMessage = role === 'user';
+                    const mContent = (m as any).content || "";
+                    
                     return (
-                      <ChatMessage
-                        key={m.id}
-                        role={role as any}
-                        content={m.content}
-                        timestamp={m.timestamp}
-                        messageId={m.id}
-                        meta={(m as any).metadata}
-                        citations={m.citations as any}
-                        onCopy={(text: string) => {
-                          showToast('Message copied to clipboard!', 'success');
-                        }}
-                        onEdit={
-                          isUserMessage
-                            ? (content) => {
-                              handleEditMessage(m.id, content);
-                            }
-                            : undefined
-                        }
-                      >
-                        {isUserMessage ? (
-                          <div className="whitespace-pre-wrap">{m.content}</div>
-                        ) : (
-                          <MarkdownRenderer content={m.content} />
-                        )}
-                      </ChatMessage>
+                      <div className="pb-4 px-4">
+                        <ChatMessage
+                          key={m.id}
+                          role={role as any}
+                          type={m.type}
+                          content={mContent}
+                          timestamp={m.timestamp}
+                          messageId={m.id}
+                          meta={(m as any).metadata}
+                          citations={(m as any).citations}
+                          versionIndex={m.activeVersionIndex}
+                          totalVersions={m.versions?.length || 1}
+                          onVersionChange={(idx) => switchMessageVersion(m.id, idx)}
+                          onRegenerate={!isUserMessage ? () => regenerateMessage(m.id) : undefined}
+                          onBranch={!isUserMessage ? () => forkConversation(m.id, mContent) : undefined}
+                          onCopy={(text: string) => {
+                            showToast('Message copied to clipboard!', 'success');
+                          }}
+                          onEdit={
+                            isUserMessage
+                              ? (content) => {
+                                handleEditMessage(m.id, content);
+                              }
+                              : undefined
+                          }
+                          onPin={(content) => {
+                            setActiveArtifact({
+                              id: m.id,
+                              type: 'report',
+                              title: 'Research Report',
+                              content: content,
+                            });
+                            showToast('Pinned to workspace!', 'success');
+                          }}
+                        >
+                          {isUserMessage ? (
+                            <div className="whitespace-pre-wrap">{mContent}</div>
+                          ) : (
+                            <MarkdownRenderer content={mContent} />
+                          )}
+                        </ChatMessage>
+                      </div>
                     );
-                  })}
-                  {/* Render in-progress streaming message */}
-                  {streamingMessage && (
-                    <ChatMessage
-                      key={streamingMessage.id}
-                      role="assistant"
-                      content={streamingMessage.content}
-                      timestamp={streamingMessage.timestamp}
-                      isStreaming={isStreaming}
-                      onCopy={(text: string) => {
-                        showToast('Message copied to clipboard!', 'success');
-                      }}
-                    >
-                      {streamingMessage.content === 'Assistant is typing...' ? (
-                        <TypingIndicator />
-                      ) : (
-                        <MarkdownRenderer content={streamingMessage.content} />
-                      )}
-                    </ChatMessage>
-                  )}
-                  {/* Invisible element to scroll to */}
-                  <div ref={messagesEndRef} />
-                </Chat>
-              )}
+                  }}
+                />
+              </Chat>
             </div>
-          </div>
-        </main>
+          )}
+        </div>
 
         <div
           className={cn(
@@ -444,18 +599,11 @@ export default function Home() {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {/* Document indicator - shown when a document is selected */}
           {selectedDocumentId &&
             (() => {
               const selectedDoc = documents.find((doc) => doc.id === selectedDocumentId);
-              // Only show indicator if document exists in the list
-              // If document was deleted, it will be cleared when documents list updates
               if (!selectedDoc) {
-                // Document not found - might have been deleted, clear selection
-                if (selectedDocumentId) {
-                  // Use setTimeout to avoid state update during render
-                  setTimeout(() => setSelectedDocumentId(null), 0);
-                }
+                setTimeout(() => setSelectedDocumentId(null), 0);
                 return null;
               }
               return (
@@ -469,7 +617,6 @@ export default function Home() {
               );
             })()}
 
-          {/* Drag overlay hint */}
           {isDragging && (
             <div className="px-4 py-12 text-center border-2 border-dashed border-primary rounded-lg mx-4 my-2 bg-primary/10">
               <p className="text-primary font-medium text-lg">Drop file here to upload</p>
@@ -477,188 +624,110 @@ export default function Home() {
             </div>
           )}
 
-          {/* Hide form when dragging to show drop zone clearly */}
           {!isDragging && (
-            <div ref={inputContainerRef} className="relative">
-              {/* Modal Overlay */}
-              <ChatInputModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onFileAttach={handleAttachmentClick}
-                onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
-                webSearchEnabled={webSearchEnabled}
-                onDeepResearch={async () => {
-                  const text = input?.trim();
-                  if (!text) {
-                    showToast('Enter a question to run Deep Research.', 'warning');
-                    return;
-                  }
-                  if (isDeepRunning) {
-                    deepAbortRef.current?.abort();
-                    return;
-                  }
-                  try {
-                    setIsDeepRunning(true);
-                    const ctrl = new AbortController();
-                    deepAbortRef.current = ctrl;
-                    setDeepStep('plan');
-                    showToast('Running deep research...', 'info');
-                    // Append the user message
-                    const userMsg: Message = {
-                      id: 'u-' + Date.now().toString(36),
-                      content: text,
-                      timestamp: new Date(),
-                      role: 'user',
-                      conversationId: '',
-                    };
-                    setMessages((prev: Message[]): Message[] => [...prev, userMsg]);
-
-                    const iterations = settings.deepResearchDefaultIterations ?? 2;
-                    const model = settings.selectedModel;
-                    // Prefer SSE stream if available
-                    try {
-                      const es = deepResearchStream(text, model, iterations);
-                      deepStreamRef.current = es;
-                      es.addEventListener('step', (e: MessageEvent) => {
-                        try {
-                          const payload = JSON.parse((e as any).data);
-                          if (payload?.step) setDeepStep(payload.step);
-                        } catch { }
-                      });
-                      es.addEventListener('final', (e: MessageEvent) => {
-                        try {
-                          const payload = JSON.parse((e as any).data);
-                          const assistantMsg: Message = {
-                            id: 'a-' + (Date.now() + 1).toString(36),
-                            content: payload.answer || 'No answer generated.',
-                            timestamp: new Date(),
-                            role: 'assistant',
-                            conversationId: '',
-                            citations: Array.isArray(payload.citations) ? payload.citations : [],
-                            metadata: { deepResearch: true, ...payload.metadata },
-                          };
-                          setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
-                          setInput('');
-                        } catch { }
-                        es.close();
-                        deepStreamRef.current = null;
-                        setIsDeepRunning(false);
-                        setDeepStep(null);
-                      });
-                      es.addEventListener('error', () => {
-                        es.close();
-                        deepStreamRef.current = null;
-                        setIsDeepRunning(false);
-                        setDeepStep(null);
-                      });
-                    } catch {
-                      // Fallback to non-stream
-                      const res = await deepResearch(text, model, iterations, ctrl.signal);
-                      const assistantMsg: Message = {
-                        id: 'a-' + (Date.now() + 1).toString(36),
-                        content: res.answer || 'No answer generated.',
-                        timestamp: new Date(),
-                        role: 'assistant',
-                        conversationId: '',
-                        citations: Array.isArray(res.citations) ? res.citations : [],
-                        metadata: { deepResearch: true, ...res.metadata },
-                      };
-                      setMessages((prev: Message[]): Message[] => [...prev, assistantMsg]);
-                      setInput('');
-                    }
-                  } catch (e) {
-                    if ((e as any)?.name === 'AbortError') {
-                      showToast('Deep research cancelled.', 'info');
-                    } else {
-                      const msg = e instanceof Error ? e.message : String(e);
-                      showToast(`Deep research failed: ${msg}`, 'error');
-                    }
-                    try { deepStreamRef.current?.close(); } catch { }
-                    deepStreamRef.current = null;
-                  } finally {
-                    setIsDeepRunning(false);
-                    deepAbortRef.current = null;
-                  }
-                }}
-              />
-
-              <form onSubmit={handleSubmitLocal} className="p-4 flex items-center space-x-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                {/* Plus button to open modal */}
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(!isModalOpen)}
-                  className={cn(
-                    'p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-accent transition-colors',
-                    isModalOpen && 'bg-accent text-foreground',
-                  )}
-                  title="More options"
-                  aria-label="More options"
-                >
-                  <Plus className="h-6 w-6" />
-                </button>
-                <ChatInput
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
+            <div className="relative">
+              <PromptInput
+                onSubmit={handleSubmitLocal}
+                className="p-4"
+                inputGroupClassName={cn(
+                  "max-w-4xl mx-auto shadow-sm transition-all duration-300 bg-card border-border",
+                  deepResearchEnabled && "border-violet-500/50 ring-violet-500/20 ring-2"
+                )}
+              >
+                <PromptInputAttachments>
+                  {(file) => <PromptInputAttachment data={file} />}
+                </PromptInputAttachments>
+                
+                <PromptInputTextarea
                   placeholder={
-                    editingMessageId ? 'Edit your message...' : 'Type your message here...'
+                    editingMessageId ? 'Edit your message...' : 
+                    deepResearchEnabled ? 'Ask a deep research question...' : 
+                    'Type your message here...'
                   }
-                  className="flex-grow"
-                  onFocus={() => setIsModalOpen(false)}
+                  className="max-h-[200px]"
                 />
-                {/* Web search indicator */}
-                {(webSearchEnabled || (input.trim() && shouldUseWebSearch(input))) && (
-                  <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-xs font-medium">
-                    <Globe className="h-3 w-3" />
-                    <span>Web</span>
-                    {!webSearchEnabled && shouldUseWebSearch(input) && (
-                      <span className="ml-1 text-[10px] opacity-70">AUTO</span>
+                
+                <PromptInputToolbar>
+                  <PromptInputTools>
+                    <PromptInputActionMenu>
+                      <PromptInputActionMenuTrigger />
+                      <PromptInputActionMenuContent>
+                                              <PromptInputActionAddAttachments />
+                                              <PromptInputActionMenuItem 
+                                                onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+                                                textValue={`Web Search ${webSearchEnabled ? "Enabled" : "Disabled"}`}
+                                              >
+                                                <Globe className={cn("mr-2 size-4", webSearchEnabled && "text-primary")} />
+                                                Web Search {webSearchEnabled ? "(Enabled)" : "(Disabled)"}
+                                              </PromptInputActionMenuItem>
+                                              <PromptInputActionMenuItem 
+                                                onClick={() => setDeepResearchEnabled(!deepResearchEnabled)}
+                                                textValue={`Deep Research ${deepResearchEnabled ? "Enabled" : "Disabled"}`}
+                                              >
+                                                <Sparkles className={cn("mr-2 size-4", deepResearchEnabled && "text-violet-500")} />
+                                                Deep Research {deepResearchEnabled ? "(Enabled)" : "(Disabled)"}
+                                              </PromptInputActionMenuItem>
+                        
+                      </PromptInputActionMenuContent>
+                    </PromptInputActionMenu>
+                    
+                    <PromptInputSpeechButton />
+                    
+                    {deepResearchEnabled && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-violet-600 text-white rounded-md text-[10px] font-bold shadow-sm animate-in zoom-in-90">
+                        <Sparkles className="h-3 w-3" />
+                        <span>DEEP</span>
+                      </div>
                     )}
-                  </div>
-                )}
-                {editingMessageId && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => {
-                      setEditingMessageId(null);
-                      setInput('');
-                    }}
-                    className="text-muted-foreground hover:text-foreground"
+                    {(webSearchEnabled || (!deepResearchEnabled && input.trim() && shouldUseWebSearch(input))) && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-md text-[10px] font-bold">
+                        <Globe className="h-3 w-3" />
+                        <span>WEB</span>
+                      </div>
+                    )}
+                  </PromptInputTools>
+                  
+                  <PromptInputSubmit 
+                    status={isStreaming ? 'streaming' : isLoading ? 'submitted' : undefined}
                   >
-                    Cancel
-                  </Button>
-                )}
-                <Button type="submit" disabled={isLoading || isStreaming || !input.trim()}>
-                  {isStreaming ? 'Stop' : editingMessageId ? 'Resend' : 'Send'}
-                </Button>
-                {isDeepRunning && (
-                  <div className="flex items-center gap-2 ml-2">
-                    <span className="text-xs text-muted-foreground">{deepStep ?? 'working...'}</span>
+                    {editingMessageId ? 'Resend' : undefined}
+                  </PromptInputSubmit>
+                </PromptInputToolbar>
+              </PromptInput>
+
+              {isDeepRunning && (
+                <div className="px-4 pb-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className="bg-card border border-border rounded-xl p-4 shadow-sm relative">
                     <Button
                       type="button"
-                      variant="secondary"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="absolute top-2 right-2 text-muted-foreground hover:text-destructive transition-colors"
                       onClick={() => {
                         try { deepStreamRef.current?.close(); } catch { }
                         deepStreamRef.current = null;
                         deepAbortRef.current?.abort();
                       }}
+                      title="Cancel Research"
                     >
-                      Cancel Deep Research
+                      <Plus className="h-4 w-4 rotate-45" />
                     </Button>
+                    <DeepResearchProgress currentStep={deepStep} />
                   </div>
-                )}
-              </form>
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <PromptInputProvider>
+      <ChatInterface />
+    </PromptInputProvider>
   );
 }

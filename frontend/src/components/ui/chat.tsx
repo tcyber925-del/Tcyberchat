@@ -1,7 +1,15 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { Copy, Check, User, Bot, Pencil } from 'lucide-react';
+import { Bot, User, Pencil, Copy, Check, RefreshCcw, ThumbsUp, ThumbsDown, GitBranch, Volume2 } from 'lucide-react';
 import { Button } from './button';
+
+import { useSettings } from '@/lib/context/settings-context';
+import { DeepResearchArtifact } from '@/components/ai-elements/deep-research-artifact';
+import { Message, MessageContent, MessageAvatar } from '@/components/ai-elements/message';
+import { Branch, BranchSelector, BranchPrevious, BranchNext, BranchPage } from '@/components/ai-elements/branch';
+import { Actions, Action } from '@/components/ai-elements/actions';
+import { StepMonitor } from '@/components/ai-elements/step-monitor';
+import { PlanRenderer } from '@/components/ai-elements/plan-renderer';
 
 interface ChatProps extends React.ComponentPropsWithoutRef<'div'> {
   // Add any specific props for the Chat container if needed
@@ -22,32 +30,53 @@ Chat.displayName = 'Chat';
 
 interface ChatMessageProps extends React.ComponentPropsWithoutRef<'div'> {
   role: 'user' | 'assistant' | 'system' | 'function' | 'tool';
+  type?: 'text' | 'agentic' | 'deep-research' | 'tool' | 'error';
+  variant?: 'contained' | 'flat'; // New: support different visual styles
   content?: string; // Raw content for copying
   onCopy?: any; // Optional copy callback (typed as any to avoid DOM prop conflict)
   onEdit?: (content: string) => void; // Optional edit callback (for user messages)
+  onRegenerate?: () => void; // New: handle regeneration
+  onBranch?: () => void; // New: handle branching
+  onVote?: (score: number) => void; // New: handle feedback
   timestamp?: Date; // Optional timestamp for the message
   isStreaming?: boolean; // Whether this message is currently streaming
   messageId?: string; // Optional message ID for editing
   meta?: any; // Optional metadata (e.g., web provider info)
   citations?: any[]; // Optional citations to render as source cards
+  versionIndex?: number; // New: current version index
+  totalVersions?: number; // New: total versions available
+  onVersionChange?: (index: number) => void; // New: handle version switching
+  // Agentic UI
+  steps?: any[];
+  plan?: string[];
+  onPin?: (content: string) => void;
 }
-
-import { useSettings } from '@/lib/context/settings-context';
 
 const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
   (
     {
       className,
       role,
+      type = 'text',
+      variant = 'contained',
       children,
       content,
       onCopy,
       onEdit,
+      onRegenerate,
+      onBranch,
+      onVote,
       timestamp,
       isStreaming = false,
       messageId,
       meta,
       citations,
+      versionIndex = 0,
+      totalVersions = 1,
+      onVersionChange,
+      steps,
+      plan,
+      onPin,
       ...props
     },
     ref,
@@ -56,10 +85,36 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     const [copied, setCopied] = React.useState(false);
     const { settings } = useSettings();
 
-    // Enhanced bubble classes with better visual distinction
-    const bubbleClasses = isUser
-      ? 'bg-primary text-primary-foreground'
-      : 'bg-card border border-border text-foreground';
+    // If it's a deep research result, render the artifact view
+    if (meta?.deepResearch || type === 'deep-research') {
+      if (!isUser) {
+        return (
+          <div 
+            ref={ref} 
+            className={cn('flex flex-col gap-2 mb-8 w-full max-w-none animate-in fade-in slide-in-from-bottom-4 duration-500', className)}
+            {...props}
+          >
+            <div className="flex items-center gap-2 px-1 mb-1">
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                <Bot className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Deep Research Engine</span>
+            </div>
+            <DeepResearchArtifact 
+              content={content || ''} 
+              citations={citations} 
+              metadata={meta} 
+              onPin={onPin}
+            />
+            {timestamp && (
+              <span className="text-[10px] text-muted-foreground px-1 self-start">
+                {new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(timestamp)}
+              </span>
+            )}
+          </div>
+        );
+      }
+    }
 
     // Format timestamp
     const formatTime = React.useCallback((date?: Date) => {
@@ -85,8 +140,8 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
         .replace(/#{1,6}\s+/g, '') // Remove headers
         .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove bold markers
         .replace(/\*([^*]+)\*/g, '$1') // Remove italic markers
-        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove links, keep text
-        .replace(/!\[([^\]]*)\]\([^\)]+\)/g, '') // Remove images
+        .replace(/!\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove links, keep text
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '') // Remove images
         .replace(/^\s*[-*+]\s+/gm, '') // Remove list markers
         .replace(/^\s*\d+\.\s+/gm, '') // Remove numbered list markers
         .replace(/^>\s+/gm, '') // Remove blockquote markers
@@ -161,86 +216,113 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
     }, [content, children, extractPlainText, onCopy]);
 
     return (
-      <div
-        ref={ref}
-        className={cn(
-          'flex gap-3 mb-6 animate-slide-up group',
-          isUser ? 'justify-end' : 'justify-start',
-          className,
-        )}
+      <Message 
+        ref={ref} 
+        from={role as any} 
+        className={cn('mb-6 animate-slide-up group', className)}
         {...props}
       >
-        {/* Avatar - only show for assistant messages */}
-        {!isUser && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-1">
-            <Bot className="h-4 w-4 text-primary" />
-          </div>
-        )}
-
-        <div
-          className={cn(
-            'flex flex-col',
-            isUser
-              ? 'items-end max-w-[80%] md:max-w-[70%] min-w-0'
-              : 'items-start max-w-[80%] md:max-w-[70%] min-w-0',
-          )}
-        >
-          {/* Message bubble */}
-          <div
-            className={cn(
-              'relative rounded-2xl px-4 py-3 shadow-sm transition-all duration-200 overflow-hidden',
-              'hover:shadow-md',
-              isStreaming && 'animate-pulse-subtle',
-              bubbleClasses,
-              isUser ? 'rounded-br-md' : 'rounded-bl-md',
-            )}
-          >
-            <div className="prose prose-sm dark:prose-invert max-w-none break-anywhere w-full whitespace-normal">{children}</div>
-
-            {/* Action buttons - appears on hover */}
-            <div
-              className={cn(
-                'absolute top-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex gap-1',
-                isUser ? 'right-2' : 'right-2',
+        <div className={cn(
+          'flex flex-col w-full',
+          isUser ? 'items-end' : 'items-start'
+        )}>
+          <div className={cn(
+            "flex items-start gap-3 w-full",
+            isUser ? "flex-row-reverse" : "flex-row"
+          )}>
+            <MessageAvatar src="" name={isUser ? "ME" : "AI"} className="mt-1 flex-shrink-0" />
+            
+            <div className={cn(
+              "relative flex flex-col gap-3 min-w-0",
+              (type === 'agentic' || type === 'deep-research') ? "w-full max-w-4xl" : "max-w-[85%] md:max-w-[75%]"
+            )}>
+              {/* Agentic Plan */}
+              {type === 'agentic' && plan && plan.length > 0 && (
+                <PlanRenderer plan={plan} className="animate-in fade-in slide-in-from-top-2 duration-500" />
               )}
-            >
-              {/* Edit button - only for user messages */}
-              {isUser && onEdit && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => {
-                    if (content) {
-                      onEdit(content);
-                    }
-                  }}
+
+              {/* Agentic Steps */}
+              {type === 'agentic' && steps && steps.length > 0 && (
+                <StepMonitor steps={steps} className="animate-in fade-in slide-in-from-top-4 duration-700" />
+              )}
+
+              {/* Main Content Bubble */}
+              {(content || children) && (
+                <MessageContent 
+                  variant={variant}
                   className={cn(
-                    'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/20',
-                    'h-7 w-7 p-0',
+                    isStreaming && 'animate-pulse-subtle',
+                    isUser ? 'rounded-tr-none' : 'rounded-tl-none',
+                    "shadow-sm border border-border/50"
                   )}
-                  aria-label="Edit message"
-                  title="Edit message"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
+                  <div className="prose prose-sm dark:prose-invert max-w-none break-anywhere w-full whitespace-normal leading-relaxed">
+                    {children}
+                  </div>
+                </MessageContent>
               )}
 
-              {/* Copy button */}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={handleCopy}
+              {/* Version/Branching Controls */}
+              {totalVersions > 1 && (
+                <Branch 
+                  defaultBranch={versionIndex} 
+                  onBranchChange={onVersionChange}
+                  className="mt-1"
+                >
+                  <BranchSelector from={role as any} className="px-0">
+                    <BranchPrevious className="size-5" />
+                    <BranchPage className="text-[10px]" />
+                    <BranchNext className="size-5" />
+                  </BranchSelector>
+                </Branch>
+              )}
+
+              {/* Action buttons - appears on hover */}
+              <div
                 className={cn(
-                  isUser
-                    ? 'text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/20'
-                    : 'text-muted-foreground/70 hover:text-foreground hover:bg-accent',
-                  'h-7 w-7 p-0',
+                  'absolute top-0 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center',
+                  isUser ? '-left-12' : '-right-12',
                 )}
-                aria-label={copied ? 'Copied!' : 'Copy message'}
-                title={copied ? 'Copied!' : 'Copy message'}
               >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              </Button>
+                <Actions className={cn(
+                  "flex-col bg-background/80 backdrop-blur-sm border border-border rounded-lg p-1 shadow-md",
+                  isUser ? "mr-2" : "ml-2"
+                )}>
+                  {isUser && onEdit && (
+                    <Action tooltip="Edit Prompt" onClick={() => content && onEdit(content)}>
+                      <Pencil size={14} />
+                    </Action>
+                  )}
+                  
+                  {!isUser && onRegenerate && (
+                    <Action tooltip="Regenerate" onClick={onRegenerate}>
+                      <RefreshCcw size={14} />
+                    </Action>
+                  )}
+
+                  <Action tooltip="Copy to Clipboard" onClick={handleCopy}>
+                    {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+                  </Action>
+
+                  {!isUser && (
+                    <>
+                      <Action tooltip="Branch from here" onClick={onBranch}>
+                        <GitBranch size={14} />
+                      </Action>
+                      <Action tooltip="Read Aloud" onClick={() => {}}>
+                        <Volume2 size={14} />
+                      </Action>
+                      <div className="h-px w-full bg-border my-1" />
+                      <Action tooltip="Helpful" onClick={() => onVote?.(1)}>
+                        <ThumbsUp size={14} />
+                      </Action>
+                      <Action tooltip="Not Helpful" onClick={() => onVote?.(-1)}>
+                        <ThumbsDown size={14} />
+                      </Action>
+                    </>
+                  )}
+                </Actions>
+              </div>
             </div>
           </div>
 
@@ -249,7 +331,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
             meta &&
             process.env.NODE_ENV !== 'production' &&
             settings?.showWebDebugBadges && (
-              <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+              <div className="mt-1 ml-11 flex items-center gap-1 text-[10px] text-muted-foreground">
                 <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
                   Web
                 </span>
@@ -272,7 +354,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
             settings?.showSourcesPanel &&
             Array.isArray(citations) &&
             citations.length > 0 && (
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+              <div className="mt-2 ml-11 grid grid-cols-1 md:grid-cols-2 gap-2 w-full max-w-2xl">
                 {citations.slice(0, 4).map((c: any, idx: number) => {
                   const url: string = c.url || '';
                   let host = '';
@@ -284,7 +366,7 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                   return (
                     <a
                       key={idx}
-                      href={url || '#'}
+                      href={url || '#'} 
                       target="_blank"
                       rel="noreferrer"
                       className="block border border-border rounded-md p-2 hover:bg-accent transition-colors"
@@ -310,11 +392,6 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                               {c.trust >= 0.75 ? 'High' : c.trust >= 0.5 ? 'Med' : 'Low'} trust
                             </span>
                           )}
-                          {c.suspicious && (
-                            <span className="text-[10px] px-1 py-0.5 rounded bg-red-100 text-red-700" title="Possible prompt injection filtered">
-                              suspicious
-                            </span>
-                          )}
                           {host && (
                             <span className="text-[10px] px-1 py-0.5 rounded bg-accent/40 text-muted-foreground">
                               {host}
@@ -327,10 +404,6 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
                           {snippet}
                         </div>
                       )}
-                      {/* Show a top quote if available */}
-                      {Array.isArray(c.quotes) && c.quotes.length > 0 && (
-                        <div className="text-[11px] text-foreground mt-1 italic line-clamp-2">“{c.quotes[0]}”</div>
-                      )}
                     </a>
                   );
                 })}
@@ -341,22 +414,15 @@ const ChatMessage = React.forwardRef<HTMLDivElement, ChatMessageProps>(
           {timestamp && (
             <span
               className={cn(
-                'text-xs text-muted-foreground mt-1 px-1',
-                isUser ? 'text-right' : 'text-left',
+                'text-[10px] text-muted-foreground mt-1',
+                isUser ? 'mr-11' : 'ml-11'
               )}
             >
               {formatTime(timestamp)}
             </span>
           )}
         </div>
-
-        {/* Avatar - only show for user messages */}
-        {isUser && (
-          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center mt-1">
-            <User className="h-4 w-4 text-primary-foreground" />
-          </div>
-        )}
-      </div>
+      </Message>
     );
   },
 );

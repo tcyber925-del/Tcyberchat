@@ -31,6 +31,16 @@ chromadb
 # Database
 psycopg2-binary
 
+# Web Search Providers
+firecrawl-py
+tavily-python
+duckduckgo-search
+
+# Content Extraction
+trafilatura
+readability-lxml
+beautifulsoup4
+
 # NOTE: This trimmed requirements file is intended for building the Docker image
 # in CI / container environments. It now includes the minimal RAG/runtime
 # dependencies to enable vectorstore & embeddings support. For the full ML
