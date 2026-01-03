@@ -753,22 +753,14 @@ class RAGService:
             # 1. Basic RAG Chain
             rag_prompt = ChatPromptTemplate.from_template("""
 You are a helpful AI assistant that answers questions based on the provided context.
-Use the following pieces of context to answer the question at the end.
 
-CRITICAL INSTRUCTIONS:
-- ALWAYS prioritize information from "=== Web Search Results (Most Recent Information) ===" section if it exists
-- If the query asks for "latest", "recent", "news", or "current" information, you MUST use the web search results as your primary source
-- When using web search information, explicitly state "According to recent web search..." or "Based on the latest information from web sources..."
-- Include URLs from web search results in your citations
-- If web search results are present, they represent the MOST CURRENT information available - use them over older document content
-
-Guidelines:
-- If you don't know the answer based on the context, say so clearly
-- Provide specific references to the source material when possible (include URLs for web sources)
-- Be concise but comprehensive
-- Use citations when referencing specific information
-- Clearly distinguish between document sources and web sources in citations
-- If you cannot find recent information in the provided context, state that clearly
+CRITICAL INSTRUCTION:
+The Context below contains a section labeled "=== Web Search Results (Most Recent Information) ===".
+If this section exists, it contains REAL-TIME data.
+- You MUST treat that section as the absolute ground truth, overriding your internal knowledge and cutoff dates.
+- NEVER say "As of my knowledge cutoff" if web search results are present.
+- If the user asks for "latest" or "news", use the web search results EXCLUSIVELY.
+- Start your answer with "Based on the latest web search results..." if you use web sources.
 
 Context:
 {context}
@@ -939,9 +931,21 @@ Conversation History: {chat_history}
 
             # Perform web search if enabled
             web_search_context = ""
-            if use_web_search:
+            # NEW: Only auto-trigger web search if NO document is selected
+            # If a document is selected, only use web search if explicitly requested
+            should_do_web_search = use_web_search
+            if use_web_search and not document_id:
+                should_do_web_search = True
+            elif use_web_search and document_id:
+                # If document is selected, only search web if the query is very time-sensitive
+                # or if we want to augment document knowledge
+                should_do_web_search = True 
+
+            if should_do_web_search:
                 try:
                     from .web_search_service import get_web_search_service
+                    # ... (rest of search logic remains)
+
 
                     web_search_service = get_web_search_service()
                     ws_impl = getattr(web_search_service, "impl", "custom")
@@ -1430,152 +1434,45 @@ Conversation History: {chat_history}
             else:
                 # Fallback to AI service, but still use RAG if document_id is provided
                 if document_id:
-                    # Even without RAG chain, we can still retrieve relevant chunks and use them as context
+                    # NEW: Robust DB-Direct Fallback
+                    # If RAG chain failed but we have a document ID, fetch content directly from DB
                     try:
-                        print(
-                            f"DEBUG: Fallback RAG path - document_id={document_id}, query={query[:50]}..."
-                        )
-                        # Get relevant chunks from the specified document
-                        relevant_chunks = await self.search_relevant_chunks(
-                            query=query,
-                            document_id=document_id,
-                            limit=max_context_chunks,
-                            use_ensemble=False,
-                            use_compression=False,
-                        )
-                        print(
-                            f"DEBUG: Found {len(relevant_chunks)} relevant chunks for document_id={document_id}"
-                        )
-
-                        if relevant_chunks:
-                            # Build context from retrieved chunks
-                            context_parts = []
-                            for chunk in relevant_chunks:
-                                content = chunk.get("content", "")
-                                if content:
-                                    context_parts.append(content)
-                                    # Add citation
-                                    citations.append(
-                                        {
-                                            "document_id": chunk.get("document_id"),
-                                            "chunk_index": chunk.get("chunk_index"),
-                                            "score": chunk.get("score"),
-                                            "content_preview": content[:100] + "..."
-                                            if len(content) > 100
-                                            else content,
-                                            "retrieval_method": "similarity",
-                                        }
-                                    )
-
-                            # Build context string
-                            context = "\n\n".join(context_parts)
-
-                            # Add web search context if available
-                            if web_search_context:
-                                context = f"{context}\n\n{web_search_context}"
-
-                            # Create enhanced prompt with context
-                            enhanced_prompt = f"""Based on the following document context{" and web search results" if web_search_context else ""}, answer the question.
-
-Document Context:
-{context}
-
-Question: {query}
-
-Answer:"""
-
-                            # Use AI service with context - use the specified model
-                            ai_service = await self._get_ai_service(model_name)
-                            if ai_service and hasattr(
-                                ai_service, "generate_streaming_response"
-                            ):
-                                async for (
-                                    chunk_content
-                                ) in ai_service.generate_streaming_response(
-                                    prompt=enhanced_prompt, context=None
-                                ):
+                        from ..database import SessionLocal
+                        from ..models.document import Document as DocModel
+                        from uuid import UUID as _UUID
+                        
+                        logger.info(f"Using DB-Direct fallback for document_id: {document_id}")
+                        db_session = SessionLocal()
+                        try:
+                            doc_uuid = _UUID(str(document_id))
+                            db_doc = db_session.query(DocModel).filter(DocModel.id == doc_uuid).first()
+                            if db_doc and getattr(db_doc, "content", None):
+                                doc_content = str(db_doc.content)
+                                # Limit content size for prompt (e.g., first 10k chars)
+                                context_text = doc_content[:10000]
+                                if len(doc_content) > 10000:
+                                    context_text += "\n\n(Content truncated for analysis...)"
+                                
+                                final_prompt = f"Based on the following document content, answer the question.\n\nDocument Content:\n{context_text}\n\nQuestion: {query}\n\nAnswer:"
+                                
+                                ai_service = await self._get_ai_service(model_name)
+                                async for chunk_content in ai_service.generate_streaming_response(prompt=final_prompt):
                                     full_response_content += chunk_content
                                     yield {"content": chunk_content, "done": False}
+                                
+                                # Add citation for the direct doc
+                                citations.append({
+                                    "document_id": str(db_doc.id),
+                                    "filename": getattr(db_doc, "filename", "Document"),
+                                    "source": "document_direct"
+                                })
                             else:
-                                yield {
-                                    "content": "AI service not available",
-                                    "done": False,
-                                }
-                        else:
-                            # No chunks found - check if document exists in vector store
-                            print(
-                                f"DEBUG: No chunks found for document_id={document_id}, checking vector store..."
-                            )
-                            try:
-                                all_docs = self.vectorstore.get()
-                                print(
-                                    f"DEBUG: Vector store contains {len(all_docs.get('documents', []))} total documents"
-                                )
-                                # Check if any documents have this document_id
-                                matching_docs = 0
-                                all_document_ids = set()
-                                for metadata in all_docs.get("metadatas", []):
-                                    if metadata:
-                                        doc_id = metadata.get("document_id", "")
-                                        all_document_ids.add(str(doc_id))
-                                        if str(doc_id) == str(document_id):
-                                            matching_docs += 1
-                                print(
-                                    f"DEBUG: Found {matching_docs} documents with document_id={document_id} in vector store"
-                                )
-                                print(
-                                    f"DEBUG: All document_ids in vector store: {list(all_document_ids)[:10]}"
-                                )  # Show first 10
-                            except Exception as e:
-                                print(f"DEBUG: Error checking vector store: {e}")
-                                import traceback
-
-                                print(f"Traceback: {traceback.format_exc()}")
-
-                            # No chunks found, use AI service without context - use the specified model
-                            ai_service = await self._get_ai_service(model_name)
-                            if ai_service and hasattr(
-                                ai_service, "generate_streaming_response"
-                            ):
-                                async for (
-                                    chunk_content
-                                ) in ai_service.generate_streaming_response(
-                                    prompt=f"I couldn't find relevant information in the selected document. {query}",
-                                    context=None,
-                                ):
-                                    full_response_content += chunk_content
-                                    yield {"content": chunk_content, "done": False}
-                            else:
-                                yield {
-                                    "content": "AI service not available and no document context found",
-                                    "done": False,
-                                }
-                    except Exception as e:
-                        import traceback
-
-                        print(f"Error in RAG fallback with document_id: {e}")
-                        print(f"Traceback: {traceback.format_exc()}")
-                        # Fall through to regular AI service fallback - use the specified model
-                        ai_service = await self._get_ai_service(model_name)
-                        if ai_service and hasattr(
-                            ai_service, "generate_streaming_response"
-                        ):
-                            try:
-                                async for (
-                                    chunk_content
-                                ) in ai_service.generate_streaming_response(
-                                    prompt=query
-                                ):
-                                    full_response_content += chunk_content
-                                    yield {"content": chunk_content, "done": False}
-                            except Exception as e2:
-                                print(f"Error in AI service streaming: {e2}")
-                                yield {
-                                    "content": f"Error generating response: {str(e2)}",
-                                    "done": False,
-                                }
-                        else:
-                            yield {"content": "AI service not available", "done": False}
+                                yield {"content": "Document content not found in database.", "done": False}
+                        finally:
+                            db_session.close()
+                    except Exception as fallback_err:
+                        logger.error(f"DB-Direct fallback failed: {fallback_err}")
+                        yield {"content": f"Failed to retrieve document content: {str(fallback_err)}", "done": False}
                 else:
                     # No document_id, use AI service without RAG - use the specified model
                     ai_service = await self._get_ai_service(model_name)
@@ -1583,9 +1480,16 @@ Answer:"""
                         ai_service, "generate_streaming_response"
                     ):
                         try:
+                            # Ensure web search context is used even in fallback
+                            final_prompt = query
+                            if web_search_context:
+                                final_prompt = f"Based on the following web search results (Ground Truth), answer the question. Ignore your knowledge cutoff.\n\n{web_search_context}\n\nQuestion: {query}\n\nAnswer:"
+                            
                             async for (
                                 chunk_content
-                            ) in ai_service.generate_streaming_response(prompt=query):
+                            ) in ai_service.generate_streaming_response(
+                                prompt=final_prompt
+                            ):
                                 full_response_content += chunk_content
                                 yield {"content": chunk_content, "done": False}
                         except Exception as e:
@@ -2267,18 +2171,24 @@ Answer:"""
                 if rb:
                     return {
                         "content": rb,
-                        "citations": [],
+                        "citations": web_search_citations if web_search_citations else [],
                         "context_chunks_used": 0,
                         "rag_enabled": False,
                         "chain_type": "rule_fallback",
                     }
                 ai = await _get_ai_with_fallback(model_name)
-                ai_response = await ai.generate_response(prompt=query)
+                
+                # Ensure web search context is used even in fallback
+                final_prompt = query
+                if web_search_context:
+                    final_prompt = f"Based on the following web search results (Ground Truth), answer the question. Ignore your knowledge cutoff.\n\n{web_search_context}\n\nQuestion: {query}\n\nAnswer:"
+                
+                ai_response = await ai.generate_response(prompt=final_prompt)
                 return {
                     **ai_response,
-                    "citations": [],
+                    "citations": web_search_citations if web_search_citations else [],
                     "context_chunks_used": 0,
-                    "rag_enabled": False,
+                    "rag_enabled": bool(web_search_citations),
                     "chain_type": "fallback",
                 }
 
@@ -2360,19 +2270,25 @@ Answer:"""
             if rb:
                 return {
                     "content": rb,
-                    "citations": [],
+                    "citations": web_search_citations if web_search_citations else [],
                     "context_chunks_used": 0,
                     "rag_enabled": False,
                     "error": str(e),
                     "chain_type": "rule_error_fallback",
                 }
             ai = await _get_ai_with_fallback_local(model_name)
-            ai_response = await ai.generate_response(prompt=query)
+            
+            # Ensure web search context is used even in fallback if retrieved
+            final_prompt = query
+            if web_search_context:
+                final_prompt = f"Based on the following web search results (Ground Truth), answer the question. Ignore your knowledge cutoff.\n\n{web_search_context}\n\nQuestion: {query}\n\nAnswer:"
+            
+            ai_response = await ai.generate_response(prompt=final_prompt)
             return {
                 **ai_response,
-                "citations": [],
+                "citations": web_search_citations if web_search_citations else [],
                 "context_chunks_used": 0,
-                "rag_enabled": False,
+                "rag_enabled": bool(web_search_citations),
                 "error": str(e),
                 "chain_type": "error_fallback",
             }

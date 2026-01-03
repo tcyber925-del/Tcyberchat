@@ -62,7 +62,7 @@ import {
 // ============================================================================
 
 export type AttachmentsContext = {
-  files: (FileUIPart & { id: string })[];
+  files: (FileUIPart & { id: string; originalFile?: File })[];
   add: (files: File[] | FileList) => void;
   remove: (id: string) => void;
   clear: () => void;
@@ -132,7 +132,7 @@ export function PromptInputProvider({
   const clearInput = useCallback(() => setTextInput(''), []);
 
   // ----- attachments state (global when wrapped)
-  const [attachements, setAttachements] = useState<(FileUIPart & { id: string })[]>([]);
+  const [attachements, setAttachements] = useState<(FileUIPart & { id: string; originalFile?: File })[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const openRef = useRef<() => void>(() => {});
 
@@ -148,6 +148,7 @@ export function PromptInputProvider({
           url: URL.createObjectURL(file),
           mediaType: file.type,
           filename: file.name,
+          originalFile: file,
         })),
       ),
     );
@@ -374,6 +375,7 @@ export const PromptInputActionAddAttachments = ({
 
   return (
     <DropdownMenuItem
+      textValue={label}
       {...props}
       onSelect={(e) => {
         e.preventDefault();
@@ -386,8 +388,8 @@ export const PromptInputActionAddAttachments = ({
 };
 
 export type PromptInputMessage = {
-  text?: string;
-  files?: FileUIPart[];
+  text: string;
+  files: (FileUIPart & { id: string; originalFile?: File })[];
 };
 
 export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, 'onSubmit'> & {
@@ -400,6 +402,7 @@ export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, 'onSubmit'>
   // Minimal constraints
   maxFiles?: number;
   maxFileSize?: number; // bytes
+  inputGroupClassName?: string; // Optional class for the internal InputGroup
   onError?: (err: { code: 'max_files' | 'max_file_size' | 'accept'; message: string }) => void;
   onSubmit: (
     message: PromptInputMessage,
@@ -415,6 +418,7 @@ export const PromptInput = ({
   syncHiddenInput,
   maxFiles,
   maxFileSize,
+  inputGroupClassName,
   onError,
   onSubmit,
   children,
@@ -438,7 +442,7 @@ export const PromptInput = ({
   }, []);
 
   // ----- Local attachments (only used when no provider)
-  const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
+  const [items, setItems] = useState<(FileUIPart & { id: string; originalFile?: File })[]>([]);
   const files = usingProvider ? controller.attachments.files : items;
 
   const openFileDialogLocal = useCallback(() => {
@@ -490,7 +494,7 @@ export const PromptInput = ({
             message: 'Too many files. Some were not added.',
           });
         }
-        const next: (FileUIPart & { id: string })[] = [];
+        const next: (FileUIPart & { id: string; originalFile?: File })[] = [];
         for (const file of capped) {
           next.push({
             id: nanoid(),
@@ -498,6 +502,7 @@ export const PromptInput = ({
             url: URL.createObjectURL(file),
             mediaType: file.type,
             filename: file.name,
+            originalFile: file,
           });
         }
         return prev.concat(next);
@@ -659,16 +664,18 @@ export const PromptInput = ({
 
     // Convert blob URLs to data URLs asynchronously
     Promise.all(
-      files.map(async ({ id, ...item }) => {
+      files.map(async ({ id, originalFile, ...item }) => {
         if (item.url && item.url.startsWith('blob:')) {
           return {
+            id,
+            originalFile,
             ...item,
             url: await convertBlobUrlToDataUrl(item.url),
           };
         }
-        return item;
+        return { id, originalFile, ...item };
       }),
-    ).then((convertedFiles: FileUIPart[]) => {
+    ).then((convertedFiles) => {
       try {
         const result = onSubmit({ text, files: convertedFiles }, event);
 
@@ -712,7 +719,7 @@ export const PromptInput = ({
         type="file"
       />
       <form className={cn('w-full', className)} onSubmit={handleSubmit} {...props}>
-        <InputGroup>{children}</InputGroup>
+        <InputGroup className={inputGroupClassName}>{children}</InputGroup>
       </form>
     </>
   );
@@ -863,11 +870,16 @@ export const PromptInputActionMenuContent = ({
   <DropdownMenuContent align="start" className={cn(className)} {...props} />
 );
 
-export type PromptInputActionMenuItemProps = ComponentProps<typeof DropdownMenuItem>;
+export type PromptInputActionMenuItemProps = ComponentProps<typeof DropdownMenuItem> & {
+  textValue?: string;
+};
 export const PromptInputActionMenuItem = ({
   className,
+  textValue,
   ...props
-}: PromptInputActionMenuItemProps) => <DropdownMenuItem className={cn(className)} {...props} />;
+}: PromptInputActionMenuItemProps) => (
+  <DropdownMenuItem className={cn(className)} textValue={textValue} {...props} />
+);
 
 // Note: Actions that perform side-effects (like opening a file dialog)
 // are provided in opt-in modules (e.g., prompt-input-attachments).
@@ -1081,12 +1093,17 @@ export const PromptInputModelSelectContent = ({
   ...props
 }: PromptInputModelSelectContentProps) => <SelectContent className={cn(className)} {...props} />;
 
-export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem>;
+export type PromptInputModelSelectItemProps = ComponentProps<typeof SelectItem> & {
+  textValue?: string;
+};
 
 export const PromptInputModelSelectItem = ({
   className,
+  textValue,
   ...props
-}: PromptInputModelSelectItemProps) => <SelectItem className={cn(className)} {...props} />;
+}: PromptInputModelSelectItemProps) => (
+  <SelectItem className={cn(className)} textValue={textValue} {...props} />
+);
 
 export type PromptInputModelSelectValueProps = ComponentProps<typeof SelectValue>;
 

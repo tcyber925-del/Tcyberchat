@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 # Import API routers
 try:
@@ -220,50 +221,61 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+# Trust proxy headers (like X-Forwarded-Proto, X-Forwarded-Host) from Nginx
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
 # Configure CORS for frontend communication
 # Allow configuration via environment variables for flexible dev setups:
 # - ALLOWED_ORIGINS: comma-separated list of allowed origins (e.g. http://localhost:3001,http://127.0.0.1:3001)
-# - ALLOW_ORIGIN_REGEX: if set, will be passed to `allow_origin_regex` (useful for localhost with any port)
+# - ALLOW_ORIGIN_REGEX: if set, will be passed to `allow_origin_regex` (useful for localhost with any port or tunnels)
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 _allow_origin_regex_env = os.getenv("ALLOW_ORIGIN_REGEX")
 
-if _allow_origin_regex_env:
-    logger.info(f"Configuring CORS with allow_origin_regex={_allow_origin_regex_env}")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=_allow_origin_regex_env,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-else:
-    if _allowed_origins_env:
-        try:
-            origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
-        except Exception:
-            origins = None
-    else:
-        origins = [
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://0.0.0.0:3000",
-            # Frontend dev server may run on port 3001 in some setups
-            "http://localhost:3001",
-            "http://127.0.0.1:3001",
-        ]
+origins = []
+if _allowed_origins_env:
+    try:
+        origins = [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+    except Exception:
+        pass
 
-    if origins:
-        logger.info(f"Configuring CORS with allow_origins={origins}")
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=origins,
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-    else:
-        # Fallback: be explicit about not allowing any origins if parsing failed
-        logger.warning("No valid CORS origins configured; default CORS disabled")
+if not origins:
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://0.0.0.0:3000",
+        # Frontend dev server may run on port 3001 in some setups
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ]
+
+# If regex is set to match everything, ensure we log a warning
+if _allow_origin_regex_env == ".*" or _allow_origin_regex_env == "https?://.*":
+    logger.warning(f"CORS is in PERMISSIVE mode with regex: {_allow_origin_regex_env}")
+
+logger.info(f"CORS Configuration: origins={origins}, allow_origin_regex={_allow_origin_regex_env}")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_origin_regex=_allow_origin_regex_env,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# Custom logging middleware to help debug headers
+@app.middleware("http")
+async def debug_headers_middleware(request: Request, call_next: Callable) -> Response:
+    origin = request.headers.get("origin")
+    host = request.headers.get("host")
+    forwarded_host = request.headers.get("x-forwarded-host")
+    
+    if origin:
+        logger.info(f"CORS Request: method={request.method}, path={request.url.path}, origin={origin}, host={host}, forwarded_host={forwarded_host}")
+    
+    return await call_next(request)
 
 
 # Custom logging middleware

@@ -2,22 +2,27 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { UIMessage } from 'ai';
 import { cva, type VariantProps } from 'class-variance-authority';
+import * as React from 'react';
 import type { ComponentProps, HTMLAttributes } from 'react';
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
   from: UIMessage['role'];
 };
 
-export const Message = ({ className, from, ...props }: MessageProps) => (
-  <div
-    className={cn(
-      'group flex w-full items-end justify-end gap-2 py-4',
-      from === 'user' ? 'is-user' : 'is-assistant flex-row-reverse justify-end',
-      className,
-    )}
-    {...props}
-  />
+export const Message = React.forwardRef<HTMLDivElement, MessageProps>(
+  ({ className, from, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn(
+        'group flex w-full items-end justify-end gap-2 py-4',
+        from === 'user' ? 'is-user' : 'is-assistant flex-row-reverse justify-end',
+        className,
+      )}
+      {...props}
+    />
+  ),
 );
+Message.displayName = 'Message';
 
 const messageContentVariants = cva(
   'is-user:dark flex flex-col gap-2 overflow-hidden rounded-lg text-sm',

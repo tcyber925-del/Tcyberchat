@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     process.env.BACKEND_INTERNAL_URL ??
     process.env.BACKEND_CHAT_URL ??
     process.env.NEXT_PUBLIC_API_URL ??
-    'http://localhost:8000';
+    '';
 
   // If the provided backend does not include a /chat path, append the streaming path.
   // Allow callers to provide either the base URL (e.g. http://localhost:8000) or

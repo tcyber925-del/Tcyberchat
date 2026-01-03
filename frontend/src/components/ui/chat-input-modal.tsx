@@ -11,7 +11,8 @@ interface ChatInputModalProps {
   onFileAttach: () => void;
   onWebSearchToggle: () => void;
   webSearchEnabled: boolean;
-  onDeepResearch?: () => void;
+  onDeepResearchToggle?: () => void;
+  deepResearchEnabled?: boolean;
 }
 
 export const ChatInputModal: React.FC<ChatInputModalProps> = ({
@@ -20,13 +21,14 @@ export const ChatInputModal: React.FC<ChatInputModalProps> = ({
   onFileAttach,
   onWebSearchToggle,
   webSearchEnabled,
-  onDeepResearch,
+  onDeepResearchToggle,
+  deepResearchEnabled,
 }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 flex justify-center z-50">
-      <div className="bg-card border border-border rounded-lg shadow-lg p-2 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="absolute bottom-full left-0 right-0 mb-2 flex justify-center z-50 px-4">
+      <div className="bg-card border border-border rounded-xl shadow-xl p-2 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
         {/* File Attachment Button */}
         <button
           type="button"
@@ -35,89 +37,85 @@ export const ChatInputModal: React.FC<ChatInputModalProps> = ({
             onClose();
           }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-md',
-            'text-sm font-medium transition-colors',
+            'flex items-center gap-2 px-4 py-2 rounded-lg',
+            'text-sm font-medium transition-all duration-200',
             'hover:bg-accent hover:text-accent-foreground',
             'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
           )}
           title="Add photos & files"
         >
           <Paperclip className="h-4 w-4" />
-          <span>Add photos & files</span>
+          <span>Files</span>
         </button>
+
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Web Search Toggle Button */}
         <button
           type="button"
           onClick={() => {
             onWebSearchToggle();
-            onClose();
           }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-md',
-            'text-sm font-medium transition-colors',
-            'hover:bg-accent hover:text-accent-foreground',
-            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            webSearchEnabled && 'bg-primary/10 text-primary',
+            'flex items-center gap-2 px-4 py-2 rounded-lg',
+            'text-sm font-medium transition-all duration-300',
+            webSearchEnabled 
+              ? 'bg-primary/15 text-primary shadow-sm border border-primary/20' 
+              : 'hover:bg-accent text-muted-foreground',
+            'focus:outline-none focus:ring-2 focus:ring-ring',
           )}
-          title="Web search"
+          title="Toggle Web Search"
         >
-          <Globe className={cn('h-4 w-4', webSearchEnabled && 'text-primary')} />
-          <span>Web search</span>
+          <Globe className={cn('h-4 w-4', webSearchEnabled && 'animate-pulse')} />
+          <span>Web Search</span>
           {webSearchEnabled && (
-            <span className="ml-1 text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
-              ON
-            </span>
+            <Badge variant="default" className="ml-1 px-1 h-4 text-[10px]">ON</Badge>
           )}
         </button>
 
-        {/* Enhanced Deep Research Button */}
-        {onDeepResearch && (
+        {/* Deep Research Persistent Toggle */}
+        {onDeepResearchToggle && (
           <button
             type="button"
             onClick={() => {
-              onDeepResearch?.();
-              onClose();
+              onDeepResearchToggle();
             }}
             className={cn(
-              'group relative flex items-center gap-2 px-4 py-2 rounded-md overflow-hidden',
-              'text-sm font-medium transition-all duration-300',
-              'bg-gradient-to-r from-violet-600 to-indigo-600 text-white',
-              'hover:from-violet-700 hover:to-indigo-700',
-              'hover:shadow-lg hover:scale-105',
-              'focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2',
-              'active:scale-95',
+              'group relative flex items-center gap-2 px-4 py-2 rounded-lg overflow-hidden',
+              'text-sm font-medium transition-all duration-500',
+              deepResearchEnabled
+                ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-violet-500/20'
+                : 'hover:bg-accent text-muted-foreground border border-transparent',
+              'focus:outline-none focus:ring-2 focus:ring-violet-500',
             )}
-            title="Run Deep Research - AI-powered multi-step research with citations"
+            title="Toggle Deep Research Mode - Agentic multi-step research"
           >
-            {/* Animated background gradient */}
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-400/20 to-indigo-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-
-            {/* Icon with animation */}
-            <Sparkles className="h-4 w-4 relative z-10 group-hover:rotate-12 transition-transform duration-300" />
-
-            {/* Text */}
+            {deepResearchEnabled && (
+              <div className="absolute inset-0 bg-gradient-to-r from-violet-400/20 to-indigo-400/20 animate-pulse" />
+            )}
+            <Sparkles className={cn(
+              'h-4 w-4 relative z-10 transition-all duration-500',
+              deepResearchEnabled ? 'rotate-12 scale-110' : 'group-hover:rotate-12'
+            )} />
             <span className="relative z-10 font-semibold">Deep Research</span>
-
-            {/* Badge */}
-            <span className="relative z-10 ml-1 text-[10px] bg-white/20 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-white/30">
-              AI
-            </span>
-
-            {/* Subtle shine effect */}
-            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+            {deepResearchEnabled && (
+              <span className="relative z-10 ml-1 text-[10px] bg-white/20 backdrop-blur-sm px-1.5 py-0.5 rounded-full border border-white/30">
+                ACTIVE
+              </span>
+            )}
           </button>
         )}
+
+        <div className="w-px h-6 bg-border mx-1" />
 
         {/* Close Button */}
         <button
           type="button"
           onClick={onClose}
           className={cn(
-            'ml-2 p-1.5 rounded-md',
+            'p-1.5 rounded-full',
             'text-muted-foreground hover:text-foreground hover:bg-accent',
-            'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-            'transition-colors',
+            'transition-all duration-200',
           )}
           title="Close"
           aria-label="Close modal"
@@ -128,3 +126,5 @@ export const ChatInputModal: React.FC<ChatInputModalProps> = ({
     </div>
   );
 };
+
+import { Badge } from './badge';

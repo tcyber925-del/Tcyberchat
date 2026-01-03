@@ -96,7 +96,7 @@ class WebFetchService:
         cache_ttl: int = 3600,
         max_bytes: int = 2_000_000,
         pdf_enabled: bool = True,
-        user_agent: str = "LocalChatbot/1.0",
+        user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         blocklist_domains: list[str] | None = None,
         allowlist_domains: list[str] | None = None,
         max_fetch: int = 3,
