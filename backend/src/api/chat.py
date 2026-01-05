@@ -8,10 +8,13 @@ import os
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from ..auth.dependencies import get_current_user, get_current_user_optional
+from ..models.user import User
 
 # Import sse-starlette lazily. When DEV_MOCK_AI is enabled we avoid importing
 # the sse module at import time because it can create loop-bound primitives
@@ -33,6 +36,8 @@ from ..services.ai_service import aget_ai_service as get_ai_service
 from ..services.chat_service import get_chat_service
 from ..services.memory_service import get_memory_service
 from ..services.rag_service import get_rag_service
+from ..services.usage_service import get_usage_service
+from ..services.rate_limit import get_rate_limiter
 
 # Development helper: if DEV_MOCK_AI=1 is set, replace heavy services with lightweight mocks
 if os.getenv("DEV_MOCK_AI") == "1":
@@ -82,56 +87,87 @@ router = APIRouter(tags=["chat"])
 
 
 @router.post("/")
-async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) -> dict:
-    if not request.message or not request.message.strip():
+async def chat(
+    request: Request,
+    chat_request: ChatRequest = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional)
+) -> dict:
+    if not chat_request.message or not chat_request.message.strip():
         raise HTTPException(status_code=422, detail="Message cannot be empty")
 
+    # Guest Logic
+    guest_session_id = request.headers.get("X-Guest-Session-Id")
+    if not current_user and not guest_session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if not current_user and chat_request.documentId:
+        raise HTTPException(status_code=403, detail="Guests cannot upload or use documents. Please sign up.")
+
     chat_service = get_chat_service(db)
-    ai_service = await get_ai_service(request.model)
+    ai_service = await get_ai_service(chat_request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
+    usage_service = get_usage_service(db)
+    
+    # Check Rate Limit & Quota
+    await get_rate_limiter().check_rate_limit(request, user_id=str(current_user.id) if current_user else None)
+    
+    if current_user:
+        usage_service.check_quota(str(current_user.id))
 
     logger.info(
-        f"Chat request: conversationId={request.conversationId}, documentId={request.documentId}, model={request.model}, message_length={len(request.message) if request.message else 0}"
+        f"Chat request: conversationId={chat_request.conversationId}, documentId={chat_request.documentId}, model={chat_request.model}, message_length={len(chat_request.message) if chat_request.message else 0}"
     )
 
     try:
-        conversation_id = request.conversationId
+        conversation_id = chat_request.conversationId
         if not conversation_id:
-            conversation = chat_service.create_conversation()
+            conversation = chat_service.create_conversation(
+                user_id=str(current_user.id) if current_user else None,
+                session_id=guest_session_id if not current_user else None,
+                is_guest=not current_user
+            )
             conversation_id = str(conversation.id)
         else:
-            # request.conversationId is validated as UUID by Pydantic; ensure string form
+            # Validate ownership
             conversation_id = str(conversation_id)
+            existing = chat_service.get_conversation(
+                conversation_id, 
+                user_id=str(current_user.id) if current_user else None,
+                session_id=guest_session_id if not current_user else None
+            )
+            if not existing:
+                raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Add user message
         user_message = chat_service.add_message(
             conversation_id=conversation_id,
-            content=request.message.strip(),
+            content=chat_request.message.strip(),
             message_type="user",
         )
 
         # Non-streaming behavior preserved
-        if request.documentId:
+        if chat_request.documentId:
             # Quick DB-backed fallback: if the uploaded document's content contains the
             # query (or a keyword), return a short snippet directly to satisfy tests
             try:
                 session = SessionLocal()
                 try:
-                    doc_uuid = UUID(str(request.documentId))
+                    doc_uuid = UUID(str(chat_request.documentId))
                     doc = (
                         session.query(DocModel).filter(DocModel.id == doc_uuid).first()
                     )
                     if doc and getattr(doc, "content", None):
                         content = str(getattr(doc, "content", ""))
-                        if request.message.strip().lower() in content.lower() or any(
+                        if chat_request.message.strip().lower() in content.lower() or any(
                             k in content.lower() for k in ["paris", "capital"]
                         ):
                             # return a short snippet containing keyword
                             lower = content.lower()
                             idx = (
-                                lower.find(request.message.strip().lower())
-                                if request.message.strip().lower() in lower
+                                lower.find(chat_request.message.strip().lower())
+                                if chat_request.message.strip().lower() in lower
                                 else -1
                             )
                             if idx == -1:
@@ -166,24 +202,24 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
             response_text = ""
             citations = []
             # normalize document id to string when passing to services
-            doc_id = str(request.documentId) if request.documentId else None
+            doc_id = str(chat_request.documentId) if chat_request.documentId else None
             # Get web search flag (optional, defaults to False)
-            use_web_search = getattr(request, "enableWebSearch", False) or False
+            use_web_search = getattr(chat_request, "enableWebSearch", False) or False
             if hasattr(rag_service, "generate_rag_response"):
                 try:
                     try:
                         rag_result = await rag_service.generate_rag_response(
-                            query=request.message,
+                            query=chat_request.message,
                             document_id=doc_id,
-                            model_name=request.model,
+                            model_name=chat_request.model,
                             use_web_search=use_web_search,  # Prefer flag when supported
                         )
                     except TypeError:
                         # Fallback for mocks without use_web_search param
                         rag_result = await rag_service.generate_rag_response(
-                            query=request.message,
+                            query=chat_request.message,
                             document_id=doc_id,
-                            model_name=request.model,
+                            model_name=chat_request.model,
                         )
                     response_text = (
                         rag_result.get("response", "")
@@ -200,11 +236,11 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                     if hasattr(rag_service, "generate_rag_streaming_response"):
                         full = []
                         async for chunk in rag_service.generate_rag_streaming_response(
-                            query=request.message,
+                            query=chat_request.message,
                             document_id=doc_id,
                             conversational=False,
                             chat_history=[],
-                            model_name=request.model,
+                            model_name=chat_request.model,
                             use_web_search=use_web_search,  # NEW: Pass web search flag
                         ):
                             c = (
@@ -220,13 +256,13 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
             elif hasattr(rag_service, "generate_rag_streaming_response"):
                 full = []
                 # Get web search flag (optional, defaults to False)
-                use_web_search = getattr(request, "enableWebSearch", False) or False
+                use_web_search = getattr(chat_request, "enableWebSearch", False) or False
                 async for chunk in rag_service.generate_rag_streaming_response(
-                    query=request.message,
+                    query=chat_request.message,
                     document_id=doc_id,
                     conversational=False,
                     chat_history=[],
-                    model_name=request.model,
+                    model_name=chat_request.model,
                     use_web_search=use_web_search,  # NEW: Pass web search flag
                 ):
                     c = chunk.get("content") if isinstance(chunk, dict) else None
@@ -253,20 +289,20 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                     try:
                         # Determine whether to use web search (explicit flag from client)
                         use_web_search = (
-                            getattr(request, "enableWebSearch", False) or False
+                            getattr(chat_request, "enableWebSearch", False) or False
                         )
                         try:
                             rag_result = await rag_service.generate_rag_response(
-                                query=request.message,
+                                query=chat_request.message,
                                 document_id=None,
-                                model_name=request.model,
+                                model_name=chat_request.model,
                                 use_web_search=use_web_search,
                             )
                         except TypeError:
                             rag_result = await rag_service.generate_rag_response(
-                                query=request.message,
+                                query=chat_request.message,
                                 document_id=None,
-                                model_name=request.model,
+                                model_name=chat_request.model,
                             )
                         if isinstance(rag_result, dict) and rag_result.get("response"):
                             response_text = rag_result.get("response", "")
@@ -278,7 +314,11 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                 # If RAG didn't provide a response, fall back to memory+AI path
                 if not response_text:
                     # build context
-                    conversation_obj = chat_service.get_conversation(conversation_id)
+                    conversation_obj = chat_service.get_conversation(
+                        conversation_id,
+                        user_id=str(current_user.id) if current_user else None,
+                        session_id=guest_session_id if not current_user else None
+                    )
                     if conversation_obj and conversation_obj.messages:
                         sorted_messages = sorted(
                             conversation_obj.messages, key=lambda m: m.timestamp
@@ -289,7 +329,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                             )
 
                     memory_service.add_message(
-                        conversation_id, "user", request.message.strip()
+                        conversation_id, "user", chat_request.message.strip()
                     )
                     context_dicts = memory_service.get_context(conversation_id)
                     context_messages = [
@@ -300,7 +340,7 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
                     ]
 
                     ai_result = await ai_service.generate_response(
-                        prompt=request.message.strip(),
+                        prompt=chat_request.message.strip(),
                         context=context_messages if context_messages else None,
                     )
                     response_text = ai_result.get("content") or ai_result.get("response") or ""
@@ -328,6 +368,19 @@ async def chat(request: ChatRequest = Body(...), db: Session = Depends(get_db)) 
             except Exception:
                 # If something unexpected happens, capture and raise
                 raise
+        
+        # Estimate tokens (simple approximation: 1.3 tokens per word)
+        # In a real app, use a proper tokenizer or get usage from AI service response
+        in_tokens = len((chat_request.message or "").split()) * 2
+        out_tokens = len((response_text or "").split()) * 2
+        if current_user:
+            usage_service.record_usage(
+                user_id=str(current_user.id),
+                model=chat_request.model or "default",
+                input_tokens=in_tokens,
+                output_tokens=out_tokens,
+                context_id=conversation_id
+            )
 
         return {
             "content": response_text,
@@ -369,46 +422,77 @@ def _sse_response_from_generator(gen: AsyncGenerator) -> EventSourceResponse:
 
 
 @router.post("/stream")
-async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(get_db)):
-    if not request.message or not request.message.strip():
+async def chat_stream(
+    request: Request,
+    chat_request: ChatRequest = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional)
+):
+    if not chat_request.message or not chat_request.message.strip():
         raise HTTPException(status_code=422, detail="Message cannot be empty")
+    
+    # Guest Logic
+    guest_session_id = request.headers.get("X-Guest-Session-Id")
+    if not current_user and not guest_session_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if not current_user and chat_request.documentId:
+        raise HTTPException(status_code=403, detail="Guests cannot upload or use documents. Please sign up.")
+        
     # Log whether web search was requested by client
     try:
         logger.info(
-            f"enableWebSearch flag: {getattr(request, 'enableWebSearch', False)}"
+            f"enableWebSearch flag: {getattr(chat_request, 'enableWebSearch', False)}"
         )
     except Exception:
         pass
 
     chat_service = get_chat_service(db)
-    ai_service = await get_ai_service(request.model)
+    ai_service = await get_ai_service(chat_request.model)
     rag_service = get_rag_service()
     memory_service = get_memory_service()
+    usage_service = get_usage_service(db)
+    
+    # Check Rate Limit & Quota
+    await get_rate_limiter().check_rate_limit(request, user_id=str(current_user.id) if current_user else None)
+
+    if current_user:
+        usage_service.check_quota(str(current_user.id))
 
     logger.info(
-        f"Streaming chat request: conversationId={request.conversationId}, documentId={request.documentId}, model={request.model}, message_length={len(request.message) if request.message else 0}"
+        f"Streaming chat request: conversationId={chat_request.conversationId}, documentId={chat_request.documentId}, model={chat_request.model}, message_length={len(chat_request.message) if chat_request.message else 0}"
     )
 
     try:
-        conversation_id = request.conversationId
+        conversation_id = chat_request.conversationId
         if not conversation_id:
             # Create new conversation with document_id if provided
             conversation = chat_service.create_conversation(
-                document_id=str(request.documentId) if request.documentId else None
+                document_id=str(chat_request.documentId) if chat_request.documentId else None,
+                user_id=str(current_user.id) if current_user else None,
+                session_id=guest_session_id if not current_user else None,
+                is_guest=not current_user
             )
             conversation_id = str(conversation.id)
         else:
-            # request.conversationId is validated as UUID by Pydantic; ensure string form
+            # Validate ownership
             conversation_id = str(conversation_id)
+            existing = chat_service.get_conversation(
+                conversation_id, 
+                user_id=str(current_user.id) if current_user else None,
+                session_id=guest_session_id if not current_user else None
+            )
+            if not existing:
+                 raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Add user message with metadata
         user_metadata = {
-            "model_used": request.model,
-            "document_id": str(request.documentId) if request.documentId else None,
+            "model_used": chat_request.model,
+            "document_id": str(chat_request.documentId) if chat_request.documentId else None,
         }
         user_message = chat_service.add_message(
             conversation_id=conversation_id,
-            content=request.message.strip(),
+            content=chat_request.message.strip(),
             message_type="user",
             metadata=user_metadata,
         )
@@ -422,7 +506,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
         )
 
         # Document-specific streaming
-        if request.documentId:
+        if chat_request.documentId:
 
             async def generate_rag_stream():
                 full_response = ""
@@ -433,15 +517,15 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                 yield {"event": "chunk", "data": " "}
                 try:
                     # Convert document_id to string (RAG service expects string, not UUID)
-                    doc_id = str(request.documentId) if request.documentId else None
+                    doc_id = str(chat_request.documentId) if chat_request.documentId else None
                     # Get web search flag (optional, defaults to False)
-                    use_web_search = getattr(request, "enableWebSearch", False) or False
+                    use_web_search = getattr(chat_request, "enableWebSearch", False) or False
                     async for chunk_data in rag_service.generate_rag_streaming_response(
-                        query=request.message,
+                        query=chat_request.message,
                         document_id=doc_id,
                         conversational=True,
                         chat_history=[],
-                        model_name=request.model,
+                        model_name=chat_request.model,
                         use_web_search=use_web_search,  # NEW: Pass web search flag
                     ):
                         # chunk_data may be dicts with 'content' or final dict with 'citations'
@@ -488,9 +572,9 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                     processing_metadata = {
                         "streaming": True,
                         "rag_enabled": True,
-                        "model_used": request.model,
-                        "document_id": str(request.documentId)
-                        if request.documentId
+                        "model_used": chat_request.model,
+                        "document_id": str(chat_request.documentId)
+                        if chat_request.documentId
                         else None,
                         "web_search_used": web_search_used,  # NEW: Include web search metadata
                         "web_search_results_count": web_search_results_count,  # NEW: Include web search count
@@ -553,7 +637,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                         context_messages.append(f"Assistant: {content}")
 
                 # Decide whether to route through RAG with web search
-                use_web_search = getattr(request, "enableWebSearch", False) or False
+                use_web_search = getattr(chat_request, "enableWebSearch", False) or False
 
                 if (
                     use_web_search
@@ -567,8 +651,8 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
 
                         orch = WebResearchOrchestrator()
                         data = await orch.run(
-                            request.message,
-                            model_name=request.model,
+                            chat_request.message,
+                            model_name=chat_request.model,
                             max_results=5,
                             max_fetch=3,
                         )
@@ -597,11 +681,11 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                         async for (
                             chunk_data
                         ) in rag_service.generate_rag_streaming_response(
-                            query=request.message,
+                            query=chat_request.message,
                             document_id=None,
                             conversational=False,
                             chat_history=[],
-                            model_name=request.model,
+                            model_name=chat_request.model,
                             use_web_search=True,
                         ):
                             content_piece = None
@@ -634,7 +718,7 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                     else:
                         # Fall back to plain AI streaming
                         async for chunk in ai_service.generate_streaming_response(
-                            prompt=request.message.strip(),
+                            prompt=chat_request.message.strip(),
                             context=context_messages if context_messages else None,
                         ):
                             # chunk may be str or other types; coerce safely
@@ -654,9 +738,9 @@ async def chat_stream(request: ChatRequest = Body(...), db: Session = Depends(ge
                 # finalize placeholder with enhanced metadata
                 processing_metadata = {
                     "streaming": True,
-                    "model_used": request.model,
-                    "document_id": str(request.documentId)
-                    if request.documentId
+                    "model_used": chat_request.model,
+                    "document_id": str(chat_request.documentId)
+                    if chat_request.documentId
                     else None,
                     "web_search_used": web_search_used,
                     "web_search_results_count": web_search_results_count,

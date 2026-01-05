@@ -6,6 +6,8 @@ import { useSettings } from '@/lib/context/settings-context';
 import { deepResearch, deepResearchStream } from '@/lib/api/chat';
 import SettingsPanel from '@/components/settings-panel';
 import { useChat } from '@/lib/context/chat-context';
+import { useAuth } from '@/hooks/use-auth';
+import { useRouter } from 'next/navigation';
 import { Message } from '@/types/message';
 import '@/lib/styles/markdown.css';
 import { Button } from '@/components/ui/button';
@@ -53,6 +55,14 @@ const LoadingFallback = () => (
 );
 
 function ChatInterface() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Optional: You could show a toast or welcome message for guests here
+    // but we no longer force redirect to /login
+  }, [user, loading]);
+
   const {
     messages,
     setMessages,
@@ -302,8 +312,17 @@ function ChatInterface() {
         stopStreaming();
         return;
       }
+
       const text = message.text?.trim();
-      if (!text && (!message.files || message.files.length === 0)) return;
+      const hasFiles = message.files && message.files.length > 0;
+
+      if (!user && (hasFiles || deepResearchEnabled)) {
+        showToast('Please sign in to upload documents or use Deep Research.', 'warning');
+        router.push('/login');
+        return;
+      }
+
+      if (!text && !hasFiles) return;
 
       if (deepResearchEnabled) {
         await handleDeepResearch(text || '');
@@ -315,19 +334,16 @@ function ChatInterface() {
       try {
         let attachedDocumentId = undefined;
 
-        // Handle direct attachments from the prompt input
-        if (message.files && message.files.length > 0) {
-          const firstFile = message.files[0];
+        // Handle direct attachments (Only for authenticated users as checked above)
+        if (hasFiles && user) {
+          const firstFile = message.files![0];
           if (firstFile.originalFile) {
             try {
               showToast('Uploading attachment...', 'info');
               const uploadedDoc = await uploadDocument(firstFile.originalFile);
               attachedDocumentId = uploadedDoc.id;
-              // Clear attachments from input after successful "send" start
             } catch (err) {
               console.error('Failed to upload direct attachment:', err);
-              // Continue without attachment if it fails? Or stop? 
-              // For safety, let's stop and let the user know.
               return; 
             }
           }
@@ -414,6 +430,14 @@ function ChatInterface() {
     setMounted(true);
   }, []);
 
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <LoadingFallback />
+      </div>
+    );
+  }
+
   if (!mounted) return <div className="flex h-screen items-center justify-center bg-background"><LoadingFallback /></div>;
 
   return (
@@ -436,16 +460,34 @@ function ChatInterface() {
 
       <div className="flex flex-col flex-grow overflow-x-hidden relative">
         <ArtifactSidebar />
-        <header className="flex items-center p-4 border-b border-border">
+        <header className="flex items-center justify-between p-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
           <h1 className="text-xl font-bold">TcyberChatbot</h1>
+          {!user && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full">
+              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                Guest Mode: Chats are temporary
+              </span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 px-2 text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                onClick={() => router.push('/signup')}
+              >
+                Sign Up
+              </Button>
+            </div>
+          )}
         </header>
         
         <div className="flex-grow overflow-hidden relative flex flex-col">
           {messages.length === 0 && !streamingMessage ? (
             <div className="flex-grow overflow-y-auto p-4">
               <ConversationEmptyState
-                title="Welcome to TcyberChatbot"
-                description="Your local-first AI assistant. Upload documents, ask questions, and get intelligent responses with citations."
+                title={user ? "Welcome to TcyberChatbot" : "Try TcyberChatbot"}
+                description={user 
+                  ? "Your local-first AI assistant. Upload documents, ask questions, and get intelligent responses with citations."
+                  : "Experience local-first AI. As a guest, you can chat and use web search. Sign up to upload documents and save your history."
+                }
                 className="min-h-[60vh]"
               >
                 <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center animate-bounce-subtle mb-4">

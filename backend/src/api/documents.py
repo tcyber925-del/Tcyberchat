@@ -10,6 +10,8 @@ from pydantic import BaseModel
 
 from ..models.document import Document, DocumentRead
 from ..services.document_service import DocumentService, get_document_service
+from ..auth.dependencies import get_current_user
+from ..models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -25,13 +27,14 @@ async def upload_document_root(
     request: Request,
     file: UploadFile = File(...),
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> JSONResponse:
     """Alias POST / -> upload endpoint so /api/documents works in contract tests
 
     Returns a minimal dict matching the contract tests.
     """
     # Reuse the main upload logic, then adjust the returned status code based on mount path
-    result = await upload_document(file=file, document_service=document_service)
+    result = await upload_document(file=file, document_service=document_service, current_user=current_user)
 
     # If the request was made to top-level /documents, tests expect a 200 OK
     # and the response to contain an 'id' field instead of 'documentId'. Additionally,
@@ -57,12 +60,13 @@ async def upload_document_root(
 @router.get("/", response_model=list[DocumentRead])
 def get_all_documents(
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> list[Document]:
     """
     Retrieves all documents.
     """
-    logger.info("Fetching all documents")
-    documents = document_service.get_all_documents()
+    logger.info(f"Fetching all documents for user {current_user.id}")
+    documents = document_service.get_all_documents(user_id=str(current_user.id))
     logger.info(f"Found {len(documents)} documents")
     return documents
 
@@ -71,6 +75,7 @@ def get_all_documents(
 async def upload_document(
     file: UploadFile = File(...),
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """Upload a file and create a document record.
 
@@ -155,7 +160,7 @@ async def upload_document(
                 content = raw.decode("latin-1", errors="ignore")
             # Pass the detected MIME type to ensure proper processing
             document = document_service.create_document(
-                file_name=file.filename, file_content=content, mime_type=mime
+                file_name=file.filename, file_content=content, mime_type=mime, user_id=str(current_user.id)
             )
 
         else:
@@ -171,7 +176,7 @@ async def upload_document(
             except Exception:
                 size = 0
             document = document_service.create_document_record(
-                filename=file.filename, file_path=path, size=size, mime_type=mime
+                filename=file.filename, file_path=path, size=size, mime_type=mime, user_id=str(current_user.id)
             )
 
         logger.info(f"Document '{file.filename}' uploaded with ID: {document.id}")
@@ -204,6 +209,7 @@ async def upload_document(
 def get_document(
     document_id: str,
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> Document:
     """
     Retrieves a document by its ID.
@@ -218,8 +224,8 @@ def get_document(
     Raises:
         HTTPException: If the document is not found.
     """
-    logger.info(f"Fetching document with ID: {document_id}")
-    document = document_service.get_document(document_id)
+    logger.info(f"Fetching document with ID: {document_id} for user {current_user.id}")
+    document = document_service.get_document(document_id, user_id=str(current_user.id))
     if not document:
         logger.warning(f"Document with ID {document_id} not found")
         raise HTTPException(status_code=404, detail="Document not found")
@@ -231,6 +237,7 @@ def get_document(
 def summarize_document(
     document_id: str,
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
     """
     Summarize a document by ID. Contract tests expect:
@@ -248,7 +255,7 @@ def summarize_document(
         # Pydantic/fastapi typically returns 422 for invalid path param format in tests
         raise HTTPException(status_code=422, detail="Invalid document ID format")
 
-    doc = document_service.get_document(document_id)
+    doc = document_service.get_document(document_id, user_id=str(current_user.id))
     # If the test suite expects certain documents to exist, create lightweight fixtures
     if not doc:
         # Known test UUIDs used by contract tests
@@ -325,15 +332,18 @@ def update_document(
     document_id: str,
     request: UpdateDocumentRequest = Body(...),
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> Document:
     """
     Updates a document's filename.
     """
-    logger.info(f"Updating document with ID: {document_id}")
-    document = document_service.update_document_filename(document_id, request.filename)
+    logger.info(f"Updating document with ID: {document_id} for user {current_user.id}")
+    document = document_service.get_document(document_id, user_id=str(current_user.id))
     if not document:
         logger.warning(f"Document with ID {document_id} not found for update")
         raise HTTPException(status_code=404, detail="Document not found")
+        
+    document = document_service.update_document_filename(document_id, request.filename)
     logger.info(f"Document with ID {document_id} updated successfully")
     return document
 
@@ -342,12 +352,13 @@ def update_document(
 def export_document(
     document_id: str,
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     """
     Exports a document as JSON with all its metadata and content.
     """
-    logger.info(f"Exporting document with ID: {document_id}")
-    document = document_service.get_document(document_id)
+    logger.info(f"Exporting document with ID: {document_id} for user {current_user.id}")
+    document = document_service.get_document(document_id, user_id=str(current_user.id))
     if not document:
         logger.warning(f"Document with ID {document_id} not found for export")
         raise HTTPException(status_code=404, detail="Document not found")
@@ -369,13 +380,16 @@ def export_document(
 def delete_document(
     document_id: str,
     document_service: DocumentService = Depends(get_document_service),
+    current_user: User = Depends(get_current_user),
 ) -> None:
     """
     Deletes a document by its ID.
     """
-    logger.info(f"Deleting document with ID: {document_id}")
-    success = document_service.delete_document(document_id)
-    if not success:
+    logger.info(f"Deleting document with ID: {document_id} for user {current_user.id}")
+    document = document_service.get_document(document_id, user_id=str(current_user.id))
+    if not document:
         logger.warning(f"Document with ID {document_id} not found for deletion")
         raise HTTPException(status_code=404, detail="Document not found")
+        
+    success = document_service.delete_document(document_id)
     logger.info(f"Document with ID {document_id} deleted successfully")

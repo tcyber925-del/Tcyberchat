@@ -5,6 +5,8 @@ import { ChatSession } from '@/types/chat';
 import { Document } from '@/types/document';
 import ChatHistory from './chat-history';
 import DocumentManager from './document-manager';
+import { useAuth } from '@/hooks/use-auth';
+import { LogIn, LogOut, User as UserIcon } from 'lucide-react';
 
 // Define SVG icons as React components for reusability
 const NewChatIcon = () => (
@@ -124,6 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDocumentsOpen, setIsDocumentsOpen] = useState(true);
   const [isHistoryOpen, setIsHistoryOpen] = useState(true);
+  const { user, logout } = useAuth();
 
   return (
     <div
@@ -189,14 +192,58 @@ const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      <div className="p-4 border-t border-border">
-        <button
-          onClick={onToggleSettings}
-          className="w-full flex items-center py-2 px-4 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded"
-        >
-          <SettingsIcon />
-          {!isCollapsed && <span className="ml-3">Settings</span>}
-        </button>
+      <div className="p-4 border-t border-border space-y-2">
+        {user ? (
+          <>
+            <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'px-4 py-2'} text-muted-foreground`}>
+              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <UserIcon className="h-4 w-4" />
+              </div>
+              {!isCollapsed && (
+                <div className="ml-3 overflow-hidden">
+                  <p className="text-sm font-medium truncate">{user.email}</p>
+                  <p className="text-xs text-muted-foreground truncate capitalize">{user.provider || 'local'}</p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={onToggleSettings}
+              className="w-full flex items-center py-2 px-4 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded"
+            >
+              <SettingsIcon />
+              {!isCollapsed && <span className="ml-3">Settings</span>}
+            </button>
+
+            <button
+              onClick={() => logout()}
+              className="w-full flex items-center py-2 px-4 text-destructive hover:bg-destructive/10 rounded"
+              title="Logout"
+            >
+              <LogOut className="h-6 w-6" />
+              {!isCollapsed && <span className="ml-3">Logout</span>}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={onToggleSettings}
+              className="w-full flex items-center py-2 px-4 text-muted-foreground hover:bg-accent hover:text-accent-foreground rounded"
+            >
+              <SettingsIcon />
+              {!isCollapsed && <span className="ml-3">Settings</span>}
+            </button>
+
+            <button
+              onClick={() => window.location.href = '/login'}
+              className="w-full flex items-center py-2 px-4 text-primary hover:bg-primary/10 rounded"
+              title="Sign In"
+            >
+              <LogIn className="h-6 w-6" />
+              {!isCollapsed && <span className="ml-3">Sign In</span>}
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

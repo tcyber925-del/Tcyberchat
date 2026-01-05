@@ -21,33 +21,51 @@ class ChatService:
         self.db = db
 
     def create_conversation(
-        self, title: str | None = None, document_id: str | None = None
+        self, 
+        title: str | None = None, 
+        document_id: str | None = None, 
+        user_id: str | None = None,
+        session_id: str | None = None,
+        is_guest: bool = False
     ) -> Conversation:
         """Create a new conversation"""
         conversation = Conversation(title=title, document_id=document_id)
+        if user_id:
+            conversation.user_id = user_id
+            conversation.is_guest = False
+        elif session_id and is_guest:
+            conversation.session_id = session_id
+            conversation.is_guest = True
+            
         self.db.add(conversation)
         self.db.commit()
         self.db.refresh(conversation)
         return conversation
 
     def get_conversation(
-        self, conversation_id: str | UUID | None
+        self, conversation_id: str | UUID | None, user_id: str | None = None, session_id: str | None = None
     ) -> Conversation | None:
-        """Get a conversation by ID with messages"""
+        """Get a conversation by ID with optional user_id/session_id check"""
         conversation_id = str(conversation_id) if conversation_id is not None else None
-        return (
-            self.db.query(Conversation)
-            .filter(Conversation.id == conversation_id)
-            .first()
-        )
+        query = self.db.query(Conversation).filter(Conversation.id == conversation_id)
+        if user_id:
+            query = query.filter(Conversation.user_id == user_id)
+        elif session_id:
+             query = query.filter(Conversation.session_id == session_id)
+        return query.first()
 
-    def get_conversations(self, limit: int = 50) -> list[Conversation]:
-        """Get all conversations ordered by last activity"""
+    def get_conversations(self, limit: int = 50, user_id: str | None = None, session_id: str | None = None) -> list[Conversation]:
+        """Get conversations ordered by activity with optional user_id/session_id check"""
         # cast InstrumentedAttribute to satisfy static type checkers
         last_activity_attr = cast(InstrumentedAttribute, Conversation.last_activity)
+        query = self.db.query(Conversation)
+        if user_id:
+            query = query.filter(Conversation.user_id == user_id)
+        elif session_id:
+            query = query.filter(Conversation.session_id == session_id)
+            
         return (
-            self.db.query(Conversation)
-            .order_by(desc(last_activity_attr))
+            query.order_by(desc(last_activity_attr))
             .limit(limit)
             .all()
         )
@@ -180,23 +198,28 @@ class ChatService:
         self.db.refresh(message)
         return message
 
-    def delete_conversation(self, conversation_id: str | UUID | None) -> bool:
-        """Delete a conversation and all its messages"""
-        conversation = self.get_conversation(conversation_id)
+    def delete_conversation(self, conversation_id: str | UUID | None, user_id: str | None = None, session_id: str | None = None) -> bool:
+        """Delete a conversation with optional user_id/session_id check"""
+        conversation = self.get_conversation(conversation_id, user_id=user_id, session_id=session_id)
         if conversation:
             self.db.delete(conversation)
             self.db.commit()
             return True
         return False
 
-    def search_conversations(self, query: str, limit: int = 20) -> list[Conversation]:
-        """Search conversations by title"""
+    def search_conversations(self, query: str, limit: int = 20, user_id: str | None = None, session_id: str | None = None) -> list[Conversation]:
+        """Search conversations by title with optional user_id/session_id check"""
         title_attr = cast(InstrumentedAttribute, Conversation.title)
         last_activity_attr = cast(InstrumentedAttribute, Conversation.last_activity)
+        
+        db_query = self.db.query(Conversation).filter(title_attr.ilike(f"%{query}%"))
+        if user_id:
+            db_query = db_query.filter(Conversation.user_id == user_id)
+        elif session_id:
+            db_query = db_query.filter(Conversation.session_id == session_id)
+            
         return (
-            self.db.query(Conversation)
-            .filter(title_attr.ilike(f"%{query}%"))
-            .order_by(desc(last_activity_attr))
+            db_query.order_by(desc(last_activity_attr))
             .limit(limit)
             .all()
         )

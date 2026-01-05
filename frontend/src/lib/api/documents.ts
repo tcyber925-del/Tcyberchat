@@ -2,12 +2,23 @@ import { Document } from '@/types/document';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+// Helper to get headers with guest session
+const getHeaders = (headers: Record<string, string> = {}) => {
+  const guestId = typeof window !== 'undefined' ? localStorage.getItem('guestSessionId') : null;
+  const newHeaders: Record<string, string> = { ...headers };
+  if (guestId) {
+    newHeaders['X-Guest-Session-Id'] = guestId;
+  }
+  return newHeaders;
+};
+
 export async function uploadDocument(file: File): Promise<Document> {
   const formData = new FormData();
   formData.append('file', file);
 
   const response = await fetch(`${API_BASE_URL}/documents/upload`, {
     method: 'POST',
+    headers: getHeaders(),
     body: formData,
   });
 
@@ -30,7 +41,9 @@ export async function uploadDocument(file: File): Promise<Document> {
 }
 
 export async function getDocuments(): Promise<Document[]> {
-  const response = await fetch(`${API_BASE_URL}/documents`);
+  const response = await fetch(`${API_BASE_URL}/documents`, {
+    headers: getHeaders(),
+  });
   if (!response.ok) {
     throw new Error(`Error fetching documents: ${response.statusText}`);
   }
@@ -44,6 +57,7 @@ export async function getDocuments(): Promise<Document[]> {
 export async function deleteDocument(documentId: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
     method: 'DELETE',
+    headers: getHeaders(),
   });
 
   if (!response.ok) {
@@ -54,9 +68,9 @@ export async function deleteDocument(documentId: string): Promise<void> {
 export async function updateDocument(documentId: string, filename: string): Promise<Document> {
   const response = await fetch(`${API_BASE_URL}/documents/${documentId}`, {
     method: 'PATCH',
-    headers: {
+    headers: getHeaders({
       'Content-Type': 'application/json',
-    },
+    }),
     body: JSON.stringify({ filename }),
   });
 
@@ -86,6 +100,7 @@ export async function updateDocument(documentId: string, filename: string): Prom
 export async function exportDocument(documentId: string): Promise<any> {
   const response = await fetch(`${API_BASE_URL}/documents/${documentId}/export`, {
     method: 'POST',
+    headers: getHeaders(),
   });
 
   if (!response.ok) {

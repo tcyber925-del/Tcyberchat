@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 pydantic
+email-validator
 pydantic-settings
 
 # Database and ORM
@@ -81,3 +82,7 @@ fakeredis
 redis
 prometheus_client
 psycopg2-binary
+
+# Auth dependencies
+passlib[bcrypt]
+python-jose[cryptography]

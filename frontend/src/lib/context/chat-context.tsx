@@ -22,6 +22,7 @@ import {
 } from '@/lib/api/documents';
 import { useToast } from './toast-context';
 import { useSettings } from './settings-context';
+import { useAuth } from '@/hooks/use-auth';
 
 // --- State Definition ---
 
@@ -206,6 +207,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const [state, dispatch] = useReducer(chatReducer, initialState);
   const { showToast } = useToast();
+  const { user, loading: authLoading } = useAuth();
 
   const setIsSidebarOpen = (payload: boolean) => dispatch({ type: 'SET_SIDEBAR_OPEN', payload });
   const setSessions = (payload: ChatSession[]) => dispatch({ type: 'SET_SESSIONS', payload });
@@ -219,6 +221,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   // Load conversations from database on mount
   useEffect(() => {
+    if (authLoading || !user) {
+      if (!authLoading && !user) setSessions([]);
+      return;
+    }
     const loadConversations = async () => {
       try {
         setLoading(true);
@@ -242,10 +248,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     };
     loadConversations();
-  }, []);
+  }, [user, authLoading]);
 
   // Fetch documents on mount
   useEffect(() => {
+    if (authLoading || !user) {
+      if (!authLoading && !user) setDocuments([]);
+      return;
+    }
     const fetchDocuments = async () => {
       try {
         const fetchedDocuments = await apiGetDocuments();
@@ -255,7 +265,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     };
     fetchDocuments();
-  }, []);
+  }, [user, authLoading]);
 
   // Fetch models on mount
   useEffect(() => {

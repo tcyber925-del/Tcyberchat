@@ -1,44 +1,55 @@
 """
-Simple in-memory rate limiter with per-key sliding window.
-Not suitable for multi-process without external store.
+Redis-backed rate limiter.
 """
 from __future__ import annotations
-
-import asyncio
-import time
-from collections import deque
-from typing import Deque, Dict
-
+from fastapi import Request
+from ..core.redis import redis_client
 
 class RateLimiter:
     def __init__(self) -> None:
-        # key -> deque[timestamps]
-        self._buckets: Dict[str, Deque[float]] = {}
-        self._lock = asyncio.Lock()
+        self.redis = redis_client
 
     async def allow(self, key: str, limit: int, window_seconds: int) -> bool:
-        now = time.time()
-        window_start = now - window_seconds
-        async with self._lock:
-            q = self._buckets.get(key)
-            if q is None:
-                q = deque()
-                self._buckets[key] = q
-            # drop expired
-            while q and q[0] < window_start:
-                q.popleft()
-            if len(q) >= limit:
-                return False
-            q.append(now)
+        redis_key = f"rate_limit:{key}"
+        
+        try:
+            current = await self.redis.incr(redis_key)
+            if current == 1:
+                await self.redis.expire(redis_key, window_seconds)
+            
+            return current <= limit
+        except Exception as e:
+            # If Redis fails, fail open or closed? 
+            # Usually fail open (allow) to avoid downtime, or log error.
+            print(f"Rate limit error: {e}")
             return True
 
+    async def check_rate_limit(self, request: Request, user_id: str | None = None) -> None:
+        """
+        Enforce rate limits based on user type.
+        - Authenticated Users: Higher limits (e.g., 1000 requests/hour)
+        - Guests: Stricter limits (e.g., 50 requests/hour) by IP
+        """
+        from fastapi import HTTPException
+        
+        if user_id:
+            # Authenticated user limit
+            key = f"user:{user_id}"
+            limit = 1000
+            window = 3600
+        else:
+            # Guest limit by IP
+            ip = request.client.host if request.client else "unknown"
+            key = f"guest:{ip}"
+            limit = 50
+            window = 3600
+            
+        allowed = await self.allow(key, limit, window)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Please sign up for higher limits.")
 
 # Global singleton
-_rate_limiter: RateLimiter | None = None
-
+_rate_limiter = RateLimiter()
 
 def get_rate_limiter() -> RateLimiter:
-    global _rate_limiter
-    if _rate_limiter is None:
-        _rate_limiter = RateLimiter()
     return _rate_limiter

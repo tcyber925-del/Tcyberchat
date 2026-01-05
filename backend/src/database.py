@@ -61,6 +61,8 @@ def create_tables():
         from .models.conversation import Conversation  # noqa: F401
         from .models.message import Message  # noqa: F401
         from .models.document import Document  # noqa: F401
+        from .models.user import User, EmailVerification  # noqa: F401
+        from .models.usage import UsageLog, UserQuota  # noqa: F401
         try:
             from .models import media_content  # noqa: F401
         except Exception:
@@ -143,6 +145,9 @@ def initialize_database():
                     "metrics": "ALTER TABLE conversations ADD COLUMN metrics JSON",
                     "participants": "ALTER TABLE conversations ADD COLUMN participants JSON",
                     "retention_policy": "ALTER TABLE conversations ADD COLUMN retention_policy VARCHAR(100)",
+                    "user_id": "ALTER TABLE conversations ADD COLUMN user_id VARCHAR(36) REFERENCES users(id)",
+                    "session_id": "ALTER TABLE conversations ADD COLUMN session_id VARCHAR(36)",
+                    "is_guest": "ALTER TABLE conversations ADD COLUMN is_guest BOOLEAN DEFAULT 0",
                 }
 
                 for col, stmt in migrations.items():

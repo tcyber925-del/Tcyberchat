@@ -2,6 +2,7 @@
 fastapi
 uvicorn[standard]
 pydantic
+email-validator
 sqlalchemy
 alembic
 python-dotenv
@@ -30,6 +31,8 @@ chromadb
 
 # Database
 psycopg2-binary
+passlib[bcrypt]
+python-jose[cryptography]
 
 # Web Search Providers
 firecrawl-py
