@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from ..database import get_db
-from .schemas import UserCreate, UserLogin, Token
+from .schemas import UserCreate, UserLogin, Token, ForgotPasswordRequest, PasswordResetConfirm
 from . import service, tokens
 from ..core.config import settings
 from ..core.redis import redis_client
+import secrets
 from .dependencies import get_current_user_id
 from .oauth import get_google_auth_url, get_google_user_info
 from fastapi.responses import RedirectResponse
@@ -28,6 +29,37 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     print(f"DEV: Verification token for {new_user.email}: {token}")
     
     return {"message": "User created. Please check your email to verify."}
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    # TODO: Add rate limiting
+    user = service.get_user_by_email(db, email=request.email)
+    if not user:
+        # Return success even if email not found for security
+        return {"message": "If this email is registered, you will receive a reset link."}
+    
+    token = secrets.token_urlsafe(32)
+    # Store in Redis for 15 mins (900 seconds)
+    await redis_client.setex(f"password_reset:{token}", 900, str(user.id))
+    
+    # TODO: Send actual email
+    print(f"DEV: Password reset link for {user.email}: /reset-password?token={token}")
+    
+    return {"message": "If this email is registered, you will receive a reset link."}
+
+@router.post("/reset-password")
+async def reset_password(data: PasswordResetConfirm, db: Session = Depends(get_db)):
+    user_id = await redis_client.get(f"password_reset:{data.token}")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+    
+    # Update password
+    service.update_user_password(db, user_id, data.new_password)
+    
+    # Clean up token
+    await redis_client.delete(f"password_reset:{data.token}")
+    
+    return {"message": "Password reset successfully"}
 
 @router.get("/verify-email")
 def verify_email(token: str, db: Session = Depends(get_db)):
