@@ -1,35 +1,17 @@
-name: Backend CI
+name: Backend CI (trigger on backend changes)
 
 on:
   push:
     branches: [ main, master ]
+    paths:
+      - 'backend/**'
   pull_request:
     branches: [ main, master ]
+    paths:
+      - 'backend/**'
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        working-directory: backend
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run unit tests
-        working-directory: backend
-        run: |
-          pytest tests/unit -q
-
-      - name: Run contract tests
-        working-directory: backend
-        run: |
-          pytest tests/contract -q
+  call-backend:
+    uses: ../../.github/workflows/backend-ci.yml
+    with:
+      run_integration: '0'
