@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,18 +22,39 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
-        working-directory: backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run unit tests
-        working-directory: backend
         run: |
-          pytest tests/unit -q
+          mkdir -p reports
+          pytest tests/unit -q --junitxml=reports/unit-junit.xml
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-unit-test-report
+          path: backend/reports/unit-junit.xml
 
       - name: Run contract tests
-        working-directory: backend
         run: |
-          pytest tests/contract -q
+          mkdir -p reports
+          pytest tests/contract -q --junitxml=reports/contract-junit.xml
+
+      - name: Upload contract test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-contract-test-report
+          path: backend/reports/contract-junit.xml
