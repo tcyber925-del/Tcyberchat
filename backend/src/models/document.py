@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, BigInteger, Column, DateTime, String, Text
+from sqlalchemy import JSON, BigInteger, Column, DateTime, String, Text, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 try:
@@ -35,6 +35,9 @@ class Document(Base):
     size = Column(BigInteger, nullable=False)  # File size in bytes
     mime_type = Column(String(100), nullable=False)
     uploaded_at = Column(DateTime, default=lambda: datetime.now(UTC), nullable=False)
+
+    # User association
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True)
 
     # Extracted content from various processing stages
     content = Column(Text, nullable=True)  # Text extracted from document

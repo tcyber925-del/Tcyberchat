@@ -1,3 +1,13 @@
+// Helper to get headers with guest session
+const getHeaders = (headers: Record<string, string> = {}) => {
+  const guestId = typeof window !== 'undefined' ? localStorage.getItem('guestSessionId') : null;
+  const newHeaders: Record<string, string> = { ...headers };
+  if (guestId) {
+    newHeaders['X-Guest-Session-Id'] = guestId;
+  }
+  return newHeaders;
+};
+
 // sendMessageStreaming - posts a single message to the server and streams SSE
 export async function sendMessageStreaming(
   message: string,
@@ -21,9 +31,9 @@ export async function sendMessageStreaming(
 ) {
   const response = await fetch('/api/chat/stream', {
     method: 'POST',
-    headers: {
+    headers: getHeaders({
       'Content-Type': 'application/json',
-    },
+    }),
     body: JSON.stringify({ message, conversationId, documentId, model, enableWebSearch }),
   });
 
@@ -220,7 +230,9 @@ export async function getModels() {
 export async function getConversations(limit: number = 50): Promise<any[]> {
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations?limit=${limit}`);
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations?limit=${limit}`, {
+      headers: getHeaders(),
+    });
     if (!response.ok) {
       const text = await response.text().catch(() => response.statusText);
       throw new Error(
@@ -247,7 +259,9 @@ export async function getConversationMessages(conversationId: string): Promise<a
 
   try {
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`);
+    const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
+      headers: getHeaders(),
+    });
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Conversation not found');
@@ -316,7 +330,7 @@ export async function deepResearch(
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
   const res = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ query, model, maxIterations }),
     signal,
   });
@@ -348,7 +362,7 @@ export function deepResearchStream(
     try {
       const response = await fetch(`${API_BASE_URL}/api/tools/web-search/deep-research/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ query, model, maxIterations }),
         signal: controller.signal,
       });
@@ -411,6 +425,7 @@ export async function deleteConversation(conversationId: string): Promise<void> 
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
       method: 'DELETE',
+      headers: getHeaders(),
     });
 
     if (!response.ok) {
@@ -443,9 +458,9 @@ export async function updateConversation(
     const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
     const response = await fetch(`${API_BASE_URL}/api/v1/chat/conversations/${conversationId}`, {
       method: 'PATCH',
-      headers: {
+      headers: getHeaders({
         'Content-Type': 'application/json',
-      },
+      }),
       body: JSON.stringify(updates),
     });
 
@@ -480,6 +495,7 @@ export async function exportConversation(conversationId: string): Promise<any> {
       `${API_BASE_URL}/api/v1/chat/conversations/${conversationId}/export`,
       {
         method: 'POST',
+        headers: getHeaders(),
       },
     );
 

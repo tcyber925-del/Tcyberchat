@@ -153,6 +153,7 @@ class DocumentService:
         file_content: str,
         status: str = "processing",
         mime_type: str = None,
+        user_id: str = None,
     ) -> Document:
         """Create a new document, save its content, and create a database record."""
         # For simplicity, let's save the content to a temporary file
@@ -182,6 +183,8 @@ class DocumentService:
             content=file_content,
             status=status,
         )
+        if user_id:
+            document.user_id = user_id
 
         self.db.add(document)
         self.db.commit()
@@ -190,7 +193,7 @@ class DocumentService:
         return document
 
     def create_document_record(
-        self, filename: str, file_path: str, size: int, mime_type: str
+        self, filename: str, file_path: str, size: int, mime_type: str, user_id: str = None
     ) -> Document:
         """Create database record for uploaded document"""
         document = Document(
@@ -200,6 +203,8 @@ class DocumentService:
             mime_type=mime_type,
             status="processing",
         )
+        if user_id:
+            document.user_id = user_id
 
         self.db.add(document)
         self.db.commit()
@@ -207,26 +212,35 @@ class DocumentService:
 
         return document
 
-    def get_document(self, document_id: str) -> Document | None:
-        """Get document by ID"""
+    def get_document(self, document_id: str, user_id: str | None = None) -> Document | None:
+        """Get document by ID with optional user_id check"""
         try:
             doc_uuid = UUID(document_id)
         except ValueError:
             return None
-        # Ensure we return ORM instance (avoid returning Column proxies)
-        return self.db.query(Document).filter(Document.id == doc_uuid).first()
+        
+        query = self.db.query(Document).filter(Document.id == doc_uuid)
+        if user_id:
+            query = query.filter(Document.user_id == user_id)
+            
+        return query.first()
 
-    def get_all_documents(self) -> list[Document]:
-        """Get all documents"""
-        return self.db.query(Document).order_by(Document.uploaded_at.desc()).all()
+    def get_all_documents(self, user_id: str | None = None) -> list[Document]:
+        """Get all documents with optional user_id check"""
+        query = self.db.query(Document)
+        if user_id:
+            query = query.filter(Document.user_id == user_id)
+        return query.order_by(Document.uploaded_at.desc()).all()
 
     def get_documents(
-        self, status: str | None = None, limit: int = 50
+        self, status: str | None = None, limit: int = 50, user_id: str | None = None
     ) -> list[Document]:
-        """Get documents with optional status filter"""
+        """Get documents with optional status and user_id filter"""
         query = self.db.query(Document)
         if status:
             query = query.filter(Document.status == status)
+        if user_id:
+            query = query.filter(Document.user_id == user_id)
         return query.order_by(Document.uploaded_at.desc()).limit(limit).all()
 
     def update_document_status(self, document_id: str, status: str) -> Document | None:

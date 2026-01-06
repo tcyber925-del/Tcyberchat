@@ -40,7 +40,7 @@ COPY requirements.txt requirements.docker.txt ./
 # otherwise fall back to the full `requirements.txt`.
 # Use uv for significantly faster installation
 ENV UV_SYSTEM_PYTHON=1
-ENV UV_HTTP_TIMEOUT=120
+ENV UV_HTTP_TIMEOUT=300
 RUN if [ -s requirements.docker.txt ]; then \
     uv pip install --no-cache-dir -r requirements.docker.txt ; \
     else \

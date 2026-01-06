@@ -29,6 +29,8 @@ try:
     from src.api.web_tools import router as web_tools_router
     from src.api.integrations_mcp import router as integrations_mcp_router
     from src.api.admin_vectorstore import router as admin_vectorstore_router
+    from src.auth.routes import router as auth_router
+    from src.api.usage import router as usage_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -51,6 +53,8 @@ except ImportError:
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
     from src.api.integrations_mcp import router as integrations_mcp_router
+    from src.auth.routes import router as auth_router
+    from src.api.usage import router as usage_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -337,6 +341,8 @@ app.include_router(render_content_router, prefix="/api")
 app.include_router(web_tools_router, prefix="/api")
 app.include_router(integrations_mcp_router, prefix="/api")
 app.include_router(admin_vectorstore_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+app.include_router(usage_router, prefix="/api")
 # Metrics router
 try:
     from src.api.metrics import router as metrics_router

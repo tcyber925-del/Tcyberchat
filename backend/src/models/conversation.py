@@ -33,6 +33,13 @@ class Conversation(Base):
     # Retention/policy string (simple representation)
     retention_policy = Column(String(100), nullable=True)
 
+    # User association
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    
+    # Guest association
+    session_id = Column(String(36), index=True, nullable=True)  # For guest sessions
+    is_guest = Column(Boolean, default=False, nullable=False)
+
     # Optional document association for document-specific chats
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
 

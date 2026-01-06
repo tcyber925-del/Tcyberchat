@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/lib/context/theme-context';
 import { SettingsProvider } from '@/lib/context/settings-context';
 import { ToastProvider } from '@/lib/context/toast-context';
 import { ArtifactProvider } from '@/lib/context/artifact-context';
+import { AuthProvider } from '@/context/auth-context';
 
 // const geistSans = Geist({
 //   variable: '--font-geist-sans',
@@ -46,15 +47,17 @@ export default function RootLayout({
         className={`antialiased min-h-screen flex flex-col`}
       >
         <SettingsProvider>
-          <ThemeProvider>
-            <ToastProvider>
-              <ChatProvider>
-                <ArtifactProvider>
-                  {children}
-                </ArtifactProvider>
-              </ChatProvider>
-            </ToastProvider>
-          </ThemeProvider>
+          <AuthProvider>
+            <ThemeProvider>
+              <ToastProvider>
+                <ChatProvider>
+                  <ArtifactProvider>
+                    {children}
+                  </ArtifactProvider>
+                </ChatProvider>
+              </ToastProvider>
+            </ThemeProvider>
+          </AuthProvider>
         </SettingsProvider>
       </body>
     </html>
