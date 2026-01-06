@@ -81,19 +81,19 @@ jobs:
         with:
           version: 8
           run_install: false
-      - name: Get pnpm store directory
+      - name: Get pnpm store directory (lint)
         id: pnpm-cache-lint
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-      - name: Cache pnpm store
+      - name: Cache pnpm store (lint)
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-cache-lint.outputs.STORE_PATH }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
-      - name: Install deps
+      - name: Install deps (lint)
         run: pnpm install --frozen-lockfile=false
       - name: Lint (frontend)
         run: pnpm run lint
@@ -138,12 +138,12 @@ jobs:
         with:
           version: 8
           run_install: false
-      - name: Get pnpm store directory
+      - name: Get pnpm store directory (tests)
         id: pnpm-cache
         shell: bash
         run: |
           echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-      - name: Cache pnpm store
+      - name: Cache pnpm store (tests)
         uses: actions/cache@v4
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -157,75 +157,22 @@ jobs:
           CI: 'true'
         run: pnpm test -- --ci --watchAll=false
 
-  backend-unit-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - *checkout
-      - *setup-python
-      - *cache-pip
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Run unit tests
-        run: |
-          mkdir -p reports
-          pytest tests/unit -q --junitxml=reports/unit-junit.xml
-      - name: Upload unit test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-unit-test-report
-          path: backend/reports/unit-junit.xml
+  # Call the reusable backend workflow for tests (no integration)
+  backend-tests:
+    uses: ./.github/workflows/backend-ci.yml
+    needs:
+      - backend-lint
+      - mypy-typecheck
+    with:
+      run_integration: '0'
 
+  # Conditionally call the reusable backend workflow to run integration tests
   backend-integration-tests:
+    needs: backend-tests
     if: >
       github.event.inputs.run_integration == '1' ||
       github.ref_name == 'sync/full-workspace-2025-10-26' ||
       (github.event_name == 'pull_request' && github.base_ref == 'sync/full-workspace-2025-10-26')
-    runs-on: ubuntu-latest
-    needs: backend-unit-tests
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - *checkout
-      - *setup-python
-      - *cache-pip
-      - name: Install integration dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      - name: Seed ChromaDB
-        run: |
-          nohup python -u scripts/seed_chroma.py &
-          sleep 1
-      - name: Start backend server
-        env:
-          RUN_INTEGRATION_TESTS: '1'
-        run: |
-          nohup python -m uvicorn main:app --host 127.0.0.1 --port 8000 &
-          sleep 6
-      - name: Run integration tests
-        env:
-          RUN_INTEGRATION_TESTS: '1'
-        run: |
-          mkdir -p reports
-          pytest tests/integration -q --junitxml=reports/integration-junit.xml
-      - name: Upload integration test report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-integration-test-report
-          path: backend/reports/integration-junit.xml
-      - name: Upload backend logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-logs
-          path: |
-            backend/logs/**
-            backend/.venv/**/pip-log.txt
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      run_integration: '1'
