@@ -41,6 +41,12 @@ Rate limits / circuit breaker (env):
 - `MCP_CB_THRESHOLD` (default 3), `MCP_CB_COOLDOWN` (default 60)
 - `MCP_DOC_TTL` (default 86400 seconds)
 
+Security & Reliability (env):
+- `MCP_STDIO_ALLOWLIST`: A comma-separated list of allowed commands for Stdio transport (e.g., `python,node,uv`). Set to `*` to allow all (not recommended for production). If not set, all commands are allowed for backward compatibility.
+- `MCP_STDIO_START_TIMEOUT`: Timeout in seconds for local Stdio servers to start (default 30s).
+- `MCP_STDIO_WIRE_LOG`: Set to `1` to log raw wire traffic for Stdio connections to `backend/logs/`.
+- Connection Timeouts: Remote connections (SSE/WSS) now strictly honor timeouts (default 60s for SSE, 30s for WSS) and provide detailed error traces in the UI.
+
 ## API
 
 - `GET /api/integrations/mcp/servers` — list configured servers and discovery state

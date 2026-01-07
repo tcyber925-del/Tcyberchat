@@ -11,8 +11,112 @@ import os
 import time
 import subprocess
 import threading
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+class _StdioMonkeyPatch:
+    def __init__(self):
+        self.logs_dir = os.path.join(os.getcwd(), 'logs')
+        try:
+            os.makedirs(self.logs_dir, exist_ok=True)
+        except Exception:
+            pass
+        ts = int(time.time())
+        self.diag_log = os.path.join(self.logs_dir, f"mcp_stdio_diag_{ts}.log")
+        self.child_log = os.path.join(self.logs_dir, f"mcp_stdio_child_{ts}.log")
+        
+        self.orig_create = asyncio.create_subprocess_exec
+        self.orig_subproc_create = getattr(asyncio.subprocess, 'create_subprocess_exec', None)
+        self.orig_popen = subprocess.Popen
+
+    def __enter__(self):
+        asyncio.create_subprocess_exec = self._wrapped_create_subprocess_exec
+        if self.orig_subproc_create:
+            asyncio.subprocess.create_subprocess_exec = self._wrapped_create_subprocess_exec
+        subprocess.Popen = self._wrapped_popen
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        asyncio.create_subprocess_exec = self.orig_create
+        if self.orig_subproc_create:
+            asyncio.subprocess.create_subprocess_exec = self.orig_subproc_create
+        subprocess.Popen = self.orig_popen
+
+    async def _wrapped_create_subprocess_exec(self, *p, **kw):
+        kw['stdout'] = asyncio.subprocess.PIPE
+        kw['stderr'] = asyncio.subprocess.PIPE
+        try:
+            with open(self.diag_log, 'a', encoding='utf-8') as f:
+                try:
+                    f.write(f"PROC_ATTEMPT args={p} kw={{{', '.join([f'{k}={v}' for k,v in kw.items()])}}}\n")
+                except Exception:
+                    f.write("PROC_ATTEMPT args=...\n")
+                f.flush()
+        except Exception:
+            pass
+
+        try:
+            proc = await self.orig_create(*p, **kw)
+        except Exception as e:
+            try:
+                with open(self.diag_log, 'a', encoding='utf-8') as f:
+                    f.write(f"PROC_CREATE_FAILED: {repr(e)}\n")
+                    f.flush()
+            except Exception:
+                pass
+            raise
+            
+        try:
+            with open(self.diag_log, 'a', encoding='utf-8') as f:
+                f.write(f"PROC_START pid={getattr(proc, 'pid', None)} args={p} kw={{{', '.join([f'{k}={v}' for k,v in kw.items()])}}}\n")
+                f.flush()
+        except Exception:
+            pass
+
+        async def _wait_and_log(pobj, path):
+            try:
+                code = await pobj.wait()
+                with open(path, 'a', encoding='utf-8') as f:
+                    f.write(f"PROC_EXIT pid={getattr(pobj, 'pid', None)} code={code}\n")
+            except Exception:
+                pass
+
+        try:
+            asyncio.create_task(_wait_and_log(proc, self.diag_log))
+        except Exception:
+            pass
+
+        return proc
+
+    def _wrapped_popen(self, *popen_args, **popen_kwargs):
+        popen_kwargs.setdefault('stdout', subprocess.PIPE)
+        popen_kwargs.setdefault('stderr', subprocess.PIPE)
+        proc = self.orig_popen(*popen_args, **popen_kwargs)
+
+        def _drain_stream(stream, path):
+            try:
+                with open(path, 'ab') as f:
+                    while True:
+                        data = stream.read(1024)
+                        if not data:
+                            break
+                        f.write(data)
+                        f.flush()
+            except Exception:
+                pass
+
+        try:
+            if proc.stdout is not None:
+                t = threading.Thread(target=_drain_stream, args=(proc.stdout, self.child_log), daemon=True)
+                t.start()
+            if proc.stderr is not None:
+                t2 = threading.Thread(target=_drain_stream, args=(proc.stderr, self.child_log), daemon=True)
+                t2.start()
+        except Exception:
+            pass
+        return proc
 
 
 class StdioMcpConnection:
@@ -37,39 +141,22 @@ class StdioMcpConnection:
                 import json
                 import sys
 
-                # Find backend dir by walking upward until we hit a folder
-                # named 'backend'. This mirrors earlier backend discovery.
-                backend_dir = None
-                try:
-                    cur = os.path.abspath(__file__)
-                    cur_dir = os.path.dirname(cur)
-                    while True:
-                        if os.path.basename(cur_dir) == 'backend':
-                            backend_dir = cur_dir
-                            break
-                        parent = os.path.dirname(cur_dir)
-                        if parent == cur_dir or not parent:
-                            break
-                        cur_dir = parent
-                except Exception:
-                    backend_dir = None
-                if not backend_dir:
-                    backend_dir = os.getcwd()
-
-                runner_script = os.path.join(backend_dir, 'scripts', 'mcp_stdio_runner.py')
+                # Resolve relative to this file
+                backend_dir = Path(__file__).resolve().parents[4]
+                runner_script = backend_dir / 'scripts' / 'mcp_stdio_runner.py'
 
                 payload = {
                     'command': self._command,
                     'args': self._args or [],
                     'env': self._env or {},
-                    'cwd': backend_dir,
+                    'cwd': str(backend_dir),
                     'timeout': int(os.environ.get('MCP_STDIO_START_TIMEOUT', '60')),
                     'attempts': int(os.environ.get('MCP_STDIO_RUNNER_ATTEMPTS', '3')),
                 }
 
                 def _run_runner():
                     try:
-                        p = subprocess.run([sys.executable, runner_script], input=json.dumps(payload), text=True, capture_output=True)
+                        p = subprocess.run([sys.executable, str(runner_script)], input=json.dumps(payload), text=True, capture_output=True)
                         out = p.stdout.strip()
                         if not out:
                             raise RuntimeError(f"Runner produced no output, rc={p.returncode}, err={p.stderr}")
@@ -103,122 +190,7 @@ class StdioMcpConnection:
             # To aid debugging when the SDK spawns the child process via
             # asyncio.create_subprocess_exec, temporarily monkey-patch that
             # function so we can capture the child's stdout/stderr to a file.
-            orig_create = asyncio.create_subprocess_exec
-            orig_subproc_create = None
-            if hasattr(asyncio, 'subprocess') and hasattr(asyncio.subprocess, 'create_subprocess_exec'):
-                orig_subproc_create = asyncio.subprocess.create_subprocess_exec
-            diag_log = None
-            try:
-                # Ensure logs directory exists and create two files:
-                # - diag_log: general spawn/diagnostic entries (mcp_stdio_diag_<ts>.log)
-                # - child_log: captured child stdout/stderr (mcp_stdio_child_<ts>.log)
-                logs_dir = os.path.join(os.getcwd(), 'logs')
-                try:
-                    os.makedirs(logs_dir, exist_ok=True)
-                except Exception:
-                    pass
-                diag_log = os.path.join(logs_dir, f"mcp_stdio_diag_{int(time.time())}.log")
-                child_log = os.path.join(logs_dir, f"mcp_stdio_child_{int(time.time())}.log")
-
-                async def _wrapped_create_subprocess_exec(*p, **kw):
-                    # Force pipes so we can capture diagnostic output. The SDK
-                    # sometimes passes explicit stdout/stderr values (eg
-                    # sys.stderr) which prevents setdefault from taking effect.
-                    # For reliable diagnostics we override and force PIPEs here
-                    # (this is only for diagnostics; we avoid draining these
-                    # streams concurrently to prevent read() races with the
-                    # SDK's anyio readers).
-                    kw['stdout'] = asyncio.subprocess.PIPE
-                    kw['stderr'] = asyncio.subprocess.PIPE
-                    # Log the subprocess spawn attempt (args/kw) even if
-                    # creation fails or is cancelled, so we can debug
-                    # platform-specific spawn failures.
-                    try:
-                        with open(diag_log, 'a', encoding='utf-8') as f:
-                            try:
-                                f.write(f"PROC_ATTEMPT args={p} kw={{{', '.join([f'{k}={v}' for k,v in kw.items()])}}}\n")
-                            except Exception:
-                                f.write("PROC_ATTEMPT args=...\n")
-                            f.flush()
-                    except Exception:
-                        pass
-
-                    try:
-                        proc = await orig_create(*p, **kw)
-                    except Exception as e:
-                        try:
-                            with open(diag_log, 'a', encoding='utf-8') as f:
-                                f.write(f"PROC_CREATE_FAILED: {repr(e)}\n")
-                                f.flush()
-                        except Exception:
-                            pass
-                        raise
-                    # Log the spawned subprocess pid and args to the diag log
-                    try:
-                        with open(diag_log, 'a', encoding='utf-8') as f:
-                            f.write(f"PROC_START pid={getattr(proc, 'pid', None)} args={p} kw={{{', '.join([f'{k}={v}' for k,v in kw.items()])}}}\n")
-                            f.flush()
-                    except Exception:
-                        pass
-
-                    # Monitor subprocess exit in background (non-draining)
-                    async def _wait_and_log(pobj, path):
-                        try:
-                            code = await pobj.wait()
-                            with open(path, 'a', encoding='utf-8') as f:
-                                f.write(f"PROC_EXIT pid={getattr(pobj, 'pid', None)} code={code}\n")
-                        except Exception:
-                            pass
-
-                    try:
-                        asyncio.create_task(_wait_and_log(proc, diag_log))
-                    except Exception:
-                        pass
-
-                    return proc
-
-                asyncio.create_subprocess_exec = _wrapped_create_subprocess_exec
-                try:
-                    if orig_subproc_create is not None:
-                        asyncio.subprocess.create_subprocess_exec = _wrapped_create_subprocess_exec
-                except Exception:
-                    pass
-                # Also monkey-patch subprocess.Popen to capture outputs if the
-                # SDK uses synchronous spawn. This wrapper will pipe stdout/stderr
-                # to the same diag_log file.
-                orig_popen = subprocess.Popen
-
-                def _wrapped_popen(*popen_args, **popen_kwargs):
-                    popen_kwargs.setdefault('stdout', subprocess.PIPE)
-                    popen_kwargs.setdefault('stderr', subprocess.PIPE)
-                    proc = orig_popen(*popen_args, **popen_kwargs)
-
-                    def _drain_stream(stream, path):
-                        try:
-                            with open(path, 'ab') as f:
-                                while True:
-                                    data = stream.read(1024)
-                                    if not data:
-                                        break
-                                    f.write(data)
-                                    f.flush()
-                        except Exception:
-                            pass
-
-                    try:
-                        # Drain child stdout/stderr into dedicated child_log
-                        if proc.stdout is not None:
-                            t = threading.Thread(target=_drain_stream, args=(proc.stdout, child_log), daemon=True)
-                            t.start()
-                        if proc.stderr is not None:
-                            t2 = threading.Thread(target=_drain_stream, args=(proc.stderr, child_log), daemon=True)
-                            t2.start()
-                    except Exception:
-                        pass
-                    return proc
-
-                subprocess.Popen = _wrapped_popen
-
+            with _StdioMonkeyPatch() as patcher:
                 # Normalize args to avoid duplicated `backend/backend` paths.
                 # Many test helpers pass paths like `backend/scripts/...` which
                 # when combined with an explicit `backend` cwd can produce
@@ -265,32 +237,12 @@ class StdioMcpConnection:
                         proxy_port = listener.getsockname()[1]
 
                         # Compute the absolute `backend` directory based on this
-                        # module's file location. This is more robust than relying
-                        # on process cwd, and avoids duplicated `.../backend/backend`
-                        # paths introduced by various start methods.
-                        backend_dir = None
-                        try:
-                            # Walk upward from this file to find a directory
-                            # named 'backend' and use its absolute path. This
-                            # is robust on Windows and avoids mixing drive
-                            # letters or path separator reconstruction issues.
-                            cur = os.path.abspath(__file__)
-                            cur_dir = os.path.dirname(cur)
-                            while True:
-                                if os.path.basename(cur_dir) == 'backend':
-                                    backend_dir = cur_dir
-                                    break
-                                parent = os.path.dirname(cur_dir)
-                                if parent == cur_dir or not parent:
-                                    break
-                                cur_dir = parent
-                        except Exception:
-                            backend_dir = None
-                        if not backend_dir:
-                            backend_dir = orig_cwd
+                        # module's file location.
+                        backend_dir_path = Path(__file__).resolve().parents[4]
+                        backend_dir = str(backend_dir_path)
 
                         # Build wrapper server params (SDK will spawn this wrapper)
-                        wrapper_script = os.path.join(backend_dir, 'scripts', 'mcp_stdio_wrapper.py')
+                        wrapper_script = str(backend_dir_path / 'scripts' / 'mcp_stdio_wrapper.py')
                         try:
                             logger.info("Computed backend_dir=%s wrapper_script=%s orig_cwd=%s", backend_dir, wrapper_script, orig_cwd)
                         except Exception:
@@ -310,7 +262,7 @@ class StdioMcpConnection:
                         # asyncio and anyio accept calls in the same event loop.
                         # Write a guaranteed pre-spawn diag entry for the wrapper
                         try:
-                            with open(diag_log, 'a', encoding='utf-8') as f:
+                            with open(patcher.diag_log, 'a', encoding='utf-8') as f:
                                 f.write("PRE_SPAWN wrapper command=%s args=%s cwd=%s env_keys=%s backend_dir=%s proxy_port=%s\n" % (
                                     wrapper_cmd, wrapper_args, orig_cwd, list(wrapper_env.keys()), backend_dir, proxy_port
                                 ))
@@ -381,26 +333,28 @@ class StdioMcpConnection:
                         # Spawn the real child process whose stdio we will bridge
                         # Log child pre-spawn details so we have exact args/cwd/env
                         try:
-                            with open(diag_log, 'a', encoding='utf-8') as f:
+                            with open(patcher.diag_log, 'a', encoding='utf-8') as f:
                                 f.write("PRE_SPAWN child command=%s args=%s cwd=%s backend_dir=%s\n" % (
                                     self._command, final_args, orig_cwd, backend_dir
                                 ))
                                 f.flush()
                         except Exception:
                             pass
+                        
+                        # Use ORIG POPEN to avoid double-draining by the patcher
                         try:
-                            child_proc = subprocess.Popen([self._command] + final_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=backend_dir)
+                            child_proc = patcher.orig_popen([self._command] + final_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=backend_dir)
                         except Exception:
-                            # fallback: spawn with original normalized args
+                            # fallback
                             try:
-                                with open(diag_log, 'a', encoding='utf-8') as f:
+                                with open(patcher.diag_log, 'a', encoding='utf-8') as f:
                                     f.write("PRE_SPAWN child FALLBACK command=%s args=%s cwd=%s\n" % (
                                         self._command, normalized_args, orig_cwd
                                     ))
                                     f.flush()
                             except Exception:
                                 pass
-                            child_proc = subprocess.Popen([self._command] + normalized_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=backend_dir)
+                            child_proc = patcher.orig_popen([self._command] + normalized_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=backend_dir)
 
                         # Start threads to forward between child pipes and the accepted socket
                         def _pipe_to_sock(src, sock):
@@ -451,7 +405,7 @@ class StdioMcpConnection:
                         try:
                             t_out = threading.Thread(target=_pipe_to_sock, args=(child_proc.stdout, client_sock), daemon=True)
                             t_in = threading.Thread(target=_sock_to_pipe, args=(client_sock, child_proc.stdin), daemon=True)
-                            t_err = threading.Thread(target=_drain_stderr, args=(child_proc.stderr, diag_log), daemon=True)
+                            t_err = threading.Thread(target=_drain_stderr, args=(child_proc.stderr, patcher.diag_log), daemon=True)
                             t_out.start()
                             t_in.start()
                             t_err.start()
@@ -461,7 +415,7 @@ class StdioMcpConnection:
                         # Default flow: let SDK spawn the child on stdio
                         # Write a pre-spawn diag entry for the SDK spawn attempt
                         try:
-                            with open(diag_log, 'a', encoding='utf-8') as f:
+                            with open(patcher.diag_log, 'a', encoding='utf-8') as f:
                                 f.write("PRE_SPAWN sdk_spawn command=%s args=%s cwd=%s env_keys=%s\n" % (
                                     self._command, normalized_args, orig_cwd, list((self._env or {}).keys())
                                 ))
@@ -476,21 +430,7 @@ class StdioMcpConnection:
                             os.chdir(orig_cwd)
                         except Exception:
                             pass
-            finally:
-                # restore original functions asap; keep the background tasks
-                try:
-                    asyncio.create_subprocess_exec = orig_create
-                except Exception:
-                    pass
-                try:
-                    if orig_subproc_create is not None:
-                        asyncio.subprocess.create_subprocess_exec = orig_subproc_create
-                except Exception:
-                    pass
-                try:
-                    subprocess.Popen = orig_popen
-                except Exception:
-                    pass
+                
                 # Optionally wrap read/write streams to log wire traffic for
                 # debugging. Enable by setting environment variable
                 # `MCP_STDIO_WIRE_LOG=1` when running tests.

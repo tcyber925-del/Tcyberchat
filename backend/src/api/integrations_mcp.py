@@ -42,6 +42,24 @@ router = APIRouter(prefix="/integrations/mcp", tags=["integrations-mcp"])
 # Simple in-memory store for OAuth tokens (server_id -> token)
 _OAUTH_TOKENS: Dict[str, Dict[str, str]] = {}
 
+from pathlib import Path
+
+def _validate_stdio_command(command: str) -> bool:
+    allowlist = os.getenv("MCP_STDIO_ALLOWLIST")
+    if not allowlist:
+        return True
+    
+    if allowlist.strip() == "*":
+        return True
+        
+    allowed = [c.strip() for c in allowlist.split(",")]
+    return command in allowed
+
+def _get_runner_script_path() -> Path:
+    # Resolve relative to this file: backend/src/api/integrations_mcp.py
+    # We want: backend/scripts/mcp_stdio_runner.py
+    return Path(__file__).resolve().parents[2] / "scripts" / "mcp_stdio_runner.py"
+
 def _is_admin(headers: Dict[str, str]) -> bool:
     # Simple admin protection: require header X-Admin-Token matching env ADMIN_TOKEN
     admin_token = os.getenv("ADMIN_TOKEN")
@@ -152,14 +170,18 @@ async def test_connection(body: Dict[str, Any] = Body(...)):
             command = body.get("command")
             if not command:
                 return {"ok": False, "error": "Missing command for stdio"}
+            
+            if not _validate_stdio_command(command):
+                return {"ok": False, "error": f"Command '{command}' is not in MCP_STDIO_ALLOWLIST"}
+
             # Use an external runner process to perform stdio startup and
             # list tools. Running the MCP stdio SDK in a separate process
             # avoids mixing anyio/asyncio taskgroups with the FastAPI event
             # loop and prevents the cancel-scope errors observed when the
             # SDK runs inside the webserver process.
-            runner_script = os.path.join(os.getcwd(), 'scripts', 'mcp_stdio_runner.py')
-            if not os.path.exists(runner_script):
-                return {"ok": False, "error": f"runner script not found: {runner_script}"}
+            runner_script_path = _get_runner_script_path()
+            if not runner_script_path.exists():
+                return {"ok": False, "error": f"runner script not found: {runner_script_path}"}
             payload = {
                 "command": command,
                 "args": body.get("args") or [],
@@ -168,7 +190,7 @@ async def test_connection(body: Dict[str, Any] = Body(...)):
             }
             try:
                 # Invoke the runner and capture JSON output
-                proc = subprocess.run([sys.executable, runner_script], input=json.dumps(payload).encode('utf-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=_STDIO_START_TIMEOUT)
+                proc = subprocess.run([sys.executable, str(runner_script_path)], input=json.dumps(payload).encode('utf-8'), stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=_STDIO_START_TIMEOUT)
                 if proc.returncode != 0:
                     # include stderr for diagnostics
                     stderr = proc.stderr.decode('utf-8', errors='replace')
@@ -335,19 +357,9 @@ async def init_model(background_tasks: BackgroundTasks, body: Dict[str, Any] = B
             _metrics["init_failed_count"] = _metrics.get("init_failed_count", 0) + 1
             logger.exception("Background model init failed: %s", e)
 
-    # Schedule the async init task in the current event loop
-    try:
-        background_tasks.add_task(asyncio.create_task, _init_task_async())
-    except Exception:
-        # Fallback: run synchronous wrapper if scheduling fails
-        def _init_task():
-            try:
-                import asyncio as _a
-                _a.run(_init_task_async())
-            except Exception:
-                logger.exception("Fallback background init failed")
-
-        background_tasks.add_task(_init_task)
+    # Schedule the async init task
+    background_tasks.add_task(_init_task_async)
+    
     logger.info("Background model init started for model=%s", model)
     return {"ok": True, "started": True}
 
