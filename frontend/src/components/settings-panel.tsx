@@ -53,6 +53,7 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
   const [testFetchTool, setTestFetchTool] = useState<string>('http.get');
   const [testFetchTags, setTestFetchTags] = useState<string>('');
   const [testFetchResult, setTestFetchResult] = useState<{ snippet?: string; error?: string; structuredContent?: any } | null>(null);
+  const [testConnLog, setTestConnLog] = useState<string | null>(null);
 
   const isSettingsDirty = useMemo(
     () => JSON.stringify(localSettings) !== JSON.stringify(settings),
@@ -913,16 +914,28 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 type="button"
                 onClick={async () => {
                   setTestConnLoading(true);
+                  setTestConnLog(null);
                   try {
                     const res = await testConnection(newServer);
                     if (res.ok) {
                       const toolNames = res.tools?.map((t: any) => t.name).join(', ') || 'none';
                       showToast({ variant: 'success', title: 'Connection Successful', description: `Found tools: ${toolNames}` });
+                      if ((res as any).log_tail) {
+                          setTestConnLog((res as any).log_tail);
+                      }
                     } else {
                       showToast({ variant: 'error', title: 'Connection Failed', description: res.error });
+                      const details = [
+                          res.error,
+                          (res as any).stderr,
+                          (res as any).error_trace,
+                          (res as any).log_tail
+                      ].filter(Boolean).join('\n\n---\n\n');
+                      setTestConnLog(details);
                     }
                   } catch (e: any) {
                     showToast({ variant: 'error', title: 'Connection Error', description: e.message });
+                    setTestConnLog(e.stack || e.message);
                   } finally {
                     setTestConnLoading(false);
                   }
@@ -933,6 +946,12 @@ const SettingsPanelInner: React.FC<SettingsPanelProps> = ({ onClose }) => {
                 {testConnLoading ? 'Testing...' : 'Test Connection'}
               </button>
             </div>
+            {testConnLog && (
+                <div className="mt-2 p-2 bg-muted/50 rounded text-xs border border-muted">
+                    <p className="font-semibold mb-1">Connection Log / Error Details:</p>
+                    <pre className="whitespace-pre-wrap overflow-auto max-h-40">{testConnLog}</pre>
+                </div>
+            )}
           </div>
 
           {/* Test Fetch via MCP */}

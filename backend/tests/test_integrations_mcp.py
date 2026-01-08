@@ -10,7 +10,7 @@ def setup_dummy(monkeypatch, models=None):
         def __init__(self, model_name=None):
             self.model_name = model_name
 
-        def get_available_models(self):
+        async def get_available_models(self):
             return models if models is not None else [{"name": "dummy-model", "provider": "none", "size": 0, "modified_at": "now"}]
 
     # Patch the module path used by the running app (src.api.integrations_mcp)
@@ -18,7 +18,10 @@ def setup_dummy(monkeypatch, models=None):
         m = importlib.import_module("src.api.integrations_mcp")
     except Exception:
         m = importlib.import_module("backend.src.api.integrations_mcp")
-    monkeypatch.setattr(m, "get_ai_service", lambda model=None: DummyService(model))
+    
+    async def mock_get_ai_service(model=None):
+        return DummyService(model)
+    monkeypatch.setattr(m, "get_ai_service", mock_get_ai_service)
     return m
 
 

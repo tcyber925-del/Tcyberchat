@@ -4,12 +4,17 @@ WebSocket MCP connection using the official MCP SDK.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+import asyncio
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 
 class WsMcpConnection:
     """WebSocket-based MCP client connection."""
 
-    def __init__(self, url: str, headers: Optional[Dict[str, str]] = None, connect_timeout: float = 3.0) -> None:
+    def __init__(self, url: str, headers: Optional[Dict[str, str]] = None, connect_timeout: float = 30.0) -> None:
         self._url = url
         self._headers = headers or {}
         self._connect_timeout = connect_timeout
@@ -27,16 +32,27 @@ class WsMcpConnection:
             except Exception:
                 from ..clients.websocket_client import websocket_client
 
+            logger.info(f"Connecting to WS MCP server: {self._url} (timeout={self._connect_timeout}s)")
             # Create websocket transport and session
             self._context = websocket_client(self._url, headers=self._headers or {})
-            read, write = await self._context.__aenter__()
+            
+            read, write = await asyncio.wait_for(self._context.__aenter__(), timeout=self._connect_timeout)
+            
             self._session = ClientSession(read, write)
-            await self._session.initialize()
+            await asyncio.wait_for(self._session.initialize(), timeout=self._connect_timeout)
             self._client = self._session
+            logger.info(f"Connected to WS MCP server: {self._url}")
+        except asyncio.TimeoutError:
+            self._session = None
+            self._client = None
+            logger.error(f"Timeout connecting to WS MCP server: {self._url}")
+            raise RuntimeError(f"Timeout connecting to {self._url} after {self._connect_timeout}s")
         except Exception as e:
             # Failed to connect or SDK not available
             self._session = None
             self._client = None
+            logger.error(f"Failed to start WS MCP connection to {self._url}: {e}")
+            logger.debug(traceback.format_exc())
             raise RuntimeError(f"Failed to start WS MCP connection: {e}") from e
 
     async def stop(self) -> None:
