@@ -23,7 +23,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast package management via pip
-RUN pip install --default-timeout=1000 uv
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_REQUIRE_HASHES=0
+RUN pip install --default-timeout=1000 uv==0.10.9
 
 WORKDIR /app
 

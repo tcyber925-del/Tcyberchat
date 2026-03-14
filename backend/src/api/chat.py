@@ -813,9 +813,15 @@ async def get_available_models() -> dict:
                 }
             )
 
-        return {
-            "models": formatted_models,
-        }
+        allow_mock_models = os.getenv("ALLOW_MOCK_MODELS", "true").lower() == "true"
+        if not allow_mock_models:
+            formatted_models = [
+                m
+                for m in formatted_models
+                if m.get("provider") != "none" and m.get("name") != "mock-model"
+            ]
+
+        return {"models": formatted_models}
     except Exception as e:
         logger.error(f"Failed to fetch available models: {e}")
         return {"models": [], "error": str(e)}

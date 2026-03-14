@@ -9,6 +9,7 @@ import time
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
+import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -456,6 +457,21 @@ async def health_check():
     db_status = get_database_status()
     is_healthy = db_status["overall_status"] == "healthy"
 
+    ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11501").rstrip("/")
+    ollama_required = os.getenv("OLLAMA_REQUIRED", "false").lower() == "true"
+    ollama_status: dict[str, object] = {"status": "not_checked"}
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(2.0, connect=1.0)) as client:
+            resp = await client.get(f"{ollama_base_url}/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            models = data.get("models", [])
+            ollama_status = {"status": "healthy", "models": len(models)}
+    except Exception as e:
+        ollama_status = {"status": "unreachable", "error": str(e)}
+        if ollama_required:
+            is_healthy = False
+
     return JSONResponse(
         status_code=200 if is_healthy else 503,
         content={
@@ -464,7 +480,7 @@ async def health_check():
             "services": {
                 "database": db_status["sqlalchemy"]["status"],
                 "vector_store": db_status["chromadb"]["status"],
-                "ollama": "not_checked",  # TODO: Add Ollama health check
+                "ollama": ollama_status,
             },
             "database_details": db_status,
         }
@@ -497,11 +513,19 @@ async def get_models():
                 "provider": model.get("provider", "unknown"),
             })
             
+        allow_mock_models = os.getenv("ALLOW_MOCK_MODELS", "true").lower() == "true"
+        if not allow_mock_models:
+            formatted_models = [
+                m
+                for m in formatted_models
+                if m.get("provider") != "none" and m.get("name") != "mock-model"
+            ]
+
         return {"models": formatted_models}
     except Exception as e:
         logger.error(f"Error fetching models: {e}")
-        # Return a minimal set of models on failure
-        return {"models": [{"name": "mock-model", "provider": "none"}], "error": str(e)}
+        # Return empty list on failure for production safety
+        return {"models": [], "error": str(e)}
 
 
 

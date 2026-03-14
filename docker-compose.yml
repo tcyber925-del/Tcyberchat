@@ -81,8 +81,9 @@ services:
       # ALLOWED_ORIGINS is the variable name used in main.py
       - ALLOWED_ORIGINS=http://localhost:8081,http://localhost:8080,http://localhost:3000,http://127.0.0.1:8081,http://127.0.0.1:8080,http://127.0.0.1:3000,http://0.0.0.0:8081,http://0.0.0.0:8080,http://0.0.0.0:3000
       - ALLOW_ORIGIN_REGEX=https?://.*
-      - OLLAMA_BASE_URL=http://host.docker.internal:11501
-      - OLLAMA_BASE_URL=http://host.docker.internal:11501
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_REQUIRED=true
+      - ALLOW_MOCK_MODELS=false
     ports:
       - "8000:8000"
     volumes:
@@ -96,6 +97,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
@@ -107,6 +110,24 @@ services:
       - tcyber_network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+  # ============================================================================
+  # Ollama (Local LLM Server)
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: tcyber_ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: [ "CMD", "ollama", "list" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - tcyber_network
 
   # ============================================================================
   # Redis Cache
@@ -164,4 +185,6 @@ volumes:
   backend_logs:
     driver: local
   postgres_data:
+    driver: local
+  ollama_data:
     driver: local

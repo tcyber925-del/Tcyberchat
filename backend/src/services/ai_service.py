@@ -23,6 +23,10 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _allow_mock_models() -> bool:
+    return os.getenv("ALLOW_MOCK_MODELS", "true").lower() == "true"
+
+
 class AIService:
     """Service for AI model interactions and processing with fallback chain"""
 
@@ -524,7 +528,9 @@ class AIService:
                 available_models.append({"name": str(model_data), "provider": "ollama"})
 
         if not available_models:
-            return [{"name": "mock-model", "provider": "none"}]
+            if _allow_mock_models():
+                return [{"name": "mock-model", "provider": "none"}]
+            return []
 
         return available_models
 
@@ -609,7 +615,11 @@ async def aget_ai_service(model_name: str | None = None) -> AIService:
                     AIService._ollama_client = OllamaClient(base_url=ollama_server_url)
                 await AIService._fetch_ollama_models_if_needed()
                 if AIService._ollama_models:
-                    model_name = AIService._ollama_models[0]
+                    first_ollama = AIService._ollama_models[0]
+                    if isinstance(first_ollama, dict):
+                        model_name = first_ollama.get("name") or "mock-model"
+                    else:
+                        model_name = str(first_ollama)
                 else:
                     model_name = "mock-model"
 
