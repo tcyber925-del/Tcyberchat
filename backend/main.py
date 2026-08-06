@@ -25,6 +25,7 @@ try:
     from src.api.data_management import router as data_management_router
     from src.api.documents import router as documents_router
     from src.api.render_content import router as render_content_router
+    from src.api.ping import router as ping_router
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.web_tools import router as web_tools_router
@@ -352,6 +353,7 @@ app.include_router(usage_router, prefix="/api")
 app.include_router(health_router, prefix="")
 # Simple API version endpoint for automation tooling
 app.include_router(version_router, prefix="")
+app.include_router(ping_router, prefix="")
 # Metrics router
 try:
     from src.api.metrics import router as metrics_router
