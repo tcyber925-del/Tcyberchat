@@ -31,6 +31,7 @@ try:
     from src.api.integrations_mcp import router as integrations_mcp_router
     from src.api.admin_vectorstore import router as admin_vectorstore_router
     from src.api.health import router as health_router
+    from src.api.version import router as version_router
     from src.auth.routes import router as auth_router
     from src.api.usage import router as usage_router
 
@@ -56,6 +57,7 @@ except ImportError:
     from src.api.web_tools import router as web_tools_router
     from src.api.integrations_mcp import router as integrations_mcp_router
     from src.api.health import router as health_router
+    from src.api.version import router as version_router
     from src.auth.routes import router as auth_router
     from src.api.usage import router as usage_router
 
@@ -348,6 +350,8 @@ app.include_router(auth_router, prefix="/api")
 app.include_router(usage_router, prefix="/api")
 # Simple liveness health endpoint (overrides detailed /health defined below)
 app.include_router(health_router, prefix="")
+# Simple API version endpoint for automation tooling
+app.include_router(version_router, prefix="")
 # Metrics router
 try:
     from src.api.metrics import router as metrics_router
