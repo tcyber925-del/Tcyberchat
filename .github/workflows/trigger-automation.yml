@@ -7,6 +7,9 @@ on:
 jobs:
   trigger-automation:
     runs-on: self-hosted
+    permissions:
+      issues: write
+      contents: read
     steps:
       - name: Debug Event
         run: |
@@ -17,6 +20,6 @@ jobs:
           echo "Repo: ${{ github.repository }}"
           
       - name: Comment on Issue
-        run: gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "🤖 **Automation Triggered**\n\nIssue labeled \`ai-ready\`. The AI engineering automation will process this issue via the self-hosted runner.\n\n**Runner:** \`self-hosted\` on \`tcyber-hp-probook-1\`\n**Status:** Queued for execution"
+        run: gh issue comment ${{ github.event.issue.number }} --repo ${{ github.repository }} --body "🤖 **Automation Triggered** Issue labeled \`ai-ready\`. The AI engineering automation will process this issue via the self-hosted runner. **Runner:** \`self-hosted\` on \`tcyber-hp-probook-1\` **Status:** Queued for execution"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
