@@ -19,22 +19,23 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 # Import API routers
 try:
+    from src.api.admin_vectorstore import router as admin_vectorstore_router
     from src.api.analyze_image import router as analyze_image_router
     from src.api.chat import router as chat_router
     from src.api.conversations import router as conversations_router
     from src.api.data_management import router as data_management_router
     from src.api.documents import router as documents_router
-    from src.api.render_content import router as render_content_router
-    from src.api.ping import router as ping_router
-    from src.api.search import router as search_router
-    from src.api.transcribe_audio import router as transcribe_audio_router
-    from src.api.web_tools import router as web_tools_router
-    from src.api.integrations_mcp import router as integrations_mcp_router
-    from src.api.admin_vectorstore import router as admin_vectorstore_router
     from src.api.health import router as health_router
-    from src.api.version import router as version_router
-    from src.auth.routes import router as auth_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
+    from src.api.ping import router as ping_router
+    from src.api.render_content import router as render_content_router
+    from src.api.search import router as search_router
+    from src.api.status import router as status_router
+    from src.api.transcribe_audio import router as transcribe_audio_router
     from src.api.usage import router as usage_router
+    from src.api.version import router as version_router
+    from src.api.web_tools import router as web_tools_router
+    from src.auth.routes import router as auth_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -52,15 +53,15 @@ except ImportError:
     from src.api.conversations import router as conversations_router
     from src.api.data_management import router as data_management_router
     from src.api.documents import router as documents_router
+    from src.api.health import router as health_router
+    from src.api.integrations_mcp import router as integrations_mcp_router
     from src.api.render_content import router as render_content_router
     from src.api.search import router as search_router
     from src.api.transcribe_audio import router as transcribe_audio_router
-    from src.api.web_tools import router as web_tools_router
-    from src.api.integrations_mcp import router as integrations_mcp_router
-    from src.api.health import router as health_router
-    from src.api.version import router as version_router
-    from src.auth.routes import router as auth_router
     from src.api.usage import router as usage_router
+    from src.api.version import router as version_router
+    from src.api.web_tools import router as web_tools_router
+    from src.auth.routes import router as auth_router
 
     # Import database utilities
     from src.database import get_database_status
@@ -281,10 +282,10 @@ async def debug_headers_middleware(request: Request, call_next: Callable) -> Res
     origin = request.headers.get("origin")
     host = request.headers.get("host")
     forwarded_host = request.headers.get("x-forwarded-host")
-    
+
     if origin:
         logger.info(f"CORS Request: method={request.method}, path={request.url.path}, origin={origin}, host={host}, forwarded_host={forwarded_host}")
-    
+
     return await call_next(request)
 
 
@@ -354,6 +355,7 @@ app.include_router(health_router, prefix="")
 # Simple API version endpoint for automation tooling
 app.include_router(version_router, prefix="")
 app.include_router(ping_router, prefix="")
+app.include_router(status_router, prefix="")
 # Metrics router
 try:
     from src.api.metrics import router as metrics_router
@@ -501,12 +503,12 @@ async def health_check():
 async def get_models():
     """Get a list of all available AI models (local and cloud)."""
     import asyncio
-    
+
     try:
         # Add 10-second timeout to prevent hanging
         ai_service = await asyncio.wait_for(get_ai_service(), timeout=10.0)
         models = await asyncio.wait_for(ai_service.get_available_models(), timeout=10.0)
-        
+
         # Consistent formatting
         formatted_models = []
         for model in models:
@@ -522,7 +524,7 @@ async def get_models():
                 "modified_at": model.get("modified_at", ""),
                 "provider": model.get("provider", "unknown"),
             })
-            
+
         allow_mock_models = os.getenv("ALLOW_MOCK_MODELS", "true").lower() == "true"
         if not allow_mock_models:
             formatted_models = [
